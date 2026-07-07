@@ -1,13 +1,3 @@
 [core]
 workspace_base = "/opt/workspace"
 debug = true
-
-[llm]
-model = "groq/openai/gpt-oss-120b"
-base_url = "http://litellm:4000"
-api_key = "sk-rnM85VTgdx454M3lm7MS6A"
-
-[llm]
-model="groq/openai/gpt-oss-120b"
-base_url= "http://api.groq.com/openai/v1"
-api_key= "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"
