@@ -1,0 +1,94 @@
+model_list:
+  # --- CODING ---
+  - model_name: coding
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+    order: 1
+
+  - model_name: coding
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
+    order: 2
+
+  - model_name: coding
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_base: https://github.ai
+      api_key: os.environ/GITHUB_TOKEN
+    order: 3
+
+  - model_name: coding
+    litellm_params:
+      model: openrouter/free
+      api_key: os.environ/OPENROUTER_API_KEY
+    order: 4
+
+  - model_name: coding
+    litellm_params:
+      model: openai/huggingface.co/bartowski/qwen_qwen3-8b-gguf:Q4_K_M                   
+      api_base: http://model-runner:12434/engines/llama.cpp/v1
+      api_key: DUMMY
+    order: 5
+
+  - model_name: coding-local-2
+    litellm_params:
+      model: openai/docker.io/gemma4:E4B
+      api_base: http://model-runner:12434/engines/llama.cpp/v1
+      api_key: dummy
+
+  - model_name: coding-local-2
+    litellm_params:
+      model: openai/huggingface.co/bartowski/deepseek-coder-v2-lite-instruct-gguf:Q4_K_M
+      api_base: http://model-runner:12434/engines/llama.cpp/v1
+      api_key: dummy
+
+  # --- ARCHITECTURE ---
+  - model_name: architecture
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
+    order: 1
+    
+  - model_name: architecture
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.3-70b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+    order: 2
+    
+  - model_name: architecture
+    litellm_params:
+      model: openai/qwen35-a3b
+      api_base: http://model-runner:12434/engines/llama.cpp/v1
+      api_key: dummy
+    order: 3
+
+  # --- UTILITY / FAST ---
+  - model_name: fast
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+    order: 1
+    
+  - model_name: fast
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.3-70b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+    order: 2
+    
+  - model_name: fast
+    litellm_params:
+      model: openai/qwen3-8b
+      api_base: http://model-runner:12434/engines/llama.cpp/v1
+      api_key: dummy
+    order: 3
+
+router_settings:
+  routing_strategy: "simple-shuffle"
+  enable_pre_call_checks: true     
+  num_retries: 5                   
+  disable_mid_stream_continuation: true
+  fallback_on_client_errors: true   
+  cooldown_time: 300                 
+  timeout: 15
