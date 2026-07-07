@@ -3,3 +3,4 @@ dev_controller_config/
 .env
 autogenstudio/
 **/autogenstudio/
+.ai-assistant-infra

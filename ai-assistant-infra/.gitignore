@@ -1,5 +1,4 @@
 dev_controller_config/
 .pnpm-store/
 node_modules/
-.env
 **/autogen_studio
