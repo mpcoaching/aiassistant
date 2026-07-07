@@ -1,0 +1,12 @@
+{
+  "name": "ai-assistant-infra",
+  "version": "1.0.0",
+  "scripts": {
+    "up": "docker compose -f ai-assistant-infra/docker-compose.yml up -d",
+    "down": "docker compose -f ai-assistant-infra/docker-compose.yml down",
+    "logs": "docker compose -f ai-assistant-infra/docker-compose.yml logs -f",
+    "n8n-logs": "docker compose -f ai-assistant-infra/docker-compose.yml logs -f n8n",
+    "restart-n8n": "docker compose -f ai-assistant-infra/docker-compose.yml restart n8n",
+    "status": "docker compose -f ai-assistant-infra/docker-compose.yml ps"
+  }
+}
