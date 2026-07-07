@@ -13,7 +13,7 @@ Constraint: Do not define implementation details (code/libraries). Focus on doma
 
 I would also like you to, where you identify enterprise building blocks, please describe and define them in the /docs/architecture/abb/ folder one file for each.  These are conceptual and business-focused capabilities of the business.
 
-Add a document called called Phase-x-ABBs.md and another called Phase-x-SBBs.md which details how each of the ABBs or SBBs fit together for the given phase, as an overview.  And a Phase-x-BACKLOG.md that details all the backlog items, and where they are in the scheme of being fully architecturally specified, have system designs for each item, or have been coded, and completed, having passed all the tests, and met all the requirements.
+Add documents to the `docs/phases` folder called called Phase-x-ABBs.md and another called Phase-x-SBBs.md which details how each of the ABBs or SBBs fit together for the given phase, as an overview.  And a Phase-x-BACKLOG.md that details all the backlog items, and where they are in the scheme of being fully architecturally specified, have system designs for each item, or have been coded, and completed, having passed all the tests, and met all the requirements.
 
 The actual implementation components then chosen to fulfil these ABBs, each one that you identify, please create a document for each and save them in the /docs/architecture/sbb/ folder. 
 
