@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Aider: Execute Active Prompt File",
+      "type": "shell",
+      "command": "docker compose exec -T aider aider --message \"$(cat ${file})\"",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Aider: Execute Active Workflow File",
+      "type": "shell",
+      "command": "docker compose exec -T aider aider --message \"$(cat ${file})\"",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "commands.commands": [
+    {
+      "command": "aider.runPrompt",
+      "label": "⚡ Aider: Execute Prompt",
+      "icon": "play",
+      "task": "Aider: Execute Active Prompt File",
+      "showInExplorerContextMenu": true,
+      "where": "relative_path =~ /^docs\\/prompts\\/.*\\.md$/"
+    },
+    {
+      "command": "aider.runWorkflow",
+      "label": "⚙️ Aider: Execute Workflow",
+      "icon": "gear",
+      "task": "Aider: Execute Active Workflow File",
+      "showInExplorerContextMenu": true,
+      "where": "relative_path =~ /^docs\\/workflows\\/.*\\.md$/"
+    }
+  ]
+}
