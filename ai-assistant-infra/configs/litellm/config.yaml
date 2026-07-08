@@ -27,7 +27,7 @@ model_list:
 
   - model_name: coding
     litellm_params:
-      model: openai/huggingface.co/bartowski/qwen_qwen3-8b-gguf:Q4_K_M                   
+      model: openai/huggingface.co/qwen/qwen2.5-coder-7b-instruct-gguf:Q4_K_M                 
       api_base: http://model-runner:12434/engines/llama.cpp/v1
       api_key: DUMMY
     order: 5
@@ -90,5 +90,5 @@ router_settings:
   num_retries: 5                   
   disable_mid_stream_continuation: true
   fallback_on_client_errors: true   
-  cooldown_time: 300                 
-  timeout: 15
+  request_timeout: 300       # Maximum time for the entire request
+  stream_timeout: 60
