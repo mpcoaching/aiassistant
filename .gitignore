@@ -4,3 +4,7 @@ dev_controller_config/
 autogenstudio/
 **/autogenstudio/
 .ai-assistant-infra
+**/.cache
+
+# Aider Studio (auto-added)
+REPO_MAP.md

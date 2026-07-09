@@ -1,0 +1,24 @@
+name: architecture.solution.design
+
+description: >
+  Design a complete solution architecture.
+
+kind: skill
+
+role:
+
+  - solution-architect
+  - developer
+
+intent:
+
+  outcome:
+    Produce a technically implementable design.
+
+inputs:
+
+  - architecture-context
+
+outputs:
+
+  - solution-architecture-document

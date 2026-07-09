@@ -1,0 +1,34 @@
+workflow:
+
+name: requirements.analysis.identify-stakeholders
+
+role:
+  requirements_engineer
+
+trigger:
+  manual
+
+inputs:
+
+  - business-vision
+  - solution-intent
+  - existing-documentation
+  - business-context
+
+
+outputs:
+
+  - stakeholder-analysis-document
+
+
+execution:
+
+  - requirements.discovery.extract-stakeholders
+
+  - requirements.analysis.classify-stakeholders
+
+  - requirements.analysis.identify-concerns
+
+  - requirements.documentation.create-stakeholder-document
+
+  - requirements.validation.review-stakeholder-analysis

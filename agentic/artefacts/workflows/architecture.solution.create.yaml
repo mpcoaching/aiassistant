@@ -1,0 +1,35 @@
+name: architecture.solution.create
+
+description: >
+  Creates implementation-ready solution architecture.
+
+kind: workflow
+
+role:
+  - solution-architect
+
+intent:
+  outcome: >
+    Produce architecture documentation
+    that removes implementation ambiguity.
+
+inputs:
+
+  - requirements
+  - enterprise-architecture
+  - ADRs
+
+outputs:
+
+  - solution-architecture
+
+steps:
+
+  - capability:
+      name: context.architecture.collect
+
+  - capability:
+      name: architecture.solution.design
+
+  - capability:
+      name: architecture.solution.validate
