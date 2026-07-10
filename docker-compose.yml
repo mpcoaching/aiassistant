@@ -398,30 +398,24 @@ services:
     depends_on:
       - litellm
 
-  dev-controller:
-    image: lscr.io/linuxserver/code-server:latest
-    user: 1000:1000
-    container_name: dev_controller
+  workspace:
+    image: ubuntu:24.04
+    container_name: dev_workspace
     restart: unless-stopped
-    environment:
-      - PASSWORD=${CODESERVER_PASSWORD}
-      - DEFAULT_WORKSPACE=/workspace
-    expose:
-      - 8443
-    profiles: ["disabled"]
+    security_opt:
+      - label:disable # Absolute requirement for Fedora SELinux safety
     volumes:
-      # Keeps the container's boot-up process happy
-      #- ./workspace:/workspace
-      # This tells Docker: "Take the contents of the ai-assistant folder 
-      # and put them at the root of /workspace"
-      #- C:\Users\marti_ve1yzb6\Documents\code-projects\ai-assistant\workspace\ai-assistant:/workspace
-      - ./workspace:/workspace
-      # The bridge to your actual files
-      - ..:/projects
-      # Keeps your config/extensions
-      - ./dev_controller_config:/config
+      - .:/workspace:cached
+      - ./ai-assistant-infra/configs:/workspace/ai-assistant-infra/configs:cached
+    environment:
+      - LANGFUSE_HOST=http://langfuse:3000
+      - DATABASE_URL=postgres://${POSTGRES_DB_USER}:${POSTGRES_DB_PASSWORD}@postgres:5432/${POSTGRES_DB_NAME}
     networks:
       - ai_net
+      - monitoring-net
+    command: sleep infinity
+
+
 
   autogen-studio:
     build:
