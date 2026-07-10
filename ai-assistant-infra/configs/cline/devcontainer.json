@@ -2,7 +2,8 @@
   "name": "AI Assistant Development Workspace",
   "dockerComposeFile": "../../../docker-compose.yml",
   "service": "workspace",
-  "workspaceFolder": "/workspace",
+  // Fixed: Points straight to your real path inside the container
+  "workspaceFolder": "/aiassistant/agentic/src", 
   "customizations": {
     "vscode": {
       "extensions": [
