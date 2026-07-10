@@ -1,0 +1,48 @@
+# Developer Role Permissions
+
+# Resources the Developer can read
+read:
+  - docs/architecture/**
+  - docs/context/**
+  - docs/requirements/**
+  - docs/design/**
+  - agentic/skills/**
+  - src/**
+
+# Resources the Developer can write
+write:
+  - src/**
+  - tests/**
+  - docs/api/**
+  - docs/development/**
+  - agentic/docs/roles/developer/**
+
+# Resources the Developer can modify
+modify:
+  - src/**
+  - tests/**
+  - docs/api/**
+
+# Actions the Developer can perform
+actions:
+  - implement-feature
+  - write-tests
+  - refactor-code
+  - run-tests
+  - commit-code
+  - create-branch
+
+# Tools the Developer can use
+tools:
+  - aider.sendmessage
+  - runtime.aider.add_context
+  - filesystem
+  - git
+
+# Limits and constraints
+limits:
+  max_iterations: 10
+  require_tests: true
+  min_test_coverage: 80
+  require_code_review: true
+  review_by: solution-architect

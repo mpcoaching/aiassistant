@@ -1,0 +1,46 @@
+# Test Engineer Role Permissions
+
+# Resources the Test Engineer can read
+read:
+  - docs/architecture/**
+  - docs/context/**
+  - docs/requirements/**
+  - docs/design/**
+  - src/**
+  - tests/**
+  - agentic/skills/**
+
+# Resources the Test Engineer can write
+write:
+  - tests/**
+  - docs/testing/**
+  - test-data/**
+  - test-results/**
+  - agentic/docs/roles/test-engineer/**
+
+# Resources the Test Engineer can modify
+modify:
+  - tests/**
+  - docs/testing/**
+
+# Actions the Test Engineer can perform
+actions:
+  - create-test-plan
+  - design-test-cases
+  - execute-tests
+  - automate-tests
+  - report-defects
+  - track-quality-metrics
+
+# Tools the Test Engineer can use
+tools:
+  - filesystem
+  - git
+  - test-runner
+
+# Limits and constraints
+limits:
+  max_test_iterations: 5
+  require_automation: true
+  min_coverage: 80
+  require_approval: false

@@ -1,0 +1,48 @@
+version: "1"
+name: delivery.chain
+description: >
+  End-to-end delivery pipeline chaining all roles from requirements through testing.
+kind: workflow
+role:
+  - cio
+intent:
+  outcome: >
+    Produce a complete, tested implementation from business requirements.
+inputs:
+  - business-vision
+  - business-roadmap
+  - enterprise-architecture
+  - existing-system
+outputs:
+  - implemented-feature
+  - test-results
+  - quality-metrics
+  - deployment-ready-code
+steps:
+  - type: workflow
+    name: requirements
+    uses: requirements.analysis.identify-stakeholders
+  - type: workflow
+    name: define-requirements
+    uses: requirements.analysis.define-requirements
+  - type: workflow
+    name: validate-requirements
+    uses: requirements.validation.verify-traceability
+  - type: workflow
+    name: ea-strategic-decomposition
+    uses: ea.strategic-decomposition
+  - type: workflow
+    name: solution-architecture
+    uses: architecture.solution.create
+  - type: workflow
+    name: design
+    uses: design.create
+  - type: workflow
+    name: develop
+    uses: development.implement
+  - type: workflow
+    name: test
+    uses: test.execute
+  - type: workflow
+    name: validate-requirements-tests
+    uses: test.validate-requirements

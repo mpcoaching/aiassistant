@@ -1,0 +1,22 @@
+version: "1"
+name: test.validate-requirements
+description: >
+  Validate that implemented features meet all acceptance criteria and requirements.
+kind: workflow
+role:
+  - test-engineer
+intent:
+  outcome: >
+  Produce a requirements validation report showing coverage and compliance.
+inputs:
+  - implemented-code
+  - acceptance-criteria
+  - functional-requirements
+  - test-results
+outputs:
+  - requirements-validation-report
+  - coverage-matrix
+steps:
+  - type: skill
+    name: test.validate-requirements
+    uses: test.validate-requirements

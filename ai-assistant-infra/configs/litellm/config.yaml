@@ -2,19 +2,19 @@ model_list:
   # --- CODING ---
   - model_name: coding
     litellm_params:
-      model: gemini/gemini-3.5-flash
+      model: gemini/gemini-1.5-flash
       api_key: os.environ/GEMINI_API_KEY
     order: 1
 
   - model_name: coding
     litellm_params:
-      model: groq/openai/gpt-oss-120b
+      model: groq/llama-3.3-70b-versatile
       api_key: os.environ/GROQ_API_KEY
     order: 2
 
   - model_name: coding
     litellm_params:
-      model: openai/gpt-4o-mini
+      model: github/gpt-4o
       api_base: https://models.inference.ai.azure.com
       api_key: os.environ/GITHUB_TOKEN
     order: 3
@@ -27,16 +27,18 @@ model_list:
 
   - model_name: coding
     litellm_params:
-      model: openai/huggingface.co/qwen/qwen2.5-coder-7b-instruct-gguf:Q4_K_M                 
+      model: openai/huggingface.co/qwen/qwen2.5-coder-7b-instruct-gguf:Q4_K_M
       api_base: http://model-runner:12434/engines/llama.cpp/v1
       api_key: DUMMY
     order: 5
 
   - model_name: coding-local-2
     litellm_params:
-      model: openai/docker.io/gemma4:E4B
+      model: openai/google/gemma-3-4b-it-GGUF:Q4_K_M
       api_base: http://model-runner:12434/engines/llama.cpp/v1
       api_key: dummy
+      model_config:
+        supports_function_calling: false
     order: 1
 
   - model_name: coding-local-2
@@ -49,7 +51,7 @@ model_list:
   # --- ARCHITECTURE ---
   - model_name: architecture
     litellm_params:
-      model: groq/openai/gpt-oss-120b
+      model: groq/llama-3.3-70b-versatile
       api_key: os.environ/GROQ_API_KEY
     order: 1
     
@@ -61,7 +63,7 @@ model_list:
     
   - model_name: architecture
     litellm_params:
-      model: openai/qwen35-a3b
+      model: openai/huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF:Q4_K_M
       api_base: http://model-runner:12434/engines/llama.cpp/v1
       api_key: dummy
     order: 3
@@ -81,18 +83,26 @@ model_list:
     
   - model_name: fast
     litellm_params:
-      model: openai/qwen3-8b
+      model: openai/huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M
       api_base: http://model-runner:12434/engines/llama.cpp/v1
       api_key: dummy
     order: 3
 
 router_settings:
   routing_strategy: "simple-shuffle"
-  enable_pre_call_checks: true     
-  num_retries: 5                   
+  enable_pre_call_checks: true
+  num_retries: 5
   disable_mid_stream_continuation: true
-  fallback_on_client_errors: true   
-  request_timeout: 300       # Maximum time for the entire request
+  fallback_on_client_errors: true
+  request_timeout: 300
   stream_timeout: 60
-  allowed_fails_per_model: 3  # Number of fails before marking model as temporarily unavailable
-  retry_after: 5  # Seconds to wait before retrying a failed model
+  allowed_fails_per_model: 3
+  retry_after: 5
+  fallbacks:
+    - coding:
+        - coding
+    - architecture:
+        - architecture
+    - fast:
+        - fast
+  cooldown_time: 30  # Seconds to keep a model unavailable after failing

@@ -1,0 +1,29 @@
+version: "1"
+name: design.create
+description: >
+  Translate solution architecture into detailed design specifications.
+kind: workflow
+role:
+  - designer
+intent:
+  outcome: >
+    Produce interface specs, UI/UX designs, and data models ready for implementation.
+inputs:
+  - solution-architecture
+  - requirements
+  - adrs
+outputs:
+  - interface-specification
+  - ui-ux-design
+  - data-model
+  - component-diagrams
+steps:
+  - type: skill
+    name: design.interface-spec
+    uses: design.interface-spec
+  - type: skill
+    name: design.ui-ux
+    uses: design.ui-ux
+  - type: skill
+    name: design.data-model
+    uses: design.data-model

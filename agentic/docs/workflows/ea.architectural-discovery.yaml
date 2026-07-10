@@ -1,0 +1,21 @@
+version: "1"
+name: ea.architectural-discovery
+description: >
+  Conduct Socratic discovery for a new subsystem and produce an ADR.
+kind: workflow
+role:
+  - enterprise-architect
+intent:
+  outcome: >
+    Produce an approved Architecture Decision Record for the subsystem.
+inputs:
+  - subsystem-scope
+  - constraints
+  - existing-patterns
+outputs:
+  - adr
+  - discovery-questions
+steps:
+  - type: skill
+    name: ea.architectural-discovery
+    uses: ea.architectural-discovery

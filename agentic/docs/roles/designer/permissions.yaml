@@ -1,0 +1,39 @@
+# Designer Role Permissions
+
+# Resources the Designer can read
+read:
+  - docs/architecture/**
+  - docs/context/**
+  - docs/requirements/**
+  - agentic/skills/**
+  - agentic/patterns/**
+  - agentic/templates/**
+
+# Resources the Designer can write
+write:
+  - docs/design/**
+  - docs/architecture/sbb/**
+  - agentic/docs/roles/designer/**
+
+# Resources the Designer can modify
+modify:
+  - docs/design/**
+  - docs/architecture/sbb/**
+
+# Actions the Designer can perform
+actions:
+  - create-design
+  - update-design
+  - review-design
+  - validate-design
+
+# Tools the Designer can use
+tools:
+  - filesystem
+  - git
+
+# Limits and constraints
+limits:
+  max_design_iterations: 5
+  require_approval: true
+  approval_by: solution-architect

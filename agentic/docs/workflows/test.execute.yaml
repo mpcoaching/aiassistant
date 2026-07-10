@@ -1,0 +1,30 @@
+version: "1"
+name: test.execute
+description: >
+  Execute comprehensive testing for implemented features and produce quality reports.
+kind: workflow
+role:
+  - test-engineer
+intent:
+  outcome: >
+    Produce test results, defect reports, and quality metrics.
+inputs:
+  - implemented-code
+  - acceptance-criteria
+  - test-plan
+  - test-data
+outputs:
+  - test-results
+  - defect-reports
+  - quality-metrics
+  - test-coverage-report
+steps:
+  - type: skill
+    name: test.create-scenarios
+    uses: test.create-scenarios
+  - type: skill
+    name: test.execute-tests
+    uses: test.execute-tests
+  - type: skill
+    name: test.report
+    uses: test.report
