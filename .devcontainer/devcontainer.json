@@ -3,7 +3,7 @@
   "dockerComposeFile": "../docker-compose.yml",
   "service": "workspace",
   // Fixed: Points straight to your real path inside the container
-  "workspaceFolder": "/aiassistant/agentic/src", 
+  "workspaceFolder": "/aiassistant", 
   "customizations": {
     "vscode": {
       "extensions": [
@@ -13,6 +13,9 @@
         "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
   },
   "remoteUser": "root"
 }

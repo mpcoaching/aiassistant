@@ -2,26 +2,80 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Aider: Execute Active Prompt File",
+      "label": "Run Workflow",
       "type": "shell",
-      "command": "docker compose exec -T aider aider --message \"$(cat ${file})\"",
-      "presentation": {
-        "reveal": "always",
-        "panel": "new",
-        "focus": true
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/agentic/src/workflow-runner/wf",
+        "run",
+        "${file}"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
       },
-      "problemMatcher": []
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "Execute the currently open workflow YAML file"
     },
     {
-      "label": "Aider: Execute Active Workflow File",
+      "label": "Run Workflow (with role override)",
       "type": "shell",
-      "command": "docker compose exec -T aider aider --message \"$(cat ${file})\"",
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/agentic/src/workflow-runner/wf",
+        "run",
+        "${file}",
+        "--role",
+        "${input:roleName}"
+      ],
+      "group": "build",
       "presentation": {
+        "echo": true,
         "reveal": "always",
-        "panel": "new",
-        "focus": true
+        "focus": true,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
       },
-      "problemMatcher": []
+      "problemMatcher": [],
+      "detail": "Execute the workflow with a specific role override"
+    },
+    {
+      "label": "List Workflow Executions",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/agentic/src/workflow-runner/wf",
+        "list",
+        "${file}"
+      ],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "List past executions of the current workflow"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "roleName",
+      "type": "promptString",
+      "description": "Enter the role name to use (e.g., enterprise-architect, developer)",
+      "default": "developer"
     }
   ]
 }

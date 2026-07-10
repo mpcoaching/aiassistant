@@ -1,34 +1,34 @@
-workflow:
-
+version: "1"
 name: requirements.analysis.identify-stakeholders
-
+description: >
+  Identify all stakeholders for a given business context.
+kind: workflow
 role:
-  requirements_engineer
-
-trigger:
-  manual
-
+  - requirements-engineer
+intent:
+  outcome: >
+    Produce a structured stakeholder catalogue
+    identifying all relevant parties.
 inputs:
-
   - business-vision
   - solution-intent
   - existing-documentation
   - business-context
-
-
 outputs:
-
   - stakeholder-analysis-document
-
-
-execution:
-
-  - requirements.discovery.extract-stakeholders
-
-  - requirements.analysis.classify-stakeholders
-
-  - requirements.analysis.identify-concerns
-
-  - requirements.documentation.create-stakeholder-document
-
-  - requirements.validation.review-stakeholder-analysis
+steps:
+  - type: skill
+    name: requirements.discovery.extract-stakeholders
+    uses: requirements.discovery.extract-stakeholders
+  - type: skill
+    name: requirements.analysis.classify-stakeholders
+    uses: requirements.analysis.classify-stakeholders
+  - type: skill
+    name: requirements.analysis.identify-concerns
+    uses: requirements.analysis.identify-concerns
+  - type: skill
+    name: requirements.documentation.create-stakeholder-document
+    uses: requirements.documentation.create-stakeholder-document
+  - type: skill
+    name: requirements.validation.review-stakeholder-analysis
+    uses: requirements.validation.review-stakeholder-analysis

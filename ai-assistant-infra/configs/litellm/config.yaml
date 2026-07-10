@@ -2,7 +2,7 @@ model_list:
   # --- CODING ---
   - model_name: coding
     litellm_params:
-      model: gemini/gemini-2.5-flash
+      model: gemini/gemini-3.5-flash
       api_key: os.environ/GEMINI_API_KEY
     order: 1
 
@@ -15,13 +15,13 @@ model_list:
   - model_name: coding
     litellm_params:
       model: openai/gpt-4o-mini
-      api_base: https://github.ai
+      api_base: https://models.inference.ai.azure.com
       api_key: os.environ/GITHUB_TOKEN
     order: 3
 
   - model_name: coding
     litellm_params:
-      model: openrouter/free
+      model: openrouter/meta-llama/llama-3.3-70b-instruct:free
       api_key: os.environ/OPENROUTER_API_KEY
     order: 4
 
@@ -37,12 +37,14 @@ model_list:
       model: openai/docker.io/gemma4:E4B
       api_base: http://model-runner:12434/engines/llama.cpp/v1
       api_key: dummy
+    order: 1
 
   - model_name: coding-local-2
     litellm_params:
       model: openai/huggingface.co/bartowski/deepseek-coder-v2-lite-instruct-gguf:Q4_K_M
       api_base: http://model-runner:12434/engines/llama.cpp/v1
       api_key: dummy
+    order: 2
 
   # --- ARCHITECTURE ---
   - model_name: architecture
@@ -92,3 +94,5 @@ router_settings:
   fallback_on_client_errors: true   
   request_timeout: 300       # Maximum time for the entire request
   stream_timeout: 60
+  allowed_fails_per_model: 3  # Number of fails before marking model as temporarily unavailable
+  retry_after: 5  # Seconds to wait before retrying a failed model

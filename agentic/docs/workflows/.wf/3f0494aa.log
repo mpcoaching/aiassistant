@@ -1,0 +1,13 @@
+[2026-07-10 06:15:38] Starting workflow: requirements.analysis.identify-stakeholders
+[2026-07-10 06:15:38] Total steps: 5
+[2026-07-10 06:15:38] Step 1/5: requirements.discovery.extract-stakeholders (skill)
+[2026-07-10 06:15:38] Step 'requirements.discovery.extract-stakeholders' completed
+[2026-07-10 06:15:38] Step 2/5: requirements.analysis.classify-stakeholders (skill)
+[2026-07-10 06:15:38] Step 'requirements.analysis.classify-stakeholders' completed
+[2026-07-10 06:15:38] Step 3/5: requirements.analysis.identify-concerns (skill)
+[2026-07-10 06:15:38] Step 'requirements.analysis.identify-concerns' completed
+[2026-07-10 06:15:38] Step 4/5: requirements.documentation.create-stakeholder-document (skill)
+[2026-07-10 06:15:38] Step 'requirements.documentation.create-stakeholder-document' completed
+[2026-07-10 06:15:38] Step 5/5: requirements.validation.review-stakeholder-analysis (skill)
+[2026-07-10 06:15:38] Step 'requirements.validation.review-stakeholder-analysis' completed
+[2026-07-10 06:15:38] Workflow finished with status: completed
