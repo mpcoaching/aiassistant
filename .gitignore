@@ -5,6 +5,7 @@ autogenstudio/
 **/autogenstudio/
 .ai-assistant-infra
 **/.cache
+**/.venv
 
 # Aider Studio (auto-added)
 REPO_MAP.md

@@ -1,0 +1,7 @@
+[2026-07-11 10:20:05] Starting workflow: requirements.analysis.define-requirements
+[2026-07-11 10:20:05] Total steps: 2
+[2026-07-11 10:20:05] Step 1/2: requirements.analysis.define-requirements (skill)
+[2026-07-11 10:20:05] Step 'requirements.analysis.define-requirements' completed
+[2026-07-11 10:20:05] Step 2/2: requirements.validation.review-stakeholder-analysis (skill)
+[2026-07-11 10:20:05] Step 'requirements.validation.review-stakeholder-analysis' completed
+[2026-07-11 10:20:05] Workflow finished with status: completed

@@ -1,0 +1,154 @@
+{
+  "name": "vscode-workflow-runner",
+  "displayName": "Workflow Runner",
+  "description": "Thin-client VS Code plugin that submits configurable workflows to the agentic Workflow Engine and observes progress.",
+  "version": "0.2.3",
+  "publisher": "local-dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/your-repo"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:workflowRunner.run",
+    "onCommand:workflowRunner.runChain",
+    "onCommand:workflowRunner.stop",
+    "onCommand:workflowRunner.refresh",
+    "onCommand:workflowRunner.setToken",
+    "onView:workflowRunner.explorer",
+    "onCommand:workflowRunner.runFile"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "workflowRunner.run",
+        "title": "Workflow Runner: Run Workflow"
+      },
+      {
+        "command": "workflowRunner.runChain",
+        "title": "Workflow Runner: Run Workflow Chain"
+      },
+      {
+        "command": "workflowRunner.stop",
+        "title": "Workflow Runner: Stop Workflow"
+      },
+      {
+        "command": "workflowRunner.refresh",
+        "title": "Workflow Runner: Refresh Catalog"
+      },
+      {
+        "command": "workflowRunner.setToken",
+        "title": "Workflow Runner: Set Engine Token"
+      },
+      {
+        "command": "workflowRunner.runFile",
+        "title": "Workflow Runner: Run Workflow File"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "workflowRunner.explorer",
+          "name": "Workflows"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "workflowRunner.refresh",
+          "when": "view == workflowRunner.explorer",
+          "group": "navigation"
+        },
+        {
+          "command": "workflowRunner.setToken",
+          "when": "view == workflowRunner.explorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "workflowRunner.run",
+          "when": "view == workflowRunner.explorer && viewItem == workflow",
+          "group": "workflow@1"
+        },
+        {
+          "command": "workflowRunner.runChain",
+          "when": "view == workflowRunner.explorer && viewItem == workflow",
+          "group": "workflow@2"
+        },
+        {
+          "command": "workflowRunner.stop",
+          "when": "view == workflowRunner.explorer && viewItem == workflow",
+          "group": "workflow@3"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "workflowRunner.runFile",
+          "title": "Run Workflow",
+          "group": "workflow@1",
+          "when": "resourceFilename =~ /\\.ya?ml$/"
+        },
+        {
+          "command": "workflowRunner.runFile",
+          "title": "Run Workflow Chain",
+          "group": "workflow@2",
+          "when": "resourceFilename =~ /\\.ya?ml$/"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Workflow Runner",
+      "properties": {
+        "workflowRunner.engineUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "Base URL of the Workflow Engine service."
+        },
+        "workflowRunner.agentBusUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Agent Bus endpoint for event subscription."
+        },
+        "workflowRunner.otelUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional OTEL/observability endpoint."
+        },
+        "workflowRunner.pollIntervalMs": {
+          "type": "number",
+          "default": 1000,
+          "description": "Polling interval (ms) used when SSE is unavailable."
+        },
+        "workflowRunner.trustedOnly": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only enable Run for workflows with a verified trust signature."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "tsc -p ./ && node --test out/__tests__",
+    "package": "vsce package",
+    "bump": "node scripts/package.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.0",
+    "@vscode/vsce": "^2.24.0",
+    "typescript": "^5.3.0"
+  }
+}

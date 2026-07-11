@@ -1,0 +1,276 @@
+openapi: 3.0.3
+info:
+  title: Workflow Engine API
+  version: 1.0.0
+  description: >
+    Contract between the VS Code Workflow Runner plugin (thin client) and the
+    agentic system's Workflow Engine service. The plugin never executes skills
+    or tools; it submits workflow requests and observes progress. Execution
+    (skill prompts via LiteLLM, tool steps in the sandboxed Agent Execution
+    Environment) happens server-side. All endpoints require a bearer token
+    (OAuth2 / mTLS) scoped to the Workflow Engine.
+  /workflows/validate:
+    post:
+      summary: Check whether a workflow ref is a real workflow
+      operationId: validateWorkflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workflow_ref]
+              properties:
+                workflow_ref:
+                  type: string
+      responses:
+        "200":
+          description: Validation result (always 200; see is_workflow)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowValidation"
+servers:
+  - url: http://localhost:8000
+    description: Local dev-stub (do not use in production)
+paths:
+  /workflows:
+    get:
+      summary: List available workflows (catalog)
+      operationId: listWorkflows
+      responses:
+        "200":
+          description: Catalog of workflows the caller may run
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkflowSummary"
+  /workflows/run:
+    post:
+      summary: Submit a workflow run request
+      operationId: runWorkflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunRequest"
+      responses:
+        "202":
+          description: Accepted; workflow execution started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunResponse"
+        "400":
+          description: Invalid request (unknown workflow, bad inputs)
+        "401":
+          description: Unauthorized (missing/invalid token)
+        "403":
+          description: Forbidden (role not permitted to run this workflow)
+  /workflows/{run_id}:
+    get:
+      summary: Get the status of a workflow run
+      operationId: getWorkflowStatus
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current run status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowRunStatus"
+        "404":
+          description: Unknown run_id
+    post:
+      summary: Stop a running workflow
+      operationId: stopWorkflow
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Stop accepted
+        "404":
+          description: Unknown run_id
+  /workflows/{run_id}/events:
+    get:
+      summary: Server-Sent Events stream of WorkflowProgress events
+      operationId: subscribeWorkflowEvents
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Text/event-stream of WorkflowEvent objects
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/WorkflowEvent"
+components:
+  schemas:
+    WorkflowValidation:
+      type: object
+      required: [is_workflow]
+      properties:
+        is_workflow:
+          type: boolean
+        name:
+          type: string
+        role:
+          type: array
+          items:
+            type: string
+        inputs:
+          type: array
+          items:
+            type: string
+        outputs:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    WorkflowSummary:
+      type: object
+      required: [ref, name]
+      properties:
+        ref:
+          type: string
+          description: Stable workflow reference (e.g. agentic/docs/workflows/delivery.chain.yaml)
+        name:
+          type: string
+        description:
+          type: string
+        role:
+          type: array
+          items:
+            type: string
+          description: Roles permitted to run this workflow (Agent Registry)
+        inputs:
+          type: array
+          items:
+            type: string
+          description: Required input names
+        outputs:
+          type: array
+          items:
+            type: string
+    RunRequest:
+      type: object
+      required: [workflow_ref]
+      properties:
+        workflow_ref:
+          type: string
+        inputs:
+          type: object
+          additionalProperties:
+            type: string
+        role:
+          type: string
+          description: Role claimed by the caller (validated server-side)
+        callback:
+          type: string
+          description: Optional Agent Bus callback/topic
+    RunResponse:
+      type: object
+      required: [run_id, status]
+      properties:
+        run_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/RunStatus"
+    RunStatus:
+      type: string
+      enum: [pending, running, completed, failed, paused, cancelled]
+    StepResult:
+      type: object
+      required: [step_name, step_type, status]
+      properties:
+        step_name:
+          type: string
+        step_type:
+          type: string
+        status:
+          $ref: "#/components/schemas/RunStatus"
+        error:
+          type: string
+          nullable: true
+        duration_seconds:
+          type: number
+          nullable: true
+    WorkflowRunStatus:
+      type: object
+      required: [run_id, workflow_ref, status, current_step, total_steps]
+      properties:
+        run_id:
+          type: string
+        workflow_ref:
+          type: string
+        workflow_name:
+          type: string
+        status:
+          $ref: "#/components/schemas/RunStatus"
+        current_step:
+          type: integer
+        total_steps:
+          type: integer
+        step_results:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepResult"
+        outputs:
+          type: object
+          nullable: true
+          additionalProperties: true
+        error:
+          type: string
+          nullable: true
+    WorkflowEvent:
+      type: object
+      required: [type, run_id]
+      properties:
+        type:
+          type: string
+          enum:
+            - WorkflowStarted
+            - WorkflowProgress
+            - WorkflowCompleted
+            - WorkflowFailed
+            - WorkflowCancelled
+        run_id:
+          type: string
+        workflow_ref:
+          type: string
+        current_step:
+          type: integer
+        total_steps:
+          type: integer
+        step:
+          $ref: "#/components/schemas/StepResult"
+        outputs:
+          type: object
+          nullable: true
+        error:
+          type: string
+security:
+  - bearerAuth: []

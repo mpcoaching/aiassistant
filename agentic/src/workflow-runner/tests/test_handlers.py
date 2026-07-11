@@ -84,18 +84,18 @@ class TestHandleToolStep:
         assert result.status == "failed"
         assert result.output["returncode"] == 1
 
-    def test_tool_step_not_found(self):
-        """Test handling of a non-existent command."""
+    def test_tool_step_not_allowed(self):
+        """Test that commands outside the allowlist are rejected (no shell=True)."""
         step = Step(
             type="tool",
-            name="not-found",
+            name="not-allowed",
             uses="nonexistent_command_xyz123",
         )
 
         result = handle_tool_step(step, {})
 
         assert result.status == "failed"
-        assert "not found" in result.error.lower() or "found" in result.error.lower()
+        assert "not allowed" in result.error.lower()
 
     def test_tool_step_with_context(self):
         """Test variable substitution from context."""
