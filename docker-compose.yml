@@ -8,7 +8,9 @@ services:
       - "443:443"
     networks:
       - ai_net
-    restart: unless-stopped
+      - monitoring-net
+    volumes:
+      - ./ai-assistant-infra/configs/nginx/nginx.conf:/etc/nginx/nginx.conf:ro # Relative path!
 
   control-center-ui:
     build:
@@ -34,6 +36,10 @@ services:
     networks:
       - ai_net
     profiles: ["dev"]
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
     env_file:
       - .env
     environment:
