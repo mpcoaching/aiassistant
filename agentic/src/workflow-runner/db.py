@@ -15,6 +15,7 @@ Tables:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import uuid
@@ -23,6 +24,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from models import Step, StepResult, WorkflowState
+
+logger = logging.getLogger("workflow-engine.db")
 
 
 DATABASE_URL = os.getenv(
@@ -42,6 +45,21 @@ def _file_dir(workflow_path: str) -> Path:
 
 def _file_state_path(state_dir: Path, workflow_id: str) -> Path:
     return state_dir / f"{workflow_id}.json"
+
+
+def _file_step_results_path(workflow_path: str, workflow_id: str) -> Path:
+    return _file_dir(workflow_path) / f"{workflow_id}.steps.jsonl"
+
+
+def _append_file_step_result(workflow_path: str, workflow_id: str, step_index: int, step_result: Dict[str, Any]) -> None:
+    """Mirror a step result to a JSONL file so it survives Postgres outages."""
+    try:
+        path = _file_step_results_path(workflow_path, workflow_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a") as f:
+            f.write(json.dumps({"step_index": step_index, **step_result}) + "\n")
+    except OSError:
+        logger.exception("Failed to write step-result fallback file for %s", workflow_id)
 
 
 def _persist_file(state: WorkflowState) -> None:
@@ -135,7 +153,7 @@ def _ensure_schema() -> None:
                     """
                 )
     except Exception:
-        pass
+        logger.warning("Failed to ensure Postgres schema; will fall back to file persistence")
 
 
 def _pg_upsert_instance(state: WorkflowState) -> None:
@@ -171,10 +189,10 @@ def _pg_upsert_instance(state: WorkflowState) -> None:
                 )
             conn.commit()
     except Exception:
-        pass
+        logger.warning("Failed to upsert workflow instance %s; file fallback covers it", state.workflow_id)
 
 
-def _pg_insert_step_result(step_result: Dict[str, Any], workflow_id: str, step_index: int) -> None:
+def _pg_insert_step_result(step_result: Dict[str, Any], workflow_id: str, step_index: int, workflow_path: str = "") -> None:
     try:
         with _pg_conn() as conn:
             with conn.cursor() as cur:
@@ -197,7 +215,8 @@ def _pg_insert_step_result(step_result: Dict[str, Any], workflow_id: str, step_i
                 )
             conn.commit()
     except Exception:
-        pass
+        logger.warning("Failed to insert step result for %s step %d; falling back to file", workflow_id, step_index)
+        _append_file_step_result(workflow_path, workflow_id, step_index, step_result)
 
 
 def _pg_insert_event(event_id: str, workflow_id: str, event_type: str, payload: Dict[str, Any]) -> None:
@@ -214,7 +233,7 @@ def _pg_insert_event(event_id: str, workflow_id: str, event_type: str, payload: 
                 )
             conn.commit()
     except Exception:
-        pass
+        logger.warning("Failed to insert workflow event %s", event_id)
 
 
 def _pg_get_schedules() -> List[Dict[str, Any]]:
@@ -226,6 +245,7 @@ def _pg_get_schedules() -> List[Dict[str, Any]]:
                 keys = ["schedule_id", "workflow_name", "cron", "initial_context", "role_override", "trigger", "enabled", "next_fire_time"]
                 return [dict(zip(keys, r)) for r in rows]
     except Exception:
+        logger.warning("Failed to read schedules from Postgres; assuming empty")
         return []
 
 
@@ -256,7 +276,7 @@ def _pg_upsert_schedule(schedule: Dict[str, Any]) -> None:
                 )
             conn.commit()
     except Exception:
-        pass
+        logger.warning("Failed to upsert schedule %s", schedule.get("schedule_id"))
 
 
 def _pg_delete_schedule(schedule_id: str) -> None:
@@ -266,7 +286,7 @@ def _pg_delete_schedule(schedule_id: str) -> None:
                 cur.execute("DELETE FROM schedules WHERE schedule_id = %s", (schedule_id,))
             conn.commit()
     except Exception:
-        pass
+        logger.warning("Failed to delete schedule %s", schedule_id)
 
 
 # Public API ----------------------------------------------------------------
@@ -304,7 +324,7 @@ def _persist_state(state: WorkflowState) -> None:
         _ensure_schema()
         _pg_upsert_instance(state)
     except Exception:
-        pass
+        logger.warning("Postgres persist failed for %s; state mirrored to file", state.workflow_id)
 
 
 def load_workflow_state(workflow_id: str, workflow_path: str) -> Optional[WorkflowState]:
@@ -350,7 +370,7 @@ def load_workflow_state(workflow_id: str, workflow_path: str) -> Optional[Workfl
                     _persist_file(state)
                     return state
     except Exception:
-        pass
+        logger.warning("Postgres lookup failed for workflow %s; trying file fallback", workflow_id)
 
     # Fallback to file
     state_dir = _file_dir(workflow_path)
@@ -390,7 +410,7 @@ def list_workflow_states(workflow_path: str) -> List[Dict[str, Any]]:
                 if states:
                     return sorted(states, key=lambda s: s.get("workflow_id", ""))
     except Exception:
-        pass
+        logger.warning("Postgres lookup failed for states of %s; trying file fallback", workflow_path)
 
     # File fallback
     state_dir = _file_dir(workflow_path)
@@ -456,7 +476,7 @@ def append_log(state: WorkflowState, message: str) -> None:
 
 
 def record_step_result(state: WorkflowState, result: StepResult, step_index: int) -> None:
-    _pg_insert_step_result(result.model_dump(), state.workflow_id, step_index)
+    _pg_insert_step_result(result.model_dump(), state.workflow_id, step_index, state.workflow_path)
 
 
 def insert_event(event_id: str, workflow_id: str, event_type: str, payload: Dict[str, Any]) -> None:
@@ -467,7 +487,7 @@ def get_schedules() -> List[Dict[str, Any]]:
     try:
         _ensure_schema()
     except Exception:
-        pass
+        logger.warning("Failed to ensure schema for schedules")
     return _pg_get_schedules()
 
 
@@ -475,7 +495,7 @@ def upsert_schedule(schedule: Dict[str, Any]) -> None:
     try:
         _ensure_schema()
     except Exception:
-        pass
+        logger.warning("Failed to ensure schema for schedules")
     _pg_upsert_schedule(schedule)
 
 
@@ -483,5 +503,5 @@ def delete_schedule(schedule_id: str) -> None:
     try:
         _ensure_schema()
     except Exception:
-        pass
+        logger.warning("Failed to ensure schema for schedules")
     _pg_delete_schedule(schedule_id)

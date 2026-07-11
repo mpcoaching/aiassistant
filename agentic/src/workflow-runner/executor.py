@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from handlers import handle_skill_step, handle_tool_step, handle_workflow_step
 from loader import load_workflow, WorkflowLoadError
@@ -37,6 +37,8 @@ def execute_workflow(
     role_override: Optional[str] = None,
     search_paths: Optional[List[Path]] = None,
     initial_state: Optional[Any] = None,
+    on_step_start: Optional[Callable[[Step, int], None]] = None,
+    on_step_complete: Optional[Callable[[Step, StepResult, int], None]] = None,
 ) -> Dict[str, Any]:
     """
     Execute a workflow from start to finish.
@@ -48,6 +50,10 @@ def execute_workflow(
         role_override: Optional role name to use for all skill steps.
         search_paths: Additional paths to search for referenced files.
         initial_state: Optional pre-created WorkflowState to resume from.
+        on_step_start: Optional callback invoked with (step, index) before a
+            step executes. Kept outside the executor to stay framework-agnostic.
+        on_step_complete: Optional callback invoked with (step, result, index)
+            after a step finishes (success or failure).
 
     Returns:
         A dictionary containing the execution results.
@@ -78,6 +84,10 @@ def execute_workflow(
                 f"{step.name} ({step.type.value})",
             )
 
+            # Notify listeners that the step is about to run
+            if on_step_start is not None:
+                on_step_start(step, state.current_step_index)
+
             # Dispatch to the appropriate handler
             if step.type == StepType.SKILL:
                 result = handle_skill_step(step, workflow, state.context, role_override)
@@ -92,6 +102,10 @@ def execute_workflow(
                     status="failed",
                     error=f"Unknown step type: {step.type}",
                 )
+
+            # Notify listeners that the step has finished
+            if on_step_complete is not None:
+                on_step_complete(step, result, state.current_step_index)
 
             # Record the result
             if result.status == "completed":

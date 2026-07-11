@@ -410,15 +410,48 @@ def _execute_and_publish(
 ) -> Dict[str, Any]:
     from executor import execute_workflow
     from db import insert_event, record_step_result, append_log
+    from models import Step, StepResult
+
+    def _on_step_start(step: Step, index: int) -> None:
+        bus.publish_step_started(state.workflow_id, {
+            "event_id": str(__import__("uuid").uuid4()),
+            "workflow_id": state.workflow_id,
+            "step_index": index,
+            "step_name": step.name,
+            "step_type": step.type.value,
+            "estimated_duration_seconds": None,
+        })
+
+    def _on_step_complete(step: Step, result: StepResult, index: int) -> None:
+        bus.publish_step_completed(state.workflow_id, {
+            "event_id": str(__import__("uuid").uuid4()),
+            "workflow_id": state.workflow_id,
+            "step_index": index,
+            "step_name": step.name,
+            "status": result.status,
+            "output": result.output,
+            "error": result.error,
+            "duration_seconds": result.duration_seconds,
+        })
 
     try:
-        result = execute_workflow(workflow, workflow_path, initial_context, role_override, initial_state=state)
+        result = execute_workflow(
+            workflow,
+            workflow_path,
+            initial_context,
+            role_override,
+            initial_state=state,
+            on_step_start=_on_step_start,
+            on_step_complete=_on_step_complete,
+        )
     except Exception as exc:
         state = fail_workflow(state, str(exc))
+        failed_step = state.steps[state.current_step_index].name if state.current_step_index < len(state.steps) else None
         bus.publish_workflow_failed(state.workflow_id, {
             "event_id": str(__import__("uuid").uuid4()),
             "workflow_id": state.workflow_id,
             "error": str(exc),
+            "failed_step": failed_step,
             "completed_steps": state.current_step_index,
         })
         return {
@@ -452,10 +485,12 @@ def _execute_and_publish(
             "total_duration_seconds": None,
         })
     elif summary["status"] == "failed":
+        failed_step = state.steps[state.current_step_index].name if state.current_step_index < len(state.steps) else None
         bus.publish_workflow_failed(state.workflow_id, {
             "event_id": str(__import__("uuid").uuid4()),
             "workflow_id": state.workflow_id,
             "error": summary.get("error"),
+            "failed_step": failed_step,
             "completed_steps": state.current_step_index,
         })
 

@@ -17,7 +17,9 @@ import os
 import socket
 import threading
 import time
+import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
 import pika
@@ -25,6 +27,11 @@ import pika
 logger = logging.getLogger("workflow-engine.bus")
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+# Directory where events are spooled when the bus is unreachable, so they
+# survive outages and can be replayed on reconnect.
+EVENTS_FALLBACK_DIR = os.getenv("EVENTS_FALLBACK_DIR", "/aiassistant/.events")
+# Retry backoff (seconds) applied before giving up and spooling to disk.
+PUBLISH_BACKOFFS = (1, 2, 4)
 WORKFLOW_EXCHANGE = "workflow.mode"
 DEAD_LETTER_EXCHANGE = "workflow.dead"
 WORKFLOW_QUEUES = {
@@ -47,9 +54,9 @@ WORKFLOW_QUEUES = {
 
 def _event_envelope(event_type: str, workflow_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
-        "event_id": payload.get("event_id") or str(__import__("uuid").uuid4()),
+        "event_id": payload.get("event_id") or str(uuid.uuid4()),
         "event_type": event_type,
-        "timestamp": __import__("datetime").datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "workflow_id": workflow_id,
         "correlation_id": payload.get("correlation_id"),
         "payload": payload,
@@ -61,6 +68,7 @@ class EventBus:
         self._url = url
         self._lock = threading.Lock()
         self._consumer_thread: Optional[threading.Thread] = None
+        self._consumers: list = []
         self._running = False
         self._params = pika.URLParameters(self._url)
         self._params.heartbeat = 30
@@ -91,31 +99,88 @@ class EventBus:
             finally:
                 conn.close()
 
+    def _write_fallback(self, routing_key: str, event_type: str, workflow_id: str, envelope: Dict[str, Any]) -> None:
+        try:
+            os.makedirs(EVENTS_FALLBACK_DIR, exist_ok=True)
+            fname = f"{datetime.now().strftime('%Y%m%dT%H%M%S')}-{event_type}-{uuid.uuid4().hex[:8]}.json"
+            path = os.path.join(EVENTS_FALLBACK_DIR, fname)
+            with open(path, "w") as f:
+                json.dump({
+                    "routing_key": routing_key,
+                    "event_type": event_type,
+                    "workflow_id": workflow_id,
+                    "envelope": envelope,
+                }, f)
+            logger.warning("Spooled undeliverable event %s to fallback file %s", event_type, path)
+        except Exception:
+            logger.exception("Failed to write fallback event file for %s", event_type)
+
+    def replay_failed_events(self) -> None:
+        """Re-publish events spooled to the fallback directory during outages."""
+        try:
+            if not os.path.isdir(EVENTS_FALLBACK_DIR):
+                return
+            for fname in sorted(os.listdir(EVENTS_FALLBACK_DIR)):
+                if not fname.endswith(".json"):
+                    continue
+                path = os.path.join(EVENTS_FALLBACK_DIR, fname)
+                try:
+                    with open(path) as f:
+                        rec = json.load(f)
+                except Exception:
+                    logger.exception("Failed to read fallback event %s", path)
+                    continue
+                try:
+                    self.publish(rec["routing_key"], rec["event_type"], rec["workflow_id"], rec["envelope"]["payload"])
+                    os.remove(path)
+                    logger.info("Replayed fallback event %s", fname)
+                except Exception:
+                    logger.exception("Failed to replay fallback event %s; will retry later", path)
+                    break
+        except Exception:
+            logger.exception("Failed to replay fallback events")
+
     def publish(self, routing_key: str, event_type: str, workflow_id: str, payload: Dict[str, Any]) -> None:
         envelope = _event_envelope(event_type, workflow_id, payload)
         body = json.dumps(envelope).encode("utf-8")
+        max_attempts = len(PUBLISH_BACKOFFS) + 1
         with self._lock:
-            conn = self._connect()
-            try:
-                ch = conn.channel()
-                ch.basic_publish(
-                    exchange=WORKFLOW_EXCHANGE,
-                    routing_key=routing_key,
-                    body=body,
-                    properties=pika.BasicProperties(
-                        delivery_mode=2,
-                        content_type="application/json",
-                        message_id=envelope["event_id"],
-                    ),
-                )
-                ch.close()
-            except Exception:
-                logger.exception("Failed to publish event %s", event_type)
-            finally:
+            for attempt in range(max_attempts):
                 try:
-                    conn.close()
+                    conn = self._connect()
+                    try:
+                        ch = conn.channel()
+                        ch.basic_publish(
+                            exchange=WORKFLOW_EXCHANGE,
+                            routing_key=routing_key,
+                            body=body,
+                            properties=pika.BasicProperties(
+                                delivery_mode=2,
+                                content_type="application/json",
+                                message_id=envelope["event_id"],
+                            ),
+                        )
+                        ch.close()
+                        return
+                    finally:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                except pika.exceptions.AMQPConnectionError:
+                    if attempt < len(PUBLISH_BACKOFFS):
+                        logger.warning(
+                            "Publish of %s failed (attempt %d/%d); retrying in %ss",
+                            event_type, attempt + 1, max_attempts, PUBLISH_BACKOFFS[attempt],
+                        )
+                        time.sleep(PUBLISH_BACKOFFS[attempt])
+                        continue
+                    logger.exception("Failed to publish event %s after %d attempts", event_type, max_attempts)
                 except Exception:
-                    pass
+                    logger.exception("Failed to publish event %s", event_type)
+                    break
+            # All attempts exhausted — spool so the event survives the outage.
+            self._write_fallback(routing_key, event_type, workflow_id, envelope)
 
     def publish_workflow_requested(self, workflow_id: str, payload: Dict[str, Any]) -> None:
         self.publish("workflow.executions", "WorkflowRequested", workflow_id, payload)
@@ -156,35 +221,41 @@ class EventBus:
         callback: Callable[[Dict[str, Any]], None],
         prefetch: int = 1,
     ) -> None:
-        def _run() -> None:
-            conn = self._connect()
-            ch = conn.channel()
-            ch.basic_qos(prefetch_count=prefetch)
-
-            def on_message(ch_method, properties, body):  # noqa: A003
-                try:
-                    msg = json.loads(body)
-                except json.JSONDecodeError:
-                    logger.exception("Invalid JSON in bus message")
-                    ch_method.basic_ack(delivery_tag=ch_method.delivery_tag)
-                    return
-                try:
-                    callback(msg)
-                    ch_method.basic_ack(delivery_tag=ch_method.delivery_tag)
-                except Exception:
-                    logger.exception("Bus consumer callback failed")
-                    ch_method.basic_nack(delivery_tag=ch_method.delivery_tag, requeue=False)
-
-            ch.basic_consume(queue=queue, on_message_callback=on_message, auto_ack=False)
-            logger.info("Bus consumer started on queue %s", queue)
+        def on_message(ch, ch_method, properties, body):  # noqa: A003
             try:
+                msg = json.loads(body)
+            except json.JSONDecodeError:
+                logger.exception("Invalid JSON in bus message")
+                ch_method.basic_ack(delivery_tag=ch_method.delivery_tag)
+                return
+            try:
+                callback(msg)
+                ch_method.basic_ack(delivery_tag=ch_method.delivery_tag)
+            except Exception:
+                logger.exception("Bus consumer callback failed")
+                ch_method.basic_nack(delivery_tag=ch_method.delivery_tag, requeue=False)
+
+        def _run() -> None:
+            conn = None
+            ch = None
+            try:
+                conn = self._connect()
+                ch = conn.channel()
+                ch.basic_qos(prefetch_count=prefetch)
+                ch.basic_consume(queue=queue, on_message_callback=on_message, auto_ack=False)
+                self._consumers.append((conn, ch, queue))
+                logger.info("Bus consumer started on queue %s", queue)
                 ch.start_consuming()
             except Exception:
-                logger.exception("Bus consumer stopped")
+                logger.exception("Bus consumer on queue %s stopped", queue)
             finally:
+                self._running = False
+                self._consumers = [c for c in self._consumers if c[2] != queue]
                 try:
-                    ch.close()
-                    conn.close()
+                    if ch is not None:
+                        ch.close()
+                    if conn is not None:
+                        conn.close()
                 except Exception:
                     pass
 
@@ -200,8 +271,19 @@ class EventBus:
         self.declare_topology()
         self.consume("workflow.executions", workflow_requested_cb, prefetch=1)
         self.consume("workflow.control", workflow_control_cb, prefetch=1)
+        self.replay_failed_events()
         logger.info("EventBus consumers started")
 
     def shutdown(self) -> None:
         self._running = False
+        for conn, ch, queue in self._consumers:
+            try:
+                conn.add_callback_threadsafe(lambda c=ch: c.stop_consuming())
+            except Exception:
+                logger.warning("Could not signal consumer on %s to stop; closing connection", queue)
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        self._consumers = []
         logger.info("EventBus shutdown requested")
