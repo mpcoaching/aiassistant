@@ -33,7 +33,9 @@ services:
       - /app/node_modules
     ports:
       - "5173:5173"
-    profiles: ["dev"]
+    networks:
+      - ai_net
+    restart: unless-stopped
 
   postgres:
     image: postgres:16
