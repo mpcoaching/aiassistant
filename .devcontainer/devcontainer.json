@@ -6,9 +6,6 @@
   "workspaceFolder": "/aiassistant", 
   "customizations": {
     "vscode": {
-      "extensions": [
-        "saoudrizwan.claude-dev"
-      ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash"
       }

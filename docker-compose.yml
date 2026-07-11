@@ -445,6 +445,7 @@ services:
       - ai_net
     depends_on:
       - litellm
+    profiles: ["disabled"]
 
   workspace:
     image: ubuntu:24.04
@@ -475,11 +476,11 @@ services:
       - "8081:8081"
     networks:
       - ai_net
-    #profiles: ["disabled"]
+    profiles: ["disabled"]
 
-  dnsmasq:
+  dns:
     image: strm/dnsmasq
-    container_name: dnsmasq
+    container_name: dns
     volumes:
       - ./ai-assistant-infra/configs/dnsmasq/dnsmasq.conf:/etc/dnsmasq.conf
     #ports:
