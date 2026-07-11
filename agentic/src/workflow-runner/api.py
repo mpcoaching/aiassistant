@@ -3,7 +3,8 @@ FastAPI REST API for the Workflow Engine.
 
 Endpoints:
   GET  /health                      — liveness probe
-  GET  /workflows?path=…            — list workflow definitions
+  GET  /workflows                   — list workflow definitions
+  POST /workflows                   — create a workflow definition (write YAML)
   POST /workflows/{name}/run        — trigger a workflow execution
   GET  /workflows/{id}/status       — inspect a running/completed instance
   POST /workflows/{id}/pause        — pause a running workflow
@@ -22,6 +23,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import yaml
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -32,7 +35,7 @@ if _script_dir not in sys.path:
 
 from executor import execute_workflow_from_file  # noqa: E402
 from loader import load_workflow, resolve_workflow_path, resolve_skill_path, resolve_tool_path  # noqa: E402
-from models import WorkflowDefinition  # noqa: E402
+from models import Step, WorkflowDefinition  # noqa: E402
 from db import (  # noqa: E402
     advance_step,
     create_workflow_state,
@@ -120,6 +123,20 @@ class ScheduleRequest(BaseModel):
     role_override: Optional[str] = None
 
 
+class StepInput(BaseModel):
+    type: str = Field(..., description="Step type: skill | tool | workflow")
+    name: str
+    uses: str = Field(..., description="Reference to the skill, tool, or sub-workflow")
+    with_: Optional[Dict[str, Any]] = Field(None, alias="with", description="Input parameters for the step")
+
+
+class CreateWorkflowRequest(BaseModel):
+    name: str = Field(..., description="Unique workflow name, e.g. 'my.team.workflow'")
+    description: Optional[str] = None
+    role: Optional[List[str]] = None
+    steps: List[StepInput]
+
+
 class ScheduleResponse(BaseModel):
     schedule_id: str
     workflow_name: str
@@ -190,6 +207,30 @@ async def list_workflows() -> List[WorkflowListItem]:
                 pass
             items.append(WorkflowListItem(name=name, description=desc, path=str(f)))
     return items
+
+
+@app.post("/workflows", response_model=WorkflowListItem, status_code=201)
+async def create_workflow(body: CreateWorkflowRequest) -> WorkflowListItem:
+    if not body.name or "/" in body.name or "\\" in body.name or ".." in body.name:
+        raise HTTPException(status_code=400, detail="Invalid workflow name (no path separators)")
+    try:
+        steps = [Step(type=s.type, name=s.name, uses=s.uses, with_=s.with_) for s in body.steps]
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid step: {exc}") from exc
+
+    workflow = WorkflowDefinition(
+        name=body.name,
+        description=body.description,
+        role=body.role,
+        steps=steps,
+    )
+    target = _REPO_ROOT / "agentic" / "docs" / "workflows" / f"{body.name}.yaml"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "w") as f:
+        yaml.safe_dump(workflow.model_dump(mode="json", by_alias=True, exclude_none=True), f, sort_keys=False)
+
+    wf = load_workflow(str(target))
+    return WorkflowListItem(name=wf.name, description=wf.description, path=str(target))
 
 
 @app.post("/workflows/{name}/run")

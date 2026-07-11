@@ -6,50 +6,423 @@
   <title>AI Assistant — Control Center</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; margin: 0; padding: 0; background: #0b0c10; color: #c5c6c7; }
-    header { background: #1f2833; padding: 1rem 2rem; border-bottom: 1px solid #45a29e; display: flex; justify-content: space-between; align-items: center; }
-    header h1 { margin: 0; font-size: 1.2rem; color: #66fcf1; }
-    main { padding: 2rem; max-width: 1200px; margin: 0 auto; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
-    .card { background: #1f2833; border: 1px solid #45a29e; border-radius: 8px; padding: 1.25rem; }
-    .card h2 { margin-top: 0; font-size: 1rem; color: #66fcf1; }
-    .placeholder { color: #8a8d93; font-size: 0.9rem; }
-    .status-badge { display: inline-block; padding: 0.25rem 0.5rem; background: #45a29e; color: #0b0c10; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
-    .empty { text-align: center; padding: 3rem; color: #8a8d93; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #0b0c10; color: #c5c6c7; }
+    header { background: #1f2833; padding: 0.9rem 1.5rem; border-bottom: 1px solid #45a29e; display: flex; align-items: center; gap: 1rem; }
+    header h1 { margin: 0; font-size: 1.15rem; color: #66fcf1; }
+    .badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: #45a29e; color: #0b0c10; font-weight: 700; }
+    nav { display: flex; gap: 0.25rem; margin-left: auto; }
+    nav button { background: transparent; border: 1px solid #45a29e; color: #c5c6c7; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    nav button.active { background: #45a29e; color: #0b0c10; font-weight: 600; }
+    main { padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
+    .toolbar { display: flex; gap: 0.75rem; margin-bottom: 1rem; align-items: center; }
+    .toolbar input, .toolbar select, .field input, .field select, .field textarea {
+      background: #0b0c10; border: 1px solid #39424d; color: #c5c6c7; border-radius: 6px; padding: 0.45rem 0.6rem; font-size: 0.85rem; font-family: inherit;
+    }
+    button.btn { background: #45a29e; color: #0b0c10; border: none; padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+    button.btn:hover { background: #66fcf1; }
+    button.btn.ghost { background: transparent; border: 1px solid #45a29e; color: #66fcf1; }
+    button.btn.danger { background: #b0413e; color: #fff; }
+    button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+    .card { background: #1f2833; border: 1px solid #2c3742; border-radius: 8px; padding: 1rem; }
+    .card h3 { margin: 0 0 0.35rem; color: #66fcf1; font-size: 0.98rem; word-break: break-all; }
+    .card .desc { font-size: 0.82rem; color: #9aa3ad; min-height: 1.2rem; margin-bottom: 0.6rem; }
+    .card .steps { font-size: 0.75rem; color: #7d8794; margin-bottom: 0.7rem; }
+    .card .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .status { font-size: 0.72rem; padding: 0.18rem 0.5rem; border-radius: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+    .status.running { background: #1f4f6e; color: #7fd3ff; }
+    .status.completed { background: #1f5e3a; color: #73e0a0; }
+    .status.failed { background: #5e1f1f; color: #ff8a8a; }
+    .status.paused { background: #5e4f1f; color: #ffd97f; }
+    .status.stopped { background: #2c2c2c; color: #b0b0b0; }
+    .status.pending { background: #2c2c2c; color: #b0b0b0; }
+    .empty { text-align: center; padding: 2.5rem; color: #7d8794; }
+    .panel { background: #161b22; border: 1px solid #2c3742; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+    .panel h2 { margin: 0 0 0.85rem; font-size: 1rem; color: #66fcf1; }
+    .field { margin-bottom: 0.7rem; display: flex; flex-direction: column; gap: 0.25rem; }
+    .field label { font-size: 0.75rem; color: #9aa3ad; }
+    .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end; }
+    .row .field { flex: 1; min-width: 140px; }
+    .steprow { display: grid; grid-template-columns: 90px 1fr 1fr 100px 32px; gap: 0.4rem; margin-bottom: 0.4rem; align-items: center; }
+    .steprow input { width: 100%; }
+    .hidden { display: none !important; }
+    .progress { height: 6px; background: #2c3742; border-radius: 4px; overflow: hidden; margin: 0.5rem 0; }
+    .progress > div { height: 100%; background: #45a29e; transition: width 0.3s; }
+    .stepres { font-size: 0.78rem; border-top: 1px solid #2c3742; padding: 0.45rem 0; }
+    .stepres .name { color: #c5c6c7; font-weight: 600; }
+    .stepres pre { background: #0b0c10; border: 1px solid #2c3742; border-radius: 6px; padding: 0.5rem; overflow: auto; max-height: 180px; color: #9fe8c0; font-size: 0.72rem; margin: 0.3rem 0 0; white-space: pre-wrap; word-break: break-word; }
+    .err { color: #ff8a8a; font-size: 0.78rem; margin-top: 0.4rem; }
+    .toast { position: fixed; bottom: 1rem; right: 1rem; background: #1f2833; border: 1px solid #45a29e; color: #c5c6c7; padding: 0.7rem 1rem; border-radius: 8px; font-size: 0.85rem; box-shadow: 0 4px 16px rgba(0,0,0,0.4); max-width: 360px; }
+    .toast.err { border-color: #b0413e; color: #ff8a8a; }
+    .muted { color: #7d8794; font-size: 0.78rem; }
+    table.sched { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table.sched th, table.sched td { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid #2c3742; }
+    table.sched th { color: #9aa3ad; font-weight: 600; }
+    code { background: #0b0c10; padding: 0.1rem 0.35rem; border-radius: 4px; color: #66fcf1; font-size: 0.78rem; }
   </style>
 </head>
 <body>
   <header>
-    <h1>AI Assistant — Control Center (Phase 1 Stub)</h1>
-    <span class="status-badge">BOUNDED CONTEXT</span>
+    <h1>AI Assistant — Control Center</h1>
+    <span class="badge">PHASE 1</span>
+    <nav>
+      <button id="tab-workflows" class="active" onclick="showTab('workflows')">Workflows</button>
+      <button id="tab-instances" onclick="showTab('instances')">Instances</button>
+      <button id="tab-schedules" onclick="showTab('schedules')">Schedules</button>
+    </nav>
   </header>
+
   <main>
-    <div class="empty">
-      <h2>Workflow Engine API: <code>http://workflow-engine:8000</code></h2>
-      <p>Use the REST API to trigger, monitor, and manage workflows.</p>
-      <div class="grid" style="max-width: 800px; margin: 2rem auto; text-align: left;">
-        <div class="card">
-          <h2>Run Workflow</h2>
-          <p class="placeholder"><code>POST /workflows/{name}/run</code></p>
+    <!-- WORKFLOWS -->
+    <section id="view-workflows">
+      <div class="toolbar">
+        <button class="btn" onclick="toggleCreate()">+ New workflow</button>
+        <button class="btn ghost" onclick="loadWorkflows()">Refresh</button>
+        <span class="muted" id="wf-count"></span>
+      </div>
+
+      <div class="panel hidden" id="create-panel">
+        <h2>Create workflow</h2>
+        <div class="field">
+          <label>Name (unique, e.g. <code>my.team.workflow</code>)</label>
+          <input id="cw-name" placeholder="my.team.workflow">
         </div>
-        <div class="card">
-          <h2>Get Status</h2>
-          <p class="placeholder"><code>GET /workflows/{id}/status</code></p>
+        <div class="field">
+          <label>Description</label>
+          <input id="cw-desc" placeholder="What this workflow does">
         </div>
-        <div class="card">
-          <h2>Control</h2>
-          <p class="placeholder"><code>POST /workflows/{id}/pause|resume|stop</code></p>
+        <div class="field">
+          <label>Roles (comma separated, optional)</label>
+          <input id="cw-roles" placeholder="developer, designer">
         </div>
-        <div class="card">
-          <h2>Schedules</h2>
-          <p class="placeholder"><code>GET/POST/DELETE /schedules</code></p>
+        <div class="field">
+          <label>Steps</label>
+          <div id="cw-steps"></div>
+          <button class="btn ghost" onclick="addStepRow()">+ Add step</button>
+        </div>
+        <div class="toolbar" style="margin-top:0.5rem">
+          <button class="btn" onclick="createWorkflow()">Save workflow</button>
+          <button class="btn ghost" onclick="toggleCreate()">Cancel</button>
         </div>
       </div>
-      <p style="margin-top: 2rem; font-size: 0.8rem; color: #8a8d93;">
-        Nginx proxy: <code>workflow-engine.local.test</code><br>
-        Full SPA deferred to later phase.
-      </p>
-    </div>
+
+      <div id="workflows" class="grid"></div>
+    </section>
+
+    <!-- INSTANCES -->
+    <section id="view-instances" class="hidden">
+      <div class="toolbar">
+        <input id="inst-id" placeholder="workflow_id to inspect" style="min-width:260px">
+        <button class="btn" onclick="loadInstanceById()">Load by ID</button>
+        <span class="muted">Runs launched from the Workflows tab appear here automatically.</span>
+      </div>
+      <div id="instances" class="grid"></div>
+    </section>
+
+    <!-- SCHEDULES -->
+    <section id="view-schedules" class="hidden">
+      <div class="panel">
+        <h2>New schedule</h2>
+        <div class="row">
+          <div class="field"><label>Workflow name</label><input id="s-wf" placeholder="requirements.analysis.define-requirements"></div>
+          <div class="field"><label>Schedule ID</label><input id="s-id" placeholder="daily-requirements"></div>
+          <div class="field"><label>Cron</label><input id="s-cron" placeholder="0 8 * * *"></div>
+          <div class="field"><label>Initial context (JSON, optional)</label><input id="s-ctx" placeholder='{"topic":"x"}'></div>
+          <button class="btn" onclick="createSchedule()">Create</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Active schedules</h2>
+        <div id="schedules"></div>
+      </div>
+    </section>
   </main>
+
+  <div id="toasts"></div>
+
+<script>
+const API = "/api";
+
+function showTab(name) {
+  for (const t of ["workflows", "instances", "schedules"]) {
+    document.getElementById("view-" + t).classList.toggle("hidden", t !== name);
+    document.getElementById("tab-" + t).classList.toggle("active", t === name);
+  }
+  if (name === "schedules") loadSchedules();
+}
+
+function toast(msg, isErr) {
+  const t = document.createElement("div");
+  t.className = "toast" + (isErr ? " err" : "");
+  t.textContent = msg;
+  document.getElementById("toasts").appendChild(t);
+  setTimeout(() => t.remove(), 4500);
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (body !== undefined) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(API + path, opts);
+  if (res.status === 204) return null;
+  let data = null;
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok) {
+    const detail = (data && (data.detail || data.error)) || ("HTTP " + res.status);
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return data;
+}
+
+// ---------- Workflows ----------
+async function loadWorkflows() {
+  const el = document.getElementById("workflows");
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const list = await api("GET", "/workflows");
+    document.getElementById("wf-count").textContent = list.length + " workflow(s)";
+    if (!list.length) { el.innerHTML = '<div class="empty">No workflows found.</div>'; return; }
+    el.innerHTML = "";
+    for (const wf of list) {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <h3>${esc(wf.name)}</h3>
+        <div class="desc">${esc(wf.description || "")}</div>
+        <div class="actions">
+          <button class="btn" onclick="openRun('${esc(wf.name)}', this)">Run</button>
+          <button class="btn ghost" onclick="gotoSchedule('${esc(wf.name)}')">Schedule</button>
+        </div>
+        <div class="run-form hidden" style="margin-top:0.7rem"></div>`;
+      el.appendChild(card);
+    }
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Failed to load workflows: ' + esc(e.message) + '</div>';
+  }
+}
+
+function openRun(name, btn) {
+  const card = btn.closest(".card");
+  const form = card.querySelector(".run-form");
+  if (!form.classList.contains("hidden")) { form.classList.add("hidden"); return; }
+  form.classList.remove("hidden");
+  form.innerHTML = `
+    <div class="field"><label>Initial context (JSON)</label><textarea rows="3" placeholder='{"key":"value"}'>{}</textarea></div>
+    <div class="field"><label>Role override (optional)</label><input class="role" placeholder="developer"></div>
+    <div class="actions" style="display:flex;gap:0.5rem">
+      <button class="btn" onclick="runWorkflow('${esc(name)}', this)">Start</button>
+      <button class="btn ghost" onclick="this.closest('.run-form').classList.add('hidden')">Cancel</button>
+    </div>
+    <div class="run-result muted" style="margin-top:0.5rem"></div>`;
+}
+
+async function runWorkflow(name, btn) {
+  const form = btn.closest(".run-form");
+  const resultEl = form.querySelector(".run-result");
+  const ctxText = form.querySelector("textarea").value.trim();
+  const role = form.querySelector(".role").value.trim();
+  let ctx = {};
+  if (ctxText) {
+    try { ctx = JSON.parse(ctxText); }
+    catch (e) { resultEl.innerHTML = '<span class="err">Invalid context JSON: ' + esc(e.message) + '</span>'; return; }
+  }
+  const body = { initial_context: ctx };
+  if (role) body.role_override = role;
+  btn.disabled = true; resultEl.textContent = "Running…";
+  try {
+    const summary = await api("POST", "/workflows/" + encodeURIComponent(name) + "/run", body);
+    resultEl.innerHTML = '<span class="status completed">done</span> id: <code>' + esc(summary.workflow_id) + '</code>';
+    toast("Started " + name);
+    trackInstance(summary);
+    showTab("instances");
+  } catch (e) {
+    resultEl.innerHTML = '<span class="err">' + esc(e.message) + '</span>';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---------- Instances ----------
+const tracked = {}; // id -> {workflow_id, workflow_name}
+
+function trackInstance(summary) {
+  tracked[summary.workflow_id] = { workflow_id: summary.workflow_id, workflow_name: summary.workflow_name || "" };
+  renderInstances();
+  pollInstance(summary.workflow_id);
+}
+
+function renderInstances() {
+  const el = document.getElementById("instances");
+  const ids = Object.keys(tracked);
+  if (!ids.length) { el.innerHTML = '<div class="empty">No instances yet. Run a workflow or load by ID.</div>'; return; }
+  el.innerHTML = "";
+  for (const id of ids) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = "inst-" + id;
+    card.innerHTML = `<h3>${esc(tracked[id].workflow_name || id)}</h3><div class="body"></div>`;
+    el.appendChild(card);
+  }
+}
+
+async function loadInstanceById() {
+  const id = document.getElementById("inst-id").value.trim();
+  if (!id) return;
+  try {
+    const st = await api("GET", "/workflows/" + encodeURIComponent(id) + "/status?workflow_path=");
+    tracked[id] = { workflow_id: id, workflow_name: st.workflow_name || id };
+  } catch (e) {
+    toast("Instance not found: " + e.message, true); return;
+  }
+  renderInstances();
+  pollInstance(id);
+}
+
+async function pollInstance(id) {
+  const card = document.getElementById("inst-" + id);
+  if (!card) return;
+  const body = card.querySelector(".body");
+  try {
+    const st = await api("GET", "/workflows/" + encodeURIComponent(id) + "/status?workflow_path=");
+    const pct = st.total_steps ? Math.round((st.current_step_index / st.total_steps) * 100) : 0;
+    let html = `<div><span class="status ${esc(st.status)}">${esc(st.status)}</span> <span class="muted">step ${st.current_step_index}/${st.total_steps}</span> <span class="muted">id: ${esc(id)}</span></div>`;
+    html += `<div class="progress"><div style="width:${pct}%"></div></div>`;
+    html += `<div class="actions" style="display:flex;gap:0.5rem;margin:0.4rem 0">
+      <button class="btn ghost" onclick="controlInstance('${esc(id)}','pause')">Pause</button>
+      <button class="btn ghost" onclick="controlInstance('${esc(id)}','resume')">Resume</button>
+      <button class="btn danger" onclick="controlInstance('${esc(id)}','stop')">Stop</button>
+      <button class="btn ghost" onclick="pollInstance('${esc(id)}')">Refresh</button>
+    </div>`;
+    if (st.error) html += `<div class="err">${esc(st.error)}</div>`;
+    if (st.step_results && st.step_results.length) {
+      for (const r of st.step_results) {
+        if (!r) continue;
+        html += `<div class="stepres"><span class="name">${esc(r.step_name || "?")}</span> <span class="status ${esc(r.status)}">${esc(r.status)}</span>`;
+        if (r.duration_seconds != null) html += ` <span class="muted">${r.duration_seconds.toFixed(1)}s</span>`;
+        if (r.error) html += `<div class="err">${esc(r.error)}</div>`;
+        if (r.output != null) html += `<pre>${esc(typeof r.output === "string" ? r.output : JSON.stringify(r.output, null, 2))}</pre>`;
+        html += `</div>`;
+      }
+    }
+    body.innerHTML = html;
+    if (st.status === "running" || st.status === "pending" || st.status === "scheduled") {
+      setTimeout(() => pollInstance(id), 3000);
+    }
+  } catch (e) {
+    body.innerHTML = '<div class="err">Failed to load: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function controlInstance(id, action) {
+  try {
+    await api("POST", "/workflows/" + encodeURIComponent(id) + "/" + action + "?workflow_path=");
+    toast(action + " sent");
+    pollInstance(id);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---------- Schedules ----------
+async function loadSchedules() {
+  const el = document.getElementById("schedules");
+  el.innerHTML = '<div class="muted">Loading…</div>';
+  try {
+    const list = await api("GET", "/schedules");
+    if (!list.length) { el.innerHTML = '<div class="empty">No schedules.</div>'; return; }
+    let html = '<table class="sched"><thead><tr><th>ID</th><th>Workflow</th><th>Cron</th><th>Next run</th><th></th></tr></thead><tbody>';
+    for (const s of list) {
+      html += `<tr><td>${esc(s.schedule_id)}</td><td>${esc(s.workflow_name)}</td><td><code>${esc(s.cron)}</code></td><td class="muted">${esc(s.next_run_time || "—")}</td><td><button class="btn danger" onclick="deleteSchedule('${esc(s.schedule_id)}')">Delete</button></td></tr>`;
+    }
+    html += "</tbody></table>";
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Failed to load schedules: ' + esc(e.message) + '</div>';
+  }
+}
+
+function gotoSchedule(name) {
+  document.getElementById("s-wf").value = name;
+  showTab("schedules");
+}
+
+async function createSchedule() {
+  const wf = document.getElementById("s-wf").value.trim();
+  const sid = document.getElementById("s-id").value.trim();
+  const cron = document.getElementById("s-cron").value.trim();
+  const ctxText = document.getElementById("s-ctx").value.trim();
+  if (!wf || !sid || !cron) { toast("workflow name, id and cron are required", true); return; }
+  let ctx = {};
+  if (ctxText) { try { ctx = JSON.parse(ctxText); } catch (e) { toast("Invalid context JSON", true); return; } }
+  try {
+    await api("POST", "/schedules", { workflow_name: wf, schedule_id: sid, cron, initial_context: ctx });
+    toast("Schedule created");
+    loadSchedules();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteSchedule(id) {
+  try {
+    await api("DELETE", "/schedules/" + encodeURIComponent(id));
+    toast("Schedule removed");
+    loadSchedules();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---------- Create workflow ----------
+function toggleCreate() {
+  const p = document.getElementById("create-panel");
+  p.classList.toggle("hidden");
+  if (!p.classList.contains("hidden") && !document.getElementById("cw-steps").children.length) addStepRow();
+}
+
+function addStepRow() {
+  const wrap = document.getElementById("cw-steps");
+  const row = document.createElement("div");
+  row.className = "steprow";
+  row.innerHTML = `
+    <select><option value="skill">skill</option><option value="tool">tool</option><option value="workflow">workflow</option></select>
+    <input class="st-name" placeholder="step name">
+    <input class="st-uses" placeholder="uses: skill/tool name">
+    <input class="st-with" placeholder='with: {} (opt)'>
+    <button class="btn danger" onclick="this.parentNode.remove()">×</button>`;
+  wrap.appendChild(row);
+}
+
+async function createWorkflow() {
+  const name = document.getElementById("cw-name").value.trim();
+  const desc = document.getElementById("cw-desc").value.trim();
+  const roles = document.getElementById("cw-roles").value.trim();
+  if (!name) { toast("Name is required", true); return; }
+  const steps = [];
+  for (const row of document.getElementById("cw-steps").children) {
+    const type = row.querySelector("select").value;
+    const sname = row.querySelector(".st-name").value.trim();
+    const uses = row.querySelector(".st-uses").value.trim();
+    const withText = row.querySelector(".st-with").value.trim();
+    if (!sname || !uses) continue;
+    const step = { type, name: sname, uses };
+    if (withText) { try { step["with"] = JSON.parse(withText); } catch (e) { toast("Invalid 'with' JSON in a step", true); return; } }
+    steps.push(step);
+  }
+  if (!steps.length) { toast("Add at least one step", true); return; }
+  const body = { name, description: desc || null, role: roles ? roles.split(",").map(r => r.trim()) : null, steps };
+  try {
+    await api("POST", "/workflows", body);
+    toast("Workflow '" + name + "' created");
+    document.getElementById("create-panel").classList.add("hidden");
+    document.getElementById("cw-steps").innerHTML = "";
+    loadWorkflows();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---------- utils ----------
+function esc(s) {
+  if (s == null) return "";
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+loadWorkflows();
+</script>
 </body>
 </html>
