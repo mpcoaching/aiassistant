@@ -337,9 +337,14 @@ services:
     volumes:
       - .:/aiassistant:cached,z
     depends_on:
-      - postgres
-      - rabbitmq
-      - langgraph
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      langgraph:
+        condition: service_started
     networks:
       - ai_net
     restart: unless-stopped

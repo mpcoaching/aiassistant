@@ -6,10 +6,17 @@ when DATABASE_URL is available.  If Postgres is unreachable, writes are
 mirrored to the legacy ``.wf/`` JSON files so no state is lost during
 container restarts or failover.
 
-Tables:
-  - workflow_instances
-  - step_results
-  - schedules
+Per agentic/docs/context/sa/SYSTEM_DESIGN.md, all persistence operations are
+routed through stored procedures (defined in
+ai-assistant-infra/migrations/012_workflow_engine_procedures.sql); direct SQL
+is never inlined here.  The schema itself lives in
+ai-assistant-infra/migrations/003_workflow_engine.sql.
+
+Tables / procedures:
+  - workflow_instances        -> upsert_workflow_instance, get_workflow_instance, list_workflow_instances
+  - step_results             -> insert_step_result
+  - workflow_events          -> insert_workflow_event
+  - schedules                -> get_enabled_schedules, upsert_schedule, delete_schedule
 """
 
 from __future__ import annotations
@@ -85,94 +92,12 @@ def _append_file_log(state: WorkflowState, message: str) -> None:
         pass
 
 
-def _ensure_schema() -> None:
-    try:
-        with _pg_conn() as conn:
-            conn.autocommit = True
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS workflow_instances (
-                        workflow_id TEXT PRIMARY KEY,
-                        workflow_name TEXT NOT NULL,
-                        workflow_path TEXT NOT NULL,
-                        status TEXT NOT NULL CHECK (status IN ('pending','running','completed','failed','paused','stopped','scheduled')),
-                        current_step_index INTEGER NOT NULL DEFAULT 0,
-                        steps JSONB NOT NULL,
-                        step_results JSONB NOT NULL DEFAULT '[]'::jsonb,
-                        context JSONB NOT NULL DEFAULT '{}'::jsonb,
-                        error TEXT,
-                        log_path TEXT,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-                    )
-                    """
-                )
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS step_results (
-                        id SERIAL PRIMARY KEY,
-                        workflow_id TEXT NOT NULL REFERENCES workflow_instances(workflow_id) ON DELETE CASCADE,
-                        step_index INTEGER NOT NULL,
-                        step_name TEXT NOT NULL,
-                        step_type TEXT NOT NULL,
-                        status TEXT NOT NULL,
-                        output JSONB,
-                        composed_prompt TEXT,
-                        error TEXT,
-                        duration_seconds REAL,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-                    )
-                    """
-                )
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS schedules (
-                        schedule_id TEXT PRIMARY KEY,
-                        workflow_name TEXT NOT NULL,
-                        cron TEXT NOT NULL,
-                        initial_context JSONB NOT NULL DEFAULT '{}'::jsonb,
-                        role_override TEXT,
-                        trigger TEXT NOT NULL DEFAULT 'scheduled',
-                        enabled BOOLEAN NOT NULL DEFAULT TRUE,
-                        next_fire_time TIMESTAMPTZ,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-                    )
-                    """
-                )
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS workflow_events (
-                        event_id TEXT PRIMARY KEY,
-                        workflow_id TEXT NOT NULL,
-                        event_type TEXT NOT NULL,
-                        payload JSONB NOT NULL,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-                    )
-                    """
-                )
-    except Exception:
-        logger.warning("Failed to ensure Postgres schema; will fall back to file persistence")
-
-
 def _pg_upsert_instance(state: WorkflowState) -> None:
     try:
         with _pg_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
-                    INSERT INTO workflow_instances
-                        (workflow_id, workflow_name, workflow_path, status, current_step_index, steps, step_results, context, error, log_path, updated_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (workflow_id) DO UPDATE SET
-                        status = EXCLUDED.status,
-                        current_step_index = EXCLUDED.current_step_index,
-                        step_results = EXCLUDED.step_results,
-                        context = EXCLUDED.context,
-                        error = EXCLUDED.error,
-                        updated_at = EXCLUDED.updated_at
-                    """,
+                    "SELECT upsert_workflow_instance(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     (
                         state.workflow_id,
                         state.workflow_name,
@@ -184,7 +109,6 @@ def _pg_upsert_instance(state: WorkflowState) -> None:
                         json.dumps(state.context),
                         state.error,
                         state.log_path,
-                        datetime.now(timezone.utc),
                     ),
                 )
             conn.commit()
@@ -197,10 +121,7 @@ def _pg_insert_step_result(step_result: Dict[str, Any], workflow_id: str, step_i
         with _pg_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
-                    INSERT INTO step_results (workflow_id, step_index, step_name, step_type, status, output, composed_prompt, error, duration_seconds)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """,
+                    "SELECT insert_step_result(%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     (
                         workflow_id,
                         step_index,
@@ -224,11 +145,7 @@ def _pg_insert_event(event_id: str, workflow_id: str, event_type: str, payload: 
         with _pg_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
-                    INSERT INTO workflow_events (event_id, workflow_id, event_type, payload)
-                    VALUES (%s,%s,%s,%s)
-                    ON CONFLICT (event_id) DO NOTHING
-                    """,
+                    "SELECT insert_workflow_event(%s,%s,%s,%s)",
                     (event_id, workflow_id, event_type, json.dumps(payload)),
                 )
             conn.commit()
@@ -240,7 +157,7 @@ def _pg_get_schedules() -> List[Dict[str, Any]]:
     try:
         with _pg_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT schedule_id, workflow_name, cron, initial_context, role_override, trigger, enabled, next_fire_time FROM schedules WHERE enabled = TRUE")
+                cur.execute("SELECT * FROM get_enabled_schedules()")
                 rows = cur.fetchall()
                 keys = ["schedule_id", "workflow_name", "cron", "initial_context", "role_override", "trigger", "enabled", "next_fire_time"]
                 return [dict(zip(keys, r)) for r in rows]
@@ -254,14 +171,7 @@ def _pg_upsert_schedule(schedule: Dict[str, Any]) -> None:
         with _pg_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
-                    INSERT INTO schedules (schedule_id, workflow_name, cron, initial_context, role_override, trigger, enabled, next_fire_time, updated_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (schedule_id) DO UPDATE SET
-                        enabled = EXCLUDED.enabled,
-                        next_fire_time = EXCLUDED.next_fire_time,
-                        updated_at = EXCLUDED.updated_at
-                    """,
+                    "SELECT upsert_schedule(%s,%s,%s,%s,%s,%s,%s,%s)",
                     (
                         schedule["schedule_id"],
                         schedule["workflow_name"],
@@ -271,7 +181,6 @@ def _pg_upsert_schedule(schedule: Dict[str, Any]) -> None:
                         schedule.get("trigger", "scheduled"),
                         schedule.get("enabled", True),
                         schedule.get("next_fire_time"),
-                        datetime.now(timezone.utc),
                     ),
                 )
             conn.commit()
@@ -283,7 +192,7 @@ def _pg_delete_schedule(schedule_id: str) -> None:
     try:
         with _pg_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM schedules WHERE schedule_id = %s", (schedule_id,))
+                cur.execute("SELECT delete_schedule(%s)", (schedule_id,))
             conn.commit()
     except Exception:
         logger.warning("Failed to delete schedule %s", schedule_id)
@@ -321,7 +230,6 @@ def create_workflow_state(
 def _persist_state(state: WorkflowState) -> None:
     _persist_file(state)
     try:
-        _ensure_schema()
         _pg_upsert_instance(state)
     except Exception:
         logger.warning("Postgres persist failed for %s; state mirrored to file", state.workflow_id)
@@ -332,14 +240,7 @@ def load_workflow_state(workflow_id: str, workflow_path: str) -> Optional[Workfl
     try:
         with _pg_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT workflow_name, workflow_path, status, current_step_index, steps, step_results, context, error, log_path
-                    FROM workflow_instances
-                    WHERE workflow_id = %s
-                    """,
-                    (workflow_id,),
-                )
+                cur.execute("SELECT * FROM get_workflow_instance(%s)", (workflow_id,))
                 row = cur.fetchone()
                 if row:
                     (
@@ -391,14 +292,7 @@ def list_workflow_states(workflow_path: str) -> List[Dict[str, Any]]:
     try:
         with _pg_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT workflow_id, workflow_name, status, current_step_index, steps
-                    FROM workflow_instances
-                    WHERE workflow_path = %s
-                    """,
-                    (workflow_path,),
-                )
+                cur.execute("SELECT * FROM list_workflow_instances(%s)", (workflow_path,))
                 for row in cur.fetchall():
                     states.append({
                         "workflow_id": row[0],
@@ -484,24 +378,12 @@ def insert_event(event_id: str, workflow_id: str, event_type: str, payload: Dict
 
 
 def get_schedules() -> List[Dict[str, Any]]:
-    try:
-        _ensure_schema()
-    except Exception:
-        logger.warning("Failed to ensure schema for schedules")
     return _pg_get_schedules()
 
 
 def upsert_schedule(schedule: Dict[str, Any]) -> None:
-    try:
-        _ensure_schema()
-    except Exception:
-        logger.warning("Failed to ensure schema for schedules")
     _pg_upsert_schedule(schedule)
 
 
 def delete_schedule(schedule_id: str) -> None:
-    try:
-        _ensure_schema()
-    except Exception:
-        logger.warning("Failed to ensure schema for schedules")
     _pg_delete_schedule(schedule_id)
