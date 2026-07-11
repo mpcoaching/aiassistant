@@ -33,7 +33,8 @@ def _read_file_content(path: Path) -> str:
 def _load_role_content(role_name: str, search_paths: Optional[List[Path]] = None) -> str:
     """Load a role definition file."""
     if search_paths is None:
-        search_paths = [Path("agentic/docs/roles")]
+        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        search_paths = [_repo_root / "agentic" / "docs" / "roles"]
 
     for base in search_paths:
         # Try <role>/role.md
@@ -51,7 +52,8 @@ def _load_role_content(role_name: str, search_paths: Optional[List[Path]] = None
 def _load_skill_content(skill_name: str, search_paths: Optional[List[Path]] = None) -> str:
     """Load a skill definition file (markdown or YAML)."""
     if search_paths is None:
-        search_paths = [Path("agentic/skills")]
+        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        search_paths = [_repo_root / "agentic" / "skills"]
 
     for base in search_paths:
         # Try .md

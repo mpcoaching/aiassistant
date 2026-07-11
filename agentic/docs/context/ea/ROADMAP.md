@@ -4,11 +4,17 @@ This document outlines the phased delivery of the Agentic system, focusing on ac
 
 ## Phase 1: Control Center & Core Manual Workflows (MVP)
 
-**Goal:** Establish a central interface for business operations, enabling manual execution of key workflows, monitoring, receiving suggestions and insights, and basic interaction with an assistant. This phase will leverage the agentic bus for workflow execution and scheduling, with robust control from the UI.
+**Goal:** Establish a central interface for business operations, enabling manual execution of key workflows, monitoring, receiving suggestions and insights, and basic interaction with an assistant. This phase will leverage an API‑first microservice architecture for workflow execution and scheduling, with robust control from the UI.
+
+**Microservice Topology:**
+*   **workflow-engine** – FastAPI service exposing REST endpoints for workflow CRUD, scheduling, and status queries.  Publishes lifecycle events to RabbitMQ and persists state in Postgres.
+*   **langgraph** – Black‑box HTTP runtime (`langchain/langgraph-api:3.11`) that executes composed skill prompts.  Bound to the engine via a Runtime Interface.
+*   **rabbitmq** – Durable topic exchange for agent bus events (`workflow.mode` exchange, `workflow.executions`, `workflow.control`, `workflow.lifecycle`).
+*   **postgres** – Primary state store with `.wf/` JSON file fallback for local inspectability.
 
 **Key Deliverables:**
 *   **User Interface / Control Center:** A dashboard or application providing:
-    *   Ability to manually trigger, schedule, and run defined workflows by placing requests onto the agentic bus.
+    *   Ability to manually trigger, schedule, and run defined workflows by calling the Workflow Engine API.
     *   Monitoring of workflow execution status, including the ability to **stop, pause, and start** running workflows.
     *   Display of system suggestions and insights.
     *   A chat interface for direct interaction with a basic "assistant" (initially rule-based or simple LLM integration).

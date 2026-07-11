@@ -76,7 +76,7 @@ class WorkflowState(BaseModel):
     workflow_id: str
     workflow_name: str
     workflow_path: str
-    status: str = Field(default="pending", pattern="^(pending|running|completed|failed|paused)$")
+    status: str = Field(default="pending", pattern="^(pending|running|completed|failed|paused|stopped|scheduled)$")
     current_step_index: int = Field(default=0, ge=0)
     steps: List[Step]
     step_results: List[Optional[Dict[str, Any]]] = Field(default_factory=list)

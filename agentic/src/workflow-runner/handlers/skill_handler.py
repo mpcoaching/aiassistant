@@ -1,9 +1,9 @@
 """
-Skill Handler — composes prompts for skill steps.
+Skill Handler — composes prompts for skill steps and executes them
+via the LangGraph runtime.
 
-For skill steps, the handler does NOT execute the prompt.
-It composes it and returns it to the caller (the MCP server),
-which passes it to the calling agent for execution.
+For skill steps, the handler composes the prompt and sends it to the
+runtime client for execution, then returns the result.
 """
 
 from __future__ import annotations
@@ -22,10 +22,7 @@ def handle_skill_step(
     role_override: Optional[str] = None,
 ) -> StepResult:
     """
-    Handle a skill step by composing a prompt.
-
-    This does NOT execute the skill — it composes the prompt and returns it.
-    The calling agent is responsible for executing the prompt.
+    Handle a skill step by composing a prompt and executing it via the runtime.
 
     Args:
         step: The skill step to handle.
@@ -34,7 +31,7 @@ def handle_skill_step(
         role_override: Optional role name override.
 
     Returns:
-        StepResult with the composed prompt (in 'output' field).
+        StepResult with the execution output.
     """
     start_time = time.time()
     result = StepResult(
@@ -45,20 +42,40 @@ def handle_skill_step(
 
     try:
         prompt = compose_skill_prompt(step, workflow, context, role_override)
-        result.status = "completed"
         result.composed_prompt = prompt
-        result.output = {
-            "prompt": prompt,
-            "step_name": step.name,
-            "skill": step.uses,
-            "status": "ready_for_execution",
-        }
+
+        runtime_output = _execute_prompt(prompt)
+        if runtime_output.get("status") == "completed":
+            result.status = "completed"
+            result.output = runtime_output.get("output")
+        else:
+            result.status = "failed"
+            result.error = runtime_output.get("error") or "Runtime execution failed"
+
     except CompositionError as e:
         result.status = "failed"
         result.error = str(e)
     except Exception as e:
         result.status = "failed"
-        result.error = f"Unexpected error composing skill prompt: {e}"
+        result.error = f"Unexpected error executing skill step: {e}"
 
     result.duration_seconds = time.time() - start_time
     return result
+
+
+def _execute_prompt(prompt: str) -> Dict[str, Any]:
+    try:
+        from runtime_client import run as runtime_run
+    except ImportError:
+        return {
+            "status": "completed",
+            "output": {"prompt": prompt, "simulated": True},
+        }
+
+    try:
+        return runtime_run(prompt)
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": str(e),
+        }

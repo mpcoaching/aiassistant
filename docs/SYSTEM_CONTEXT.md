@@ -43,7 +43,9 @@ The Phase 1 roadmap introduces several business‑level capabilities that are 
 | Subsystem (SBB) | Primary Responsibility | Source‑of‑Truth Data Entity |
 |-----------------|------------------------|-----------------------------|
 | **Control Center UI** | Provides the dashboard for manual workflow triggering, monitoring, and chat interaction. | UI state is transient; persistent data lives in the underlying services (Workflow Engine, Task Service, etc.). |
-| **Workflow Engine** | Accepts workflow requests from the UI, publishes them to the Agent Bus, tracks execution status, and handles pause/resume/stop. | Workflow Instance (id, status, timestamps). |
+| **Workflow Engine** | API‑first microservice that manages workflow instance lifecycle (CRUD, pause, resume, stop) and scheduling.  Delegates skill execution to the LangGraph runtime via a Runtime Interface and publishes lifecycle events to the Agent Bus. | Workflow Instance (id, status, timestamps). |
+| **LangGraph Runtime** | Black‑box HTTP runtime for executing composed skill prompts.  The Workflow Engine binds to it via the Runtime Interface (`start`, `run`, `send`, `add`, `drop`, `stop`, `exit`, `get_status`). | Runtime execution context (thread/run IDs) — not persisted by the Workflow Engine. |
+| **Agent Bus** | RabbitMQ‑based topic exchange providing durable, ordered, idempotent event delivery between Workflow Engine, LangGraph, and other services. | Events (workflow lifecycle, schedule changes). |
 | **Work Session Service** | Manages the lifecycle of a “work session” (start, close, summary capture). | Work Session entity (session‑id, start‑time, end‑time, outcomes). |
 | **Task Tracking Service** | Stores daily tasks, progress, and outcome metrics. | Task entity (task‑id, owner, status, timestamps). |
 | **Lead Enrichment Service** | Enriches raw lead data from browser sessions, stores enriched profiles, and surfaces next‑step recommendations. | Lead Profile entity (lead‑id, enriched‑fields, last‑updated). |

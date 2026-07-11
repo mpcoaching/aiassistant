@@ -4,6 +4,7 @@ Tests for handlers (skill_handler, tool_handler, workflow_handler).
 
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -21,7 +22,8 @@ def _make_workflow(role: str = "developer") -> WorkflowDefinition:
 
 
 class TestHandleSkillStep:
-    def test_skill_step_composes_prompt(self):
+    @patch('runtime_client.run', return_value={"status": "completed", "output": {"status": "ready_for_execution"}})
+    def test_skill_step_composes_prompt(self, mock_run):
         """Test that a skill step composes a prompt successfully."""
         wf = _make_workflow("developer")
         step = Step(type="skill", name="review", uses="architecture-review")
@@ -34,7 +36,8 @@ class TestHandleSkillStep:
         assert "# Skill: architecture-review" in result.composed_prompt
         assert result.output["status"] == "ready_for_execution"
 
-    def test_skill_step_with_role_override(self):
+    @patch('runtime_client.run', return_value={"status": "completed", "output": {"status": "completed"}})
+    def test_skill_step_with_role_override(self, mock_run):
         """Test that role override works."""
         wf = _make_workflow("developer")
         step = Step(type="skill", name="review", uses="architecture-review")

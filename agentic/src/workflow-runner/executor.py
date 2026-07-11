@@ -36,13 +36,10 @@ def execute_workflow(
     initial_context: Optional[Dict[str, Any]] = None,
     role_override: Optional[str] = None,
     search_paths: Optional[List[Path]] = None,
+    initial_state: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Execute a workflow from start to finish.
-
-    This function runs all steps sequentially. For skill steps, it composes
-    prompts and returns them — the caller is responsible for executing them
-    and calling back to advance the workflow.
 
     Args:
         workflow: The workflow definition to execute.
@@ -50,22 +47,21 @@ def execute_workflow(
         initial_context: Optional initial context values.
         role_override: Optional role name to use for all skill steps.
         search_paths: Additional paths to search for referenced files.
+        initial_state: Optional pre-created WorkflowState to resume from.
 
     Returns:
-        A dictionary containing the execution results:
-        - status: "completed", "failed", or "paused"
-        - step_results: list of StepResult dicts
-        - context: final workflow context
-        - error: error message if failed
-        - workflow_id: the execution ID
+        A dictionary containing the execution results.
     """
-    # Create initial state
-    state = create_workflow_state(
-        workflow_name=workflow.name,
-        workflow_path=workflow_path,
-        steps=workflow.steps,
-        initial_context=initial_context,
-    )
+    if initial_state is not None:
+        state = initial_state
+    else:
+        # Create initial state
+        state = create_workflow_state(
+            workflow_name=workflow.name,
+            workflow_path=workflow_path,
+            steps=workflow.steps,
+            initial_context=initial_context,
+        )
 
     append_log(state, f"Starting workflow: {workflow.name}")
     append_log(state, f"Total steps: {len(workflow.steps)}")

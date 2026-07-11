@@ -93,21 +93,9 @@ def find_downstream_chain(
     """
     Find the downstream chain starting from a given workflow.
 
-    Starting from `workflow_name`, follow the dependency graph forward
-    through any workflow that references it, then continue following
-    that workflow's sub-workflows, until no further continuation exists.
-
-    If multiple chains contain the workflow, returns the longest path
-    to the end. Cycles are detected and broken safely.
-
-    Args:
-        workflow_name: Name of the workflow to start from.
-        search_paths: Directories to search for workflow files.
-
-    Returns:
-        Ordered list of workflow names from the starting workflow to the
-        end of its containing chain. Returns [workflow_name] if it is not
-        part of any chain.
+    Returns the suffix of the chain root's ordered step list starting from
+    ``workflow_name``.  If ``workflow_name`` is not part of any chain,
+    returns ``[workflow_name]``.
     """
     if search_paths is None:
         _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -115,59 +103,24 @@ def find_downstream_chain(
 
     deps = build_dependency_graph(search_paths)
 
-    # Find all workflows that reference workflow_name (reverse deps)
     reverse: Dict[str, List[str]] = {}
     for parent, children in deps.items():
         for child in children:
             reverse.setdefault(child, []).append(parent)
 
-    # If nothing references this workflow, it's a standalone workflow
     if workflow_name not in reverse or not reverse[workflow_name]:
         return [workflow_name]
 
-    # Find all chains that contain this workflow
-    # A chain is a path from some root workflow to a leaf workflow
-    # where each step is a workflow reference
+    chain_roots = [
+        name for name, children in deps.items()
+        if children and (name not in reverse or not reverse.get(name))
+    ]
 
-    def find_chain_roots(name: str, visited: Set[str]) -> List[str]:
-        """Find all root workflows that eventually lead to `name`."""
-        roots: List[str] = []
-        for parent in reverse.get(name, []):
-            if parent in visited:
-                continue  # cycle guard
-            visited.add(parent)
-            # Check if parent is itself referenced by another workflow
-            parents_parents = reverse.get(parent, [])
-            if not parents_parents:
-                roots.append(parent)
-            else:
-                roots.extend(find_chain_roots(parent, visited))
-        return roots
-
-    chain_roots = find_chain_roots(workflow_name, set())
-
-    # For each chain root, trace forward to the end
-    def trace_forward(start: str, visited: Set[str]) -> List[str]:
-        """Trace a chain from start to the end."""
-        chain = [start]
-        current = start
-        while current in deps and deps[current]:
-            next_workflows = [w for w in deps[current] if w not in visited]
-            if not next_workflows:
-                break
-            visited.add(current)
-            # Follow the first valid next workflow
-            current = next_workflows[0]
-            chain.append(current)
-        return chain
-
-    # Find the longest chain that includes workflow_name
     longest_chain: List[str] = [workflow_name]
     for root in chain_roots:
-        chain = trace_forward(root, set())
-        if workflow_name in chain:
-            idx = chain.index(workflow_name)
-            tail = chain[idx:]
+        if workflow_name in deps[root]:
+            idx = deps[root].index(workflow_name)
+            tail = list(deps[root][idx:])
             if len(tail) > len(longest_chain):
                 longest_chain = tail
 

@@ -11,6 +11,7 @@ services:
       - monitoring-net
     volumes:
       - ./ai-assistant-infra/configs/nginx/nginx.conf:/etc/nginx/nginx.conf:ro # Relative path!
+      - ./agentic/docs/control-center-ui:/usr/share/nginx/control-center-ui:ro
   postgres:
     image: postgres:16
     restart: unless-stopped
@@ -85,7 +86,6 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq_bus
-    profiles: ["disabled"]
     ports:
       - 15672:15672
     networks:
@@ -316,6 +316,30 @@ services:
       - postgres
     volumes:
       - langgraph_config:/app/config
+    networks:
+      - ai_net
+    restart: unless-stopped
+
+  workflow-engine:
+    build:
+      context: ./agentic/src/workflow-runner
+      dockerfile: Dockerfile
+    container_name: workflow_engine
+    env_file:
+      - .env
+    expose:
+      - 8000
+    environment:
+      - DATABASE_URL=postgresql://${AIASSIST_DB_USER}:${AIASSIST_DB_PASSWORD}@postgres:5432/${AIASSIST_DB_NAME}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - LANGGRAPH_URL=http://langgraph:8000
+      - REPO_ROOT=/aiassistant
+    volumes:
+      - .:/aiassistant:cached,z
+    depends_on:
+      - postgres
+      - rabbitmq
+      - langgraph
     networks:
       - ai_net
     restart: unless-stopped

@@ -15,15 +15,6 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:workflowRunner.run",
-    "onCommand:workflowRunner.runChain",
-    "onCommand:workflowRunner.stop",
-    "onCommand:workflowRunner.refresh",
-    "onCommand:workflowRunner.setToken",
-    "onView:workflowRunner.explorer",
-    "onCommand:workflowRunner.runFile"
-  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [

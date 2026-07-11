@@ -25,15 +25,16 @@ This document outlines the architectural backlog items for Phase 1 of the Agenti
     *   Deployment strategy (e.g., CDN, static hosting).
 
 ### 2. Workflow Engine
-*   **Status**: AD
-*   **Description**: Manages the lifecycle and execution of defined workflows.
-*   **Key Discovery Areas**:
-    *   Choice of workflow orchestration technology (e.g., Cadence, Temporal, Apache Airflow, custom state machine).
-    *   Detailed API contracts for triggering, status retrieval, and control operations.
-    *   Data model for workflow definitions and workflow instances.
-    *   Error handling, retry mechanisms, and compensation logic for workflow steps.
-    *   Integration with the Agent Bus for event-driven step execution and status updates.
-    *   Persistence strategy for workflow state.
+*   **Status**: C
+*   **Description**: API‑first microservice managing workflow instance lifecycle (CRUD, pause, resume, stop, schedule).  Persists state in Postgres with `.wf/` file fallback, publishes lifecycle events to RabbitMQ, and binds to LangGraph via a Runtime Interface.
+*   **Key Discovery Areas (completed)**:
+    *   Microservice boundary definition: `workflow-engine`, `langgraph`, `postgres`, `rabbitmq`.
+    *   Runtime Interface contract (`start`, `run`, `send`, `add`, `drop`, `stop`, `exit`, `get_status`).
+    *   Bus topology and idempotent consumer design.
+    *   State persistence strategy (Postgres primary, file fallback).
+*   **Remaining Discovery Areas**:
+    *   Horizontal scaling of workflow-engine workers (competing consumers on `workflow.executions`).
+    *   Distributed locking to prevent duplicate workflow execution.
 
 ### 3. Work Session Service
 *   **Status**: AD

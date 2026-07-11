@@ -174,9 +174,10 @@ def resolve_skill_path(skill_name: str, search_paths: Optional[List[Path]] = Non
     - <skill_name>/ (directory with index or matching files)
     """
     if search_paths is None:
+        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
         search_paths = [
-            Path("agentic/skills"),
-            Path("agentic/docs/skills"),
+            _repo_root / "agentic" / "skills",
+            _repo_root / "agentic" / "docs" / "skills",
         ]
 
     for base in search_paths:
@@ -201,8 +202,9 @@ def resolve_tool_path(tool_name: str, search_paths: Optional[List[Path]] = None)
     Resolve a tool name to a file path.
     """
     if search_paths is None:
+        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
         search_paths = [
-            Path("agentic/tools"),
+            _repo_root / "agentic" / "tools",
         ]
 
     for base in search_paths:
@@ -221,9 +223,10 @@ def resolve_workflow_path(workflow_name: str, search_paths: Optional[List[Path]]
     Resolve a workflow name to a file path.
     """
     if search_paths is None:
+        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
         search_paths = [
-            Path("agentic/docs/workflows"),
-            Path("agentic/workflows"),
+            _repo_root / "agentic" / "docs" / "workflows",
+            _repo_root / "agentic" / "workflows",
         ]
 
     for base in search_paths:

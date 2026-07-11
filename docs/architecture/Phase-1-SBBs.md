@@ -16,10 +16,20 @@ The following SBBs are identified for Phase 1, mapping to the ABBs defined in `P
 
 2.  **Workflow Engine**:
     *   **Realizes ABB**: (Supports Control Center, Work Session Management, Daily Task Tracking, Lead Enrichment)
-    *   **Description**: A backend service responsible for managing the lifecycle of workflows. It receives requests, publishes events to the Agent Bus for execution, and tracks the status of running workflows.
-    *   **Key Responsibilities**: Workflow definition loading, instance creation, state management (pause, resume, stop), event publishing.
+    *   **Description**: An API‑first microservice that manages the lifecycle of workflow instances (create, run, pause, resume, stop, schedule).  It persists state in Postgres (with `.wf/` file fallback), publishes lifecycle events to RabbitMQ, and delegates skill execution to the LangGraph Runtime via a thin HTTP Runtime Interface.
+    *   **Key Responsibilities**: Workflow definition loading, instance creation, state management, scheduling (APScheduler), event publishing (RabbitMQ), and Runtime Interface binding to LangGraph.
 
-3.  **Work Session Service**:
+3.  **LangGraph Runtime**:
+    *   **Realizes ABB**: (Supports Control Center, Work Session Management, Daily Task Tracking, Lead Enrichment)
+    *   **Description**: The black‑box HTTP runtime that executes composed skill prompts.  The Workflow Engine interacts with it through a Runtime Interface (`start`, `run`, `send`, `add`, `drop`, `stop`, `exit`, `get_status`) so the runtime can be swapped without changing the engine.
+    *   **Key Responsibilities**: Prompt execution, thread/run management, and returning normalised results to the Workflow Engine.
+
+4.  **Agent Bus**:
+    *   **Realizes ABB**: Communication substrate for all Phase 1 services.
+    *   **Description**: RabbitMQ durable topic exchange with dead‑letter routing, consumer thread pools, and idempotent message handling per `docs/SYSTEM_CONTEXT.md`.
+    *   **Key Responsibilities**: Reliable event delivery, decoupling producers from consumers, and enabling horizontal scaling.
+
+5.  **Work Session Service**:
     *   **Realizes ABB**: Work Session Management
     *   **Description**: A dedicated backend service for managing the creation, update, and retrieval of work session data.
     *   **Key Responsibilities**: Persisting work session details, handling start/close session logic, providing session summaries.

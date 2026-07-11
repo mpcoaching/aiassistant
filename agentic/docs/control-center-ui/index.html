@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Assistant — Control Center</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 0; background: #0b0c10; color: #c5c6c7; }
+    header { background: #1f2833; padding: 1rem 2rem; border-bottom: 1px solid #45a29e; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 1.2rem; color: #66fcf1; }
+    main { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+    .card { background: #1f2833; border: 1px solid #45a29e; border-radius: 8px; padding: 1.25rem; }
+    .card h2 { margin-top: 0; font-size: 1rem; color: #66fcf1; }
+    .placeholder { color: #8a8d93; font-size: 0.9rem; }
+    .status-badge { display: inline-block; padding: 0.25rem 0.5rem; background: #45a29e; color: #0b0c10; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+    .empty { text-align: center; padding: 3rem; color: #8a8d93; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AI Assistant — Control Center (Phase 1 Stub)</h1>
+    <span class="status-badge">BOUNDED CONTEXT</span>
+  </header>
+  <main>
+    <div class="empty">
+      <h2>Workflow Engine API: <code>http://workflow-engine:8000</code></h2>
+      <p>Use the REST API to trigger, monitor, and manage workflows.</p>
+      <div class="grid" style="max-width: 800px; margin: 2rem auto; text-align: left;">
+        <div class="card">
+          <h2>Run Workflow</h2>
+          <p class="placeholder"><code>POST /workflows/{name}/run</code></p>
+        </div>
+        <div class="card">
+          <h2>Get Status</h2>
+          <p class="placeholder"><code>GET /workflows/{id}/status</code></p>
+        </div>
+        <div class="card">
+          <h2>Control</h2>
+          <p class="placeholder"><code>POST /workflows/{id}/pause|resume|stop</code></p>
+        </div>
+        <div class="card">
+          <h2>Schedules</h2>
+          <p class="placeholder"><code>GET/POST/DELETE /schedules</code></p>
+        </div>
+      </div>
+      <p style="margin-top: 2rem; font-size: 0.8rem; color: #8a8d93;">
+        Nginx proxy: <code>workflow-engine.local.test</code><br>
+        Full SPA deferred to later phase.
+      </p>
+    </div>
+  </main>
+</body>
+</html>

@@ -6,6 +6,8 @@ autogenstudio/
 .ai-assistant-infra
 **/.cache
 **/.venv
+**/__pycache__
+*.pyc
 
 # Aider Studio (auto-added)
 REPO_MAP.md
