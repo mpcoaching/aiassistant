@@ -43,6 +43,9 @@ services:
     networks:
       - ai_net
       - monitoring-net
+    ports:
+      - "5353:53/udp"
+      - "5353:53/tcp"
 
   postgres:
     image: postgres:16
