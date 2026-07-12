@@ -76,7 +76,6 @@ services:
       - -c
       - |
         apk add --no-cache postgresql-client &&
-        chmod +x /db-setup/bootstrap.sh &&
         /db-setup/bootstrap.sh
     networks:
       - ai_net
