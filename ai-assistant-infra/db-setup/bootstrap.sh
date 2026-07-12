@@ -1,10 +1,6 @@
 #!/bin/bash
-set -e # Exit immediately if a command exits with a non-zero status
+set -e
 
-# Define the psql command
-# -v ON_ERROR_STOP=1: Stop on ANY error
-# -a: Echo all input queries (great for debugging)
-# -e: Echo errors
 PSQL="psql -v ON_ERROR_STOP=1 -a -e -h ${POSTGRES_HOST} -U ${POSTGRES_DB_USER} -d postgres"
 
 echo "Applying Database creation..."
