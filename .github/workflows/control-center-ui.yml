@@ -1,52 +1,8 @@
-name: control-center-ui
-
-on:
-  pull_request:
-    paths:
-      - "agentic/src/control-center-ui/**"
-      - "docker-compose.yml"
-      - "ai-assistant-infra/configs/nginx/nginx.conf"
-  push:
-    branches: [main]
-    paths:
-      - "agentic/src/control-center-ui/**"
-      - "docker-compose.yml"
-      - "ai-assistant-infra/configs/nginx/nginx.conf"
-
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build UI (catch errors early)
-        working-directory: agentic/src/control-center-ui
-        run: |
-          npm ci || npm install
-          npm run build
-
-      - name: Build live image
-        run: docker compose build control-center-ui
-
-      - name: Smoke test
-        run: |
-          docker compose up -d control-center-ui
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost/ -o /dev/null; then break; fi
-            sleep 2
-          done
-          curl -fsS http://localhost/ | grep -q 'id="root"' || { echo "UI not served"; docker compose logs control-center-ui; exit 1; }
-          docker compose down
-
-  promote-live:
-    needs: build-and-test
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Promote to :live
-        run: |
-          docker compose build control-center-ui
-          docker tag control-center-ui:latest "${REGISTRY:-control-center-ui}:live"
-        env:
-          REGISTRY: ${{ vars.CC_UI_REGISTRY }}
+# DEPRECATED — superseded by TeamCity.
+#
+# CI for this repo now runs on the self-hosted TeamCity server
+# (docker-compose.platform.yml: teamcity-server) with Gitea as the VCS root.
+# See infra/ci/teamcity-build-configs.md for the BC1/BC2/BC3 definitions.
+#
+# This workflow is retained only as an optional GitHub mirror and intentionally
+# does nothing. Remove this file if GitHub CI is no longer desired.
