@@ -76,7 +76,7 @@ services:
       - -c
       - |
         apk add --no-cache postgresql-client &&
-        ./ai-assistant-infra/db-setup/bootstrap.sh
+        ./bootstrap.sh
     networks:
       - ai_net
     restart: on-failure
