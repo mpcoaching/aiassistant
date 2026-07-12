@@ -378,8 +378,9 @@ volumes:
   minio_data:
   rabbitmq_data:
   ollama_models:
-  langfuse_redis_data:
-  langfuse_data:
+   langfuse_redis_data:
+   redis_agents_data:
+   langfuse_data:
   gitea_data:
   teamcity_data:
   teamcity_logs:
