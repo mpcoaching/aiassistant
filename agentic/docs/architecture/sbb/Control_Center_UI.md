@@ -6,7 +6,7 @@ The **Control Center UI** is the primary user-facing Solution Architecture Build
 ## Responsibilities
 *   **User Interface Rendering**: Display dashboards, workflow lists, task trackers, lead enrichment results, and chat interfaces.
 *   **User Input Handling**: Capture user actions such as triggering workflows, entering chat messages, pausing/stopping workflows.
-*   **API Integration**: Make synchronous API calls to backend services (e.g., Workflow Engine, Work Session Service, Task Tracking Service, Lead Enrichment Service) to initiate actions or fetch data.
+*   **API Integration**: Make API calls to backend services (e.g., Workflow Engine, Work Session Service, Task Tracking Service, Lead Enrichment Service) to initiate actions or fetch data. Workflow triggers are **asynchronous and long-running**: `POST /workflows/{name}/run` returns a `workflow_id` immediately and does not block on completion. The Instances view polls `GET /workflows/{id}/status` until the run reaches a terminal state (completed | failed | stopped). Runs complete "as fast as they can" and may take seconds to minutes. Future phases may add push updates via `workflow.lifecycle.*` event subscriptions.
 *   **Real-time Updates**: Subscribe to real-time events (e.g., via WebSockets) from the Agent Bus (potentially via a gateway service) to display live workflow status and system notifications.
 *   **Authentication & Authorization**: Integrate with the system's identity provider for user login and access control.
 

@@ -11,6 +11,20 @@ services:
       - monitoring-net
     volumes:
       - ./ai-assistant-infra/configs/nginx/nginx.conf:/etc/nginx/nginx.conf:ro # Relative path!
+    command:
+      - sh
+      - -c
+      - |
+        nginx -g 'daemon off;' &
+        LAST=$(md5sum /etc/nginx/nginx.conf)
+        while true; do
+          sleep 5
+          CUR=$(md5sum /etc/nginx/nginx.conf)
+          if [ "$LAST" != "$CUR" ]; then
+            nginx -s reload && echo "nginx: config reloaded"
+            LAST=$CUR
+          fi
+        done
 
   control-center-ui:
     build:

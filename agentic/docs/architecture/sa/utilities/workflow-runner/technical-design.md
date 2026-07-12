@@ -10,8 +10,13 @@ The Workflow Runner consists of:
 - Prompt Composer
 - Runtime Interface
 - Tool Executor
+- Registry (catalog of skills/tools/workflows; name → artifact resolution)
+- Compiler (promotes prompt skills to code/distilled modules)
+- Choreographer (event-bus driven step progression)
+- MCP Authoring Server (AI authoring: list/create skill, create workflow, compile)
 
-No other components exist in Version 1.
+See ai-orchestration-design.md for the prompt/code skill duality and
+choreographed, async execution model.
 
 # Workflow Execution
 CLI
