@@ -57,3 +57,63 @@ the networks `external: true` and connects to platform services by hostname
 - Node: 20, npm (no pnpm/yarn)
 - Python: 3.x, pytest + pytest-cov
 - Docker: client-only in devcontainer; talks to dind sidecar.
+
+## Accessing the server from client machines
+
+The full stack runs **on the server** (192.168.1.30). Access dev/live environments via `.local.test` hostnames.
+
+### Option A — Automatic DNS (systemd-resolved + Docker dnsmasq)
+
+Configure the system resolver to forward `.local.test` queries to the dnsmasq container.
+
+#### WSL2 Ubuntu server
+
+1. dnsmasq must be reachable without conflicting with systemd-resolved's stub listener. Use the published port 5353:
+
+```bash
+docker compose -f docker-compose.platform.yml up -d
+curl -s http://localhost:5353  # should return dnsmasq "no such domain"
+```
+
+2. Configure systemd-resolved for split-DNS forwarding. Edit `/etc/systemd/resolved.conf`:
+
+```ini
+[Resolve]
+DNS=127.0.0.1#5353
+Domains=~local.test
+```
+
+3. Restart and verify:
+
+```bash
+sudo systemctl restart systemd-resolved
+resolvectl query gitea.local.test
+```
+
+#### Fedora laptop
+
+1. Use NetworkManager split-DNS so the VPN/lan connection handles `.local.test` specially:
+
+```bash
+CONN=$(nmcli -g UUID con show --active | head -n1)
+nmcli con mod "$CONN" ipv4.ignore-auto-dns yes ipv4.dns "192.168.1.30" ipv4.dns-search "~local.test"
+nmcli con mod "$CONN" ipv6.ignore-auto-dns yes ipv6.dns "192.168.1.30" ipv6.dns-search "~local.test"
+nmcli con up "$CONN"
+```
+
+2. Verify:
+
+```bash
+dig gitea.local.test
+curl -I http://gitea.local.test
+```
+
+### Option B — Hosts file (cross-platform fallback)
+
+Supports portably. Add to `C:\Windows\System32\drivers\etc\hosts` or `/etc/hosts`:
+
+```
+192.168.1.30  gitea.local.test teamcity.local.test control-center.local.test dev.local.test qdrant.local.test langfuse.local.test litellm.local.test langgraph.local.test workflow-engine.local.test otel.local.test openobserve.local.test n8n.local.test
+```
+
+Then browse to e.g. `http://gitea.local.test` (port 80, proxied by nginx).

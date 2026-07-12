@@ -33,6 +33,9 @@ services:
   dns:
     image: strm/dnsmasq
     container_name: dns
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
     volumes:
       - ./ai-assistant-infra/configs/dnsmasq/dnsmasq.conf:/etc/dnsmasq.conf
     cap_add:
