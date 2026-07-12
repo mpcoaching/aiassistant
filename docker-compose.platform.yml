@@ -66,7 +66,7 @@ services:
   db-bootstrapper:
     image: python:3.11-alpine
     volumes:
-      - ./ai-assistant-infra/scripts/bootstrap.py:/bootstrap.py:ro
+      - ./ai-assistant-infra/db-setup:/db-setup:ro
     env_file:
       - .env
     environment:
@@ -75,9 +75,9 @@ services:
       - sh
       - -c
       - |
-        apk add --no-cache postgresql-client py3-pip &&
-        pip install --no-cache-dir psycopg2-binary &&
-        python /bootstrap.py
+        apk add --no-cache postgresql-client &&
+        chmod +x /db-setup/bootstrap.sh &&
+        /db-setup/bootstrap.sh
     networks:
       - ai_net
     restart: on-failure
