@@ -76,7 +76,7 @@ services:
       - -c
       - |
         apk add --no-cache postgresql-client &&
-        /db-setup/bootstrap.sh
+        ./ai-assistant-infra/db-setup/bootstrap.sh
     networks:
       - ai_net
     restart: on-failure
@@ -379,9 +379,9 @@ volumes:
   minio_data:
   rabbitmq_data:
   ollama_models:
-   langfuse_redis_data:
-   redis_agents_data:
-   langfuse_data:
+  langfuse_redis_data:
+  redis_agents_data:
+  langfuse_data:
   gitea_data:
   teamcity_data:
   teamcity_logs:
