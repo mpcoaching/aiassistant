@@ -1,9 +1,12 @@
 {
   "name": "AI Assistant Development Workspace",
-  "dockerComposeFile": "../docker-compose.yml",
+  "dockerComposeFile": ["../docker-compose.yml", "../docker-compose.dev.yml"],
   "service": "workspace",
-  // Fixed: Points straight to your real path inside the container
-  "workspaceFolder": "/aiassistant", 
+  "workspaceFolder": "/aiassistant",
+  "remoteEnv": {
+    "DOCKER_HOST": "tcp://docker-dind:2375",
+    "DOCKER_TLS_VERIFY": ""
+  },
   "customizations": {
     "vscode": {
       "settings": {

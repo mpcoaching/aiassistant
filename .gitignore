@@ -9,5 +9,15 @@ autogenstudio/
 **/__pycache__
 *.pyc
 
+# UI test / coverage artifacts
+coverage/
+playwright-results.xml
+
+# Python
+.pytest_cache/
+
+# Node
+node_modules/
+
 # Aider Studio (auto-added)
 REPO_MAP.md

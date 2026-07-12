@@ -365,8 +365,10 @@ services:
 
 networks:
   ai_net:
+    name: ai_net
     driver: bridge
   monitoring-net:
+    name: monitoring-net
     driver: bridge
 
 volumes:

@@ -21,6 +21,37 @@ environments, cleanly separated:
   Kilo edits repo configs → pushes to Gitea → TeamCity deploys. No separate controller
   container is needed.
 
+## Prerequisite blocker (platform ↔ agentic network names) — MUST LAND FIRST
+
+The agentic `docker-compose.yml` declares `ai_net` and `monitoring-net` as
+`external: true` (looks for networks literally named `ai_net` / `monitoring-net`).
+`docker-compose.platform.yml` currently defines them as **normal** networks (lines
+367–370) with NO `name:`, so Compose creates them as `<project>_ai_net` and the
+agentic `external` lookup fails with `network "ai_net" not found`.
+
+**Required fix in `docker-compose.platform.yml` (bottom `networks:` block):**
+```yaml
+networks:
+  ai_net:
+    name: ai_net
+    driver: bridge
+  monitoring-net:
+    name: monitoring-net
+    driver: bridge
+```
+Without this, the agentic stack will not start against a running platform stack at all.
+
+### Readiness checklist (platform already up → agentic attaches)
+- [ ] Platform networks have explicit `name:` (above).
+- [ ] `.env` present with all `*_DEV_DB_NAME` / `*_LIVE_DB_NAME` / `TEAMCITY_DB_*` vars
+      (bootstrap.py creates those DBs + users; this is the real bootstrapper, not the
+      legacy `db-setup/*.sql` files which are unused).
+- [ ] `db-bootstrapper` completed → `postgres`, `rabbitmq_bus`, `redis_agents` reachable
+      from `ai_net`.
+- [ ] Agentic `docker compose up -d` succeeds (networks found, services wait on deps via
+      `wait_for.py`).
+- [ ] `nginx-proxy` resolves `control_center_ui:80` / `dev-controller:8443`.
+
 ## Locked Decisions
 
 - Local Docker = **dind sidecar** (isolated from laptop host; one service at a time).
