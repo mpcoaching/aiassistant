@@ -1,0 +1,31 @@
+{
+  "workflow_id": "4ae77f87",
+  "workflow_name": "test.execute",
+  "workflow_path": "/aiassistant/agentic/docs/workflows/test.execute.yaml",
+  "status": "failed",
+  "current_step_index": 0,
+  "steps": [
+    {
+      "type": "skill",
+      "name": "test.create-scenarios",
+      "uses": "test.create-scenarios",
+      "with_": null
+    },
+    {
+      "type": "skill",
+      "name": "test.execute-tests",
+      "uses": "test.execute-tests",
+      "with_": null
+    },
+    {
+      "type": "skill",
+      "name": "test.report",
+      "uses": "test.report",
+      "with_": null
+    }
+  ],
+  "step_results": [],
+  "context": {},
+  "error": "Cannot load skill 'test.create-scenarios': Skill file not found for: test.create-scenarios",
+  "log_path": "/aiassistant/agentic/docs/workflows/.wf/4ae77f87.log"
+}

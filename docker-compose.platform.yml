@@ -20,10 +20,10 @@ services:
       - -c
       - |
         nginx -g 'daemon off;' &
-        LAST=$(md5sum /etc/nginx/nginx.conf)
+        LAST=$$(md5sum /etc/nginx/nginx.conf)
         while true; do
           sleep 5
-          CUR=$(md5sum /etc/nginx/nginx.conf)
+          CUR=$$(md5sum /etc/nginx/nginx.conf)
           if [ "$$LAST" != "$$CUR" ]; then
             nginx -s reload && echo "nginx: config reloaded"
             LAST=$$CUR
@@ -369,9 +369,11 @@ networks:
   ai_net:
     name: ai_net
     driver: bridge
+    enable_ipv4: true
   monitoring-net:
     name: monitoring-net
     driver: bridge
+    enable_ipv4: true
 
 volumes:
   postgres_db:
