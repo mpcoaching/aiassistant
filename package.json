@@ -2,11 +2,23 @@
   "name": "ai-assistant-infra",
   "version": "1.0.0",
   "scripts": {
-    "up": "docker compose -f ai-assistant-infra/docker-compose.yml up -d",
-    "down": "docker compose -f ai-assistant-infra/docker-compose.yml down",
-    "logs": "docker compose -f ai-assistant-infra/docker-compose.yml logs -f",
-    "n8n-logs": "docker compose -f ai-assistant-infra/docker-compose.yml logs -f n8n",
-    "restart-n8n": "docker compose -f ai-assistant-infra/docker-compose.yml restart n8n",
-    "status": "docker compose -f ai-assistant-infra/docker-compose.yml ps"
+    "up": "docker compose -f docker-compose.platform.yml up -d",
+    "down": "docker compose -f docker-compose.platform.yml down",
+    "logs": "docker compose -f docker-compose.platform.yml logs -f",
+    "n8n-logs": "docker compose -f docker-compose.platform.yml logs -f n8n",
+    "restart-n8n": "docker compose -f docker-compose.platform.yml restart n8n",
+    "status": "docker compose -f docker-compose.platform.yml ps",
+
+    "up-dev": "docker compose -f docker-compose.dev.yml up -d",
+    "down-dev": "docker compose -f docker-compose.dev.yml down",
+    "logs-dev": "docker compose -f docker-compose.dev.yml logs -f",
+
+    "up-platform": "docker compose -f docker-compose.platform.yml up -d",
+    "down-platform": "docker compose -f docker-compose.platform.yml down",
+    "logs-platform": "docker compose -f docker-compose.platform.yml logs -f",
+
+    "up-agentic": "docker compose -f docker-compose.yml up -d",
+    "down-agentic": "docker compose -f docker-compose.yml down",
+    "logs-agentic": "docker compose -f docker-compose.yml logs -f"
   }
 }
