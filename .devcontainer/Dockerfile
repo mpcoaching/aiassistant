@@ -11,7 +11,7 @@ RUN apt-get update && \
       python3-pip \
       python3-venv \
       docker.io \
-      docker-compose-plugin && \
+      docker-compose-v2 && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
@@ -21,4 +21,4 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
 
 RUN npm --version && node --version && python3 --version && pip3 --version
 
-RUN pip3 install --no-cache-dir pytest pytest-cov
+RUN pip3 install --no-cache-dir --break-system-packages pytest pytest-cov

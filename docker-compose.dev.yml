@@ -25,11 +25,12 @@ services:
     command: sleep infinity
 
   docker-dind:
-    image: docker:24-dind
+    image: docker:dind
     container_name: dev_docker_dind
     privileged: true
     environment:
       - DOCKER_TLS_VERIFY=0
+      - DOCKER_TLS_CERTDIR=
       - DOCKER_HOST=tcp://0.0.0.0:2375
     expose:
       - "2375"
@@ -42,7 +43,6 @@ services:
     command:
       - dockerd
       - --host=tcp://0.0.0.0:2375
-      - --tls=false
 
 # Override the agentic stack's networks from `external: true` to local, with
 # explicit names that match everywhere else in the environment.
