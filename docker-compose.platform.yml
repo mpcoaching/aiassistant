@@ -15,6 +15,8 @@ services:
       - monitoring-net
     volumes:
       - ./ai-assistant-infra/configs/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ai-assistant-infra/configs/nginx/certs/local.test.crt:/etc/nginx/certs/local.test.crt:ro
+      - ./ai-assistant-infra/configs/nginx/certs/local.test.key:/etc/nginx/certs/local.test.key:ro
     command:
       - sh
       - -c
@@ -315,7 +317,7 @@ services:
     container_name: gitea
     environment:
       - GITEA__database__DB_TYPE=sqlite3
-      - GITEA__server__ROOT_URL=http://gitea.local.test/
+      - GITEA__server__ROOT_URL=https://gitea.local.test/
       - GITEA__server__SSH_DOMAIN=gitea.local.test
       - GITEA__webhook__ALLOWED_HOST_LIST=teamcity-server:8111
       - GITEA__service__DISABLE_REGISTRATION=false
@@ -336,6 +338,7 @@ services:
     container_name: teamcity-server
     environment:
       - TEAMCITY_SERVER_OPTS=-Dteamcity.db.pg.connUrl=jdbc:postgresql://postgres:5432/${TEAMCITY_DB_NAME} -Dteamcity.db.pg.user=${TEAMCITY_DB_USER} -Dteamcity.db.pg.password=${TEAMCITY_DB_PASSWORD}
+      - GIT_SSL_NO_VERIFY=true
     restart: unless-stopped
     networks:
       - ai_net
@@ -369,11 +372,9 @@ networks:
   ai_net:
     name: ai_net
     driver: bridge
-    enable_ipv4: true
   monitoring-net:
     name: monitoring-net
     driver: bridge
-    enable_ipv4: true
 
 volumes:
   postgres_db:
