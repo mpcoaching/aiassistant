@@ -40,7 +40,6 @@ services:
       - monitoring-net
     restart: unless-stopped
     command:
-      - dockerd-entrypoint.sh
       - dockerd
       - --host=tcp://0.0.0.0:2375
       - --tls=false

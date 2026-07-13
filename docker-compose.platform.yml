@@ -24,9 +24,9 @@ services:
         while true; do
           sleep 5
           CUR=$(md5sum /etc/nginx/nginx.conf)
-          if [ "$LAST" != "$CUR" ]; then
+          if [ "$$LAST" != "$$CUR" ]; then
             nginx -s reload && echo "nginx: config reloaded"
-            LAST=$CUR
+            LAST=$$CUR
           fi
         done
 
@@ -43,9 +43,6 @@ services:
     networks:
       - ai_net
       - monitoring-net
-    ports:
-      - "5353:53/udp"
-      - "5353:53/tcp"
 
   postgres:
     image: postgres:16
