@@ -21,7 +21,7 @@ Session:
   created_by: string             # user / system / recognition
   status: enum [draft | running | paused | completed | failed | stopped | escalated]
   purpose: string
-  agenda: SummaryBlock           # human-readable agenda
+  agenda: AgendaBlock            # structured, deterministic session goal
   context: ContextRecord         # see ENTERPRISE-CONTEXT-MODEL.md
   pipeline: list[PatternStep]    # ordered execution plan
   participants: list[ParticipantRecord]
@@ -36,12 +36,58 @@ Session:
   timebox:
     start: datetime
     end: datetime
+  version: SemverVersion         # session contract version
   governance:
     gates: list[GateInstance]    # derived from patterns in pipeline
     approval_trail: list[ApprovalRecord]
   distillation_hook:
     enabled: bool
     target_store: enum [postgres | qdrant | repo_markdown]
+```
+
+### AgendaBlock (structured session goal)
+
+```yaml
+AgendaBlock:
+  goal: string                   # single sentence: what must be true when the session closes
+  success_criteria_summary: list[string]  # human-readable acceptance criteria
+  failure_conditions: list[string]        # conditions that cause termination or escalation
+  out_of_scope: list[string]   # explicit non-goals to prevent scope creep
+  deterministic_flow: list[FlowStep]  # ordered, expected-step roadmap for agentic systems
+```
+
+### FlowStep (deterministic agenda item)
+
+```yaml
+FlowStep:
+  step_number: int
+  pattern_id: string | null     # if the step maps to a known pattern
+  description: string           # what happens at this stage
+  gate: GateSpec | null         # if this step requires a governance gate
+  fallback: enum [continue | escalate | retry | stop]
+```
+
+The `AgendaBlock` is the formal contract between the recognised goal and the deterministic execution plan. For agentic systems, the `deterministic_flow` enforces that every session declares, at creation time, an ordered list of expectation steps. The runtime evaluates actual execution against this flow. Divergence triggers an escalation event rather than silent drift.
+
+### Session Versioning
+
+Sessions are versioned independently from pattern bundles. The `version` field on a `Session` follows `semver`:
+
+- **Major**: Session schema change that breaks backward compatibility (new required field, renamed field).
+- **Minor**: New optional field added (e.g., `AgendaBlock.deterministic_flow` or `AgendaBlock.failure_conditions`).
+- **Patch**: Typo fix or non-semantic update.
+
+Versioning is enforced by the Recognition layer at session creation: the Recognition service reads the `version` field on the proposed session config; if the runtime does not support the requested version, it rejects the session creation with a version-negotiation error.
+
+Pattern bundles follow a separate `semver` scheme (see REASONING-PATTERN-CATALOGUE.md Versioning Rule). A pattern bundle at `investigation@2.0.0` does not imply a Session schema change. The two version spaces are independent.
+
+### SemverVersion
+
+```yaml
+SemverVersion:
+  major: int
+  minor: int
+  patch: int
 ```
 
 ### ContextRecord (embedded in Session)
@@ -235,6 +281,48 @@ When a Session closes with status `completed` and `distillation_hook.enabled` is
 session:
   id: arb-2024-001
   purpose: Validate architecture proposal for federated event mesh
+  version:
+    major: 1
+    minor: 0
+    patch: 0
+  agenda:
+    goal: Produce a ratified architecture decision record for the federated event mesh proposal
+    success_criteria_summary:
+      - All stakeholders have submitted position statements
+      - Consensus gate passes (authority_model = consensus)
+      - Chair approval recorded
+    failure_conditions:
+      - Confidence threshold not reached within 5 debate rounds
+      - Consensus gate fails (too many dissenting votes)
+      - Timebox expires without resolution
+    out_of_scope:
+      - Implementation timeline
+      - Vendor selection
+    deterministic_flow:
+      - step_number: 1
+        pattern_id: debate@1.0.0
+        description: Adversarial debate among proposer, critic, and moderator
+        gate:
+          kind: confidence_threshold
+          condition: debate_consensus_confidence > 0.8
+          on_fail: continue_debate
+        fallback: escalate
+      - step_number: 2
+        pattern_id: consensus@1.0.0
+        description: Structured agreement-seeking across stakeholder participants
+        gate:
+          kind: consensus
+          condition: authority_model_met
+          on_fail: escalate
+        fallback: escalate
+      - step_number: 3
+        pattern_id: human.approval@1.0.0
+        description: Chair formally approves the agreed outcome
+        gate:
+          kind: human_approval
+          condition: high_stakes_decision
+          on_fail: escalate
+        fallback: stop
   context:
     problem_context:
       class: design
@@ -256,7 +344,7 @@ session:
       enabled_pathways: [langgraph]
     - pattern_id: human.approval@1.0.0
       role_override: approver
-      enabled_pathways: [human]
+      enabled_pathways: [human, langgraph]
   participants:
     - id: cto
       kind: human
@@ -271,7 +359,7 @@ session:
 
 Runtime today:
 - Debate + Consensus = stub langgraph targets (unimplemented).
-- Human Approval = executed via existing `on_step_complete` callback in `executor.py`.
+- Human Approval = implemented as a LangGraph interrupt node; existing `on_step_complete` callback used as the approval handler.
 - A degraded fallback wraps the entire pipeline as a single SOP-equivalent workflow using only `workflow-runner` when langgraph is unavailable.
 
 ### Incident Response Session
@@ -280,6 +368,57 @@ Runtime today:
 session:
   id: incr-2024-001
   purpose: Restore service for payment gateway outage
+  version:
+    major: 1
+    minor: 0
+    patch: 0
+  agenda:
+    goal: Restore payment gateway service within timebox with documented root cause and verified fix
+    success_criteria_summary:
+      - Root cause identified and documented
+      - Fix applied and verified
+      - Human approval obtained for irreversible change
+      - Verification passes
+    failure_conditions:
+      - Investigation exceeds timebox (1800 seconds)
+      - Human approval rejected
+      - Verification fails twice
+    out_of_scope:
+      - Root cause remediation beyond scope of this incident
+      - Customer refund processing
+    deterministic_flow:
+      - step_number: 1
+        pattern_id: investigation@1.0.0
+        description: Explore logs, metrics, and recent changes to determine root cause
+        gate:
+          kind: timeout
+          condition: max_investigation_time
+          on_fail: escalate
+        fallback: escalate
+      - step_number: 2
+        pattern_id: sop.execution@1.0.0
+        description: Execute the standard operating procedure for gateway fix
+        gate:
+          kind: policy_check
+          condition: mandatory_compliance_check
+          on_fail: stop
+        fallback: stop
+      - step_number: 3
+        pattern_id: human.approval@1.0.0
+        description: Obtain operator approval for irreversible change
+        gate:
+          kind: human_approval
+          condition: action_requires_human
+          on_fail: stop
+        fallback: stop
+      - step_number: 4
+        pattern_id: verification@1.0.0
+        description: Validate gateway recovery and document outcome
+        gate:
+          kind: timeout
+          condition: max_verification_time
+          on_fail: escalate
+        fallback: escalate
   context:
     problem_context:
       class: incident

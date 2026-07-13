@@ -177,6 +177,48 @@ ResearcherView:
 - Resignation, role change, or persona retirement triggers a downstream policy: private material is archived, team material is reviewed by peers, enterprise material is retained.
 - Researcher access does not grant edit rights to private stores without explicit authorisation.
 
+## Cross-References
+
+- **ENTERPRISE-CONTEXT-MODEL.md** — Defines `ContextRecord` and the context-to-pattern mapping. Context fields determine which agents participate, which research stores are consulted, and which patterns are proposed.
+- **REASONING-PATTERN-CATALOGUE.md** — Defines the pattern bundles that Composer uses at prompt assembly time. Each pattern declares participants, roles, and governance gates.
+- **SESSION-MODEL.md** — Defines `Session`, `PatternStep`, and `ParticipantRecord`. Session creation is when individual experience is selectively included or excluded.
+- **PATTERN-RECOGNITION-ASSIMILATION.md** — Defines how Enterprise Cognition detects, classifies, and proposes patterns at three abstraction levels (direct reuse, adaptation, metaphorical transfer). The researcher persona's cross-store access is formalised here.
+- **RUNTIME-MAPPING.md** — Defines LangGraph as the sole execution substrate. Framework competitive analysis (CrewAI, MAF/AutoGen, Google ADK, OpenAI Agents SDK, Smolagents) feeds the pattern library. See the framework deep-dive for absorption decisions.
+- **SCENARIO-VALIDATION.md** — Validates Incident Response and Architecture Review Board scenarios across all five specs.
+
+## Scenario Validation
+
+### Scenario A: Payment Gateway Incident Response
+
+Context: `problem=incident`, `activity_purpose=investigate → execute`, `environment=ai_assisted`, `human_approval_required=true`.
+
+Pattern Recognition: `(incident, investigate)` maps to `investigation@1.0.0` at Level 1 (direct match). `(incident, execute)` maps to `sop_execution@1.0.0`. Pattern pipeline: `Investigation → SOP Execution → Human Approval → Verification`. Context sensitivity rules trigger timebox expiry at 3600s and mandatory human approval gates.
+
+Agentic Experience: The investigator AI's personal research store is consulted first. If a prior similar incident record exists, it surfaces as a candidate pattern adjustment (Level 1 retrieval). If it is a novel failure mode, the pattern recommendation triggers the Learning lifecycle for Research -> Investigation synthesis.
+
+Runtime: `investigation` runs on `langgraph` substrate with conditional branching. `sop_execution` runs on `workflow-runner` as a deterministic sequence. `human_approval` runs as a LangGraph interrupt node. `verification` runs on `workflow-runner` as primary; `maf` is unregistered and degraded fallback is logged.
+
+### Scenario B: Architecture Review Board — Internal Platform Decision
+
+Context: `problem=design`, `activity_purpose=decide`, `environment=humans_and_agents`, `authority_model=consensus`, `human_approval_required=true`.
+
+Pattern Recognition: `(design, decide)` maps to `debate@1.0.0` → `consensus@1.0.0` → `human_approval@1.0.0`. If prior ARB debates exist for similar decisions, Level 2 adaptation proposes a variant including those prior propositions as evidence. The researcher persona cross-references prior debates across the enterprise store to populate Debate inputs.
+
+Agentic Experience: The `chair_human` acts as the researcher persona. They access cross-store view (`ResearcherView`) to surface prior ARB decisions and dissent records from the `critic_ai` agent's personal store. The dissociation between researcher observation and business execution is maintained: the chair/judge shapes the session but does not execute business steps.
+
+Runtime: `debate` runs as a cyclic LangGraph graph with proposer → critic → moderator nodes. `consensus` runs as a LangGraph node evaluating participant declarations via the `consensus` governance gate. `human_approval` interrupts for the chair's formal sign-off. All steps run on the `langgraph` substrate; no separate `crewai` substrate is used.
+
+### Deterministic Framing: Escalation Pattern for Novel Scenarios
+
+For both scenarios, an escalation safety net is built in. If a pattern step exceeds `max_turns` or a gate condition cannot be evaluated (e.g., confidence threshold never reached), the step escalates to the `Escalation` pattern, which routes to the human authority for manual resolution. Over time, repeated escalations of the same pattern-state combination produce an exception record that the Learning lifecycle converts into a new governance rule, reducing future escalation frequency.
+
+For agentic systems, the deterministic framing requirement means that every Reasoning pattern must map to a deterministic policy that can be explained and executed without the agent's full reasoning state. This is ensured by:
+- Pattern bundles carrying `implementation: distilled` metadata once validated.
+- `Registry._save_manifest` strict persistence ensuring bundle metadata is never silently lost.
+- Pattern bundles declaring `terminating` nodes with explicit output schema, so the Session composer can infer session termination without re-running the graph.
+
+Versioning: Pattern bundles follow `semver`. Major: governance gate structure or pathway interface changes. Minor: new gate types, composability rules, or role definitions. Patch: prompt templates or config corrections.
+
 ## Traceability to Working Principles
 
 | Principle | Agentic Experience Contract |

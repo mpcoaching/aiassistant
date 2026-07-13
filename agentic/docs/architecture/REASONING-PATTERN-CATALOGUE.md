@@ -252,8 +252,8 @@ Executable validation of an outcome against acceptance criteria.
 
 Explicit human-in-the-loop gate with documented rationale.
 
-- enabled_pathways: [human, workflow-runner]
-- disabled_pathways: [langgraph, crewai, maf]
+- enabled_pathways: [langgraph, human, workflow-runner]
+- disabled_pathways: [crewai, maf]
 - roles: [approver]
 - governance_gates:
   - kind: human_approval
@@ -262,7 +262,7 @@ Explicit human-in-the-loop gate with documented rationale.
 - inputs: [proposal, options, risk_statement]
 - outputs: [approved_plan | rejected_plan, rationale]
 - composability: terminal false, allowed_next []
-- Runtime today: Implemented via `on_step_complete` callback in `executor.py`; handlers invoke external approval integrations.
+- Runtime today: Implemented via `on_step_complete` callback in `executor.py`; handlers invoke external approval integrations. On LangGraph substrate, Human Approval is implemented as an interrupt node — the graph pauses until an external handler writes `approve`/`reject` to `WorkflowState`.
 
 ### 13. Escalation
 
@@ -295,44 +295,59 @@ Self-assessment and knowledge distillation from completed Sessions.
 - composability: terminal true, allowed_next []
 - Runtime today: Not yet implemented. Stub target via maf integration.
 
-## Diagram: Pattern to Pathway Matrix
+## Pattern to Substrate Mapping Table
 
-| Pattern | workflow-runner | langgraph | crewai | maf | human |
-|---------|:--------------:|:---------:|:------:|:---:|:-----:|
-| SOP Execution       | primary   |          |        |     |       |
-| Investigation       | primary   | alternate |        |     |       |
-| Exploration         |           | primary  | alt.   |     |       |
-| Brainstorm          |           | primary  | alt.   |     |       |
-| Debate              |           | primary  | alt.   |     |       |
-| Consensus           |           | primary  | alt.   |     | gate  |
-| Critique            |           | primary  | alt.   |     |       |
-| Reflection          | primary   |          |        |     |       |
-| Research            |           |          |        | alt.|       |
-| Planning            | primary   | alternate |        |     |       |
-| Verification        | primary   |          |        | alt.|       |
-| Human Approval      | alternate |          |        |     | primary|
-| Escalation          | primary   |          |        |     | gate  |
-| Learning            | primary   |          |        | alt.|       |
+| Pattern | crewai | langgraph | maf | human | workflow-runner |
+|---------|--------|-----------|-----|-------|-----------------|
+| SOP Execution       |        | alt.      |     |       | primary         |
+| Investigation       |        | primary   |     |       | alternate       |
+| Exploration         | idea   | primary   |     |       |                 |
+| Brainstorm          | idea   | primary   |     |       |                 |
+| Debate              | idea   | primary   |     |       |                 |
+| Consensus           |        | primary   |     | gate  |                 |
+| Critique            | idea   | primary   |     |       |                 |
+| Reflection          |        |           |     |       | primary         |
+| Research            |        | primary   | alt.|       |                 |
+| Planning            |        | primary   |     |       | alternate       |
+| Verification        |        |           | alt.|       | primary         |
+| Human Approval      | idea   | interrupt  |     | primary| alternate      |
+| Escalation          |        |           |     | gate  | primary         |
+| Learning            |        |           | alt.|       | primary         |
+
+Legend:
+- **primary**: The substrate that executes the pattern step by default.
+- **alternate**: An alternate substrate that may be used if the primary is degraded or unavailable.
+- **interrupt**: The pattern is implemented as an interrupt node in the substrate.
+- **gate**: The pattern is implemented as a governance gate check in the substrate.
+- **idea**: The framework's abstraction informs the pattern design but the framework itself is not a registered substrate.
+- blank: Not applicable for this pattern.
+
+Note: `crewai` is not a registered runtime substrate in this architecture. Its role-specialization abstraction is absorbed into enriched `ParticipantRecord` and role configurations used within `langgraph` substrate patterns (Brainstorm, Exploration, Debate, Critique). The `research` pattern uses `langgraph` as its primary substrate; `maf` is listed as an alternate for enterprise tool integration (CodeAct). `human` is implemented as a LangGraph interrupt node.
 
 ## Worked Examples
 
 ### Architecture Review Board Session
 
-Worked trace (see also SESSION-MODEL.md and RUNTIME-MAPPING.md):
+Worked trace (see also SESSION-MODEL.md, PATTERN-RECOGNITION-ASSIMILATION.md, and RUNTIME-MAPPING.md):
 
-1. Context: Problem=design, ActivityPurpose=decide, DecisionContext.human_approval_required=true
-2. Pattern Sequence: Debate@1.0.0 → Consensus@1.0.0 → Human Approval@1.0.0
-3. Pathways toggled: Debate/Consensus enable langgraph; Human Approval switches to human gateway; all other pathways disabled.
-4. Roles injected: moderator, proposer, approver.
-5. Executed today: Debate and Consensus run via langgraph (stub target). Human Approval runs via workflow-runner callback (implemented). SOP can wrap the whole pipeline as a single sequential session if langgraph is unavailable.
+1. Context: Problem=design, ActivityPurpose=decide, DecisionContext.human_approval_required=true, Environment=humans_and_agents, AuthorityModel=consensus
+2. Pattern Recognition: `(design, decide)` maps to `debate@1.0.0` → `consensus@1.0.0` → `human_approval@1.0.0` at Level 1 (direct match). If prior ARB debates exist, Level 2 adaptation may propose a variant.
+3. Pattern Sequence: `debate@1.0.0` → `consensus@1.0.0` → `human_approval@1.0.0`
+4. Pathways: Debate and Consensus execute on `langgraph` substrate; Human Approval as LangGraph interrupt node. `crewai` and `human` are not registered as runtime substrates; their abstractions are absorbed into pattern bundles.
+5. Roles: `moderator`, `proposer`, `critic`, `chair` (researcher meta-participant). Role enrichment informed by CrewAI framework analysis (enriched role definitions with backstory and goal).
+6. Runtime: All three pattern steps execute on the LangGraph substrate via `LangGraphAdapter`. Governance gates embedded as LangGraph conditional edges.
 
 ### Incident Response Session
 
-1. Context: Problem=incident, ActivityPurpose=execute, DecisionContext.human_approval_required=true (for irreversible changes)
-2. Pattern Sequence: Investigation@1.0.0 → SOP Execution@1.0.0 → Human Approval@1.0.0 → Verification@1.0.0
-3. Pathways toggled: Investigation enables langgraph Research; SOP Execution enables workflow-runner; Human Approval switches to human; Verification enables maf (future).
-4. Roles injected: investigator, operator, approver, validator.
-5. Executed today: Investigation + SOP Execution + Human Approval run via workflow-runner today. Verification and Reflection stubs exist as unimplemented pathways.
+Worked trace (see also SESSION-MODEL.md, PATTERN-RECOGNITION-ASSIMILATION.md, and RUNTIME-MAPPING.md):
+
+1. Context: Problem=incident, ActivityPurpose=investigate (initially), then execute, Environment=ai_assisted, DecisionContext.human_approval_required=true, Timebox=3600s
+2. Pattern Recognition: `(incident, investigate)` → `investigation@1.0.0` at Level 1 (direct match). If a prior incident pattern exists in enterprise store, investigator AI's personal research store surfaces it first (Principle 1: Recognition before reasoning).
+3. Pattern Sequence: `investigation@1.0.0` → `sop_execution@1.0.0` → `human_approval@1.0.0` → `verification@1.0.0`
+4. Pathways: Investigation on `langgraph` (cyclical conditional graph); SOP Execution on `workflow-runner` (deterministic); Human Approval as LangGraph interrupt; Verification on `workflow-runner` primary with `maf` as alternate (degraded fallback since maf adapter not registered).
+5. Roles: `investigator` (AI, with personal research store consulted), `operator`, `approver`, `validator`.
+6. Runtime: `investigation` and `verification` steps use `LangGraphAdapter`; `sop_execution` uses `WorkflowRunnerAdapter`. Human Approval uses `HumanInterruptAdapter` within LangGraph. `maf` degraded fallback generates telemetry event.
+7. Learning: On session completion, `distillation_hook.enabled=true` triggers Learning pipeline. `Registry._save_manifest` strict persistence ensures playbook delta is not silently lost. Successful SOP adds to the `implementation: distilled` registry.
 
 ## Versioning Rule
 
