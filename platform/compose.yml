@@ -1,0 +1,337 @@
+# =============================================================================
+# Platform stack — shared services + per-environment access gateways.
+# Owns platform-network (single owner). dev/live networks are EXTERNAL
+# (created by infrastructure/compose.yml). Gateways bridge platform<->env.
+#   docker compose -f platform/compose.yml up -d
+#
+# IMMUTABILITY: every third-party image below MUST be pinned to a specific
+# version (or @sha256 digest) before first promotion. `latest`/moving tags
+# are rejected by the pre-deploy validation gate.
+# =============================================================================
+name: platform
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_DB_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_DB_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_NAME}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - platform-network
+    volumes:
+      - postgres_db:/var/lib/postgresql/data
+
+  db-bootstrapper:
+    image: python:3.11-alpine
+    volumes:
+      - ./db-setup:/db-setup:ro
+    env_file:
+      - ../.env
+    environment:
+      - PGPASSWORD=${POSTGRES_DB_PASSWORD}
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache postgresql-client gettext &&
+        sh /db-setup/bootstrap.sh
+    networks:
+      - platform-network
+    restart: on-failure
+
+  # goose migrations — dev + live app DBs (agent_dev / agent_live).
+  migrate-dev:
+    image: ghcr.io/kukymbr/goose-docker:3.24.0
+    volumes:
+      - ./db-setup/migrations:/migrations:ro
+    env_file:
+      - ../.env
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "postgres://${AGENT_DEV_DB_USER}:${AGENT_DEV_DB_PASSWORD}@postgres:5432/${AGENT_DEV_DB_NAME}?sslmode=disable"
+      GOOSE_MIGRATION_DIR: /migrations
+    command: [up]
+    depends_on:
+      db-bootstrapper:
+        condition: service_completed_successfully
+    networks:
+      - platform-network
+    restart: on-failure
+
+  migrate-live:
+    image: ghcr.io/kukymbr/goose-docker:3.24.0
+    volumes:
+      - ./db-setup/migrations:/migrations:ro
+    env_file:
+      - ../.env
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "postgres://${AGENT_LIVE_DB_USER}:${AGENT_LIVE_DB_PASSWORD}@postgres:5432/${AGENT_LIVE_DB_NAME}?sslmode=disable"
+      GOOSE_MIGRATION_DIR: /migrations
+    command: [up]
+    depends_on:
+      db-bootstrapper:
+        condition: service_completed_successfully
+    networks:
+      - platform-network
+    restart: on-failure
+
+  redis-agents:
+    image: redis:7-alpine
+    networks:
+      - platform-network
+    restart: unless-stopped
+    volumes:
+      - redis_agents_data:/data
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.4
+    env_file:
+      - ../.env
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_KEY}
+      - QDRANT__SERVICE__API_KEY__REQUIRED=false
+    networks:
+      - platform-network
+    volumes:
+      - qdrant_data:/qdrant/storage
+    expose:
+      - 6333
+      - 6334
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "15672:15672"
+    networks:
+      - platform-network
+    restart: unless-stopped
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  # Shared LiteLLM on platform-network. Reached by BOTH envs via their gateway
+  # with per-env virtual keys (parameterised in config.yaml / .env).
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.71.1-stable
+    expose:
+      - 4000
+    env_file:
+      - ../.env
+    environment:
+      - STORE_MODEL_IN_DB=False
+      - LITELLM_CONFIG_PATH=/app/config/config.yaml
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - LITELLM_SALT_KEY=${LITELLM_SALT_KEY}
+      - DATABASE_URL=postgresql://${LITELLM_DB_USER}:${LITELLM_DB_PASSWORD}@postgres:5432/${LITELLM_DB_NAME}
+      - REDIS_URL=redis://redis-agents:6379
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - RELOAD_CONFIG_FROM_DISK=True
+    networks:
+      - platform-network
+    entrypoint:
+      - python3
+      - /wait_for.py
+      - postgres:5432
+      - redis-agents:6379
+      - "--"
+      - litellm
+      - --config
+      - /app/config/config.yaml
+      - --port
+      - "4000"
+    volumes:
+      - ./configs/litellm/config.yaml:/app/config/config.yaml:ro
+      - ../infra/wait_for.py:/wait_for.py:ro
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - langfuse_redis_data:/data
+    networks:
+      - platform-network
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    env_file: ../.env
+    environment:
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB_NAME}
+      - CLICKHOUSE_USER=${CLICKHOUSE_DB_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_DB_PASSWORD}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+      - platform-network
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "-u", "${CLICKHOUSE_DB_USER}", "--password", "${CLICKHOUSE_DB_PASSWORD}", "-q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  langfuse:
+    image: langfuse/langfuse:3
+    depends_on:
+      migrate-dev:
+        condition: service_completed_successfully
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - ../.env
+    environment:
+      - HOSTNAME=${LANGFUSE_HOSTNAME}
+      - DATABASE_URL=${LANGFUSE_DATABASE_URL}
+      - NEXTAUTH_SECRET=${LANGFUSE_NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=${LANGFUSE_NEXTAUTH_URL}
+      - SALT=${LANGFUSE_SALT}
+      - ENCRYPTION_KEY=${LANGFUSE_ENCRYPTION_KEY}
+      - CLICKHOUSE_USER=${CLICKHOUSE_DB_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_DB_PASSWORD}
+      - CLICKHOUSE_URL=${CLICKHOUSE_URL}
+      - CLICKHOUSE_MIGRATION_URL=${CLICKHOUSE_MIGRATION_URL}
+      - REDIS_URL=${LANGFUSE_REDIS_URL}
+      - LANGFUSE_S3_MEDIA_UPLOAD_BUCKET=${LANGFUSE_S3_MEDIA_UPLOAD_BUCKET}
+      - LANGFUSE_S3_EVENT_UPLOAD_BUCKET=${LANGFUSE_S3_EVENT_UPLOAD_BUCKET}
+      - LANGFUSE_S3_ENDPOINT=${LANGFUSE_S3_ENDPOINT}
+      - LANGFUSE_STORAGE_TYPE=${LANGFUSE_STORAGE_TYPE}
+      - LANGCHAIN_TRACING_V2=${LANGFUSE_LANGCHAIN_TRACING_V2}
+      - LANGCHAIN_ENDPOINT=${LANGFUSE_LANGCHAIN_ENDPOINT}
+      - LANGCHAIN_API_KEY=${LANGFUSE_LANGCHAIN_API_KEY}
+      - CLICKHOUSE_CLUSTER_ENABLED=false
+    networks:
+      - platform-network
+    volumes:
+      - langfuse_data:/data
+    restart: always
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    user: "0:0"
+    volumes:
+      - ./configs/otel:/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    group_add:
+      - "999"
+    command: ["--config=/config/otel-collector.config.yaml"]
+    networks:
+      - platform-network
+    restart: unless-stopped
+
+  openobserve:
+    image: openobserve/openobserve:v0.14.1
+    expose:
+      - 5080
+    environment:
+      - ZO_ROOT_USER_EMAIL=${ZO_ROOT_USER_EMAIL}
+      - ZO_ROOT_USER_PASSWORD=${ZO_ROOT_USER_PASSWORD}
+      - ZO_DATA_DIR=/data
+      - ZO_LOCAL_MODE=true
+    volumes:
+      - openobserve_storage:/data
+    networks:
+      - platform-network
+    restart: always
+
+  # ---------- Per-environment access gateways ----------
+  # dev-platform-gateway: ONLY bridge dev-network <-> platform-network.
+  dev-platform-gateway:
+    image: nginx:alpine
+    container_name: platform_dev_gateway
+    volumes:
+      - ./configs/nginx/dev-gateway.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - platform-network
+      - dev-network
+    restart: unless-stopped
+
+  # live-platform-gateway: ONLY bridge live-network <-> platform-network.
+  live-platform-gateway:
+    image: nginx:alpine
+    container_name: platform_live_gateway
+    volumes:
+      - ./configs/nginx/live-gateway.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - platform-network
+      - live-network
+    restart: unless-stopped
+
+  # ---------- Optional (disabled by default) ----------
+  minio:
+    image: minio/minio
+    profiles: ["disabled"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - platform-network
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:latest
+    profiles: ["disabled"]
+    environment:
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=${N8N_PORT}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
+      - N8N_PROXY_HOPS=${N8N_PROXY_HOPS}
+      - DB_TYPE=${N8N_DB_TYPE}
+      - DB_POSTGRESDB_HOST=${N8N_DB_HOST}
+      - DB_POSTGRESDB_PORT=${N8N_DB_PORT}
+      - DB_POSTGRESDB_DATABASE=${N8N_DB_DATABASE}
+      - DB_POSTGRESDB_USER=${N8N_DB_USER}
+      - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD}
+      - N8N_OTEL_ENABLED=${N8N_OTEL_ENABLED}
+      - N8N_OTEL_SERVICE_NAME=${N8N_OTEL_SERVICE_NAME}
+      - N8N_OTEL_EXPORTER_OTLP_ENDPOINT=${N8N_OTEL_EXPORTER_OTLP_ENDPOINT}
+      - LANGCHAIN_TRACING_V2=${N8N_LANGCHAIN_TRACING_V2}
+      - LANGCHAIN_API_KEY=${N8N_LANGCHAIN_API_KEY}
+      - LANGCHAIN_ENDPOINT=${N8N_LANGCHAIN_ENDPOINT}
+      - LANGCHAIN_PROJECT=${N8N_LANGCHAIN_PROJECT}
+    networks:
+      - platform-network
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+networks:
+  platform-network:
+    name: platform-network
+    driver: bridge
+  dev-network:
+    name: dev-network
+    external: true
+  live-network:
+    name: live-network
+    external: true
+
+volumes:
+  postgres_db:
+  qdrant_data:
+  rabbitmq_data:
+  redis_agents_data:
+  langfuse_redis_data:
+  langfuse_data:
+  clickhouse_data:
+  openobserve_storage:
+  minio_data:
+  n8n_data:

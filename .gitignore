@@ -21,3 +21,11 @@ node_modules/
 
 # Aider Studio (auto-added)
 REPO_MAP.md
+
+# Backup artifacts (Phase 7.5) and encrypted secrets
+backups/
+cicd/state/backup-validation-green
+.env.gpg
+
+# Kilo agent worktrees (embedded git repos)
+.kilo/worktrees/

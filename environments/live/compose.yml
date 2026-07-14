@@ -1,0 +1,112 @@
+# =============================================================================
+# Live environment — promoted, prod builds on live-network ONLY.
+# Reaches shared platform services via live-platform-gateway (stream + http).
+# Images come from the private registry and are IMMUTABLE (<git-sha>) — the
+# SAME tag deployed to dev.
+#   docker compose -f environments/live/compose.yml up -d
+# =============================================================================
+name: live
+
+services:
+  control-center-ui:
+    image: ${REGISTRY_URL}/control-center-ui:${IMAGE_TAG}
+    container_name: live_control_center_ui
+    expose:
+      - 80
+    networks:
+      - live-network
+    restart: unless-stopped
+
+  workflow-engine:
+    image: ${REGISTRY_URL}/workflow-runner:${IMAGE_TAG}
+    container_name: live_workflow_engine
+    env_file:
+      - ../../.env
+    expose:
+      - 8000
+    environment:
+      # Platform backends reached ONLY through the live gateway (no direct net).
+      - DATABASE_URL=postgresql://${AGENT_LIVE_DB_USER}:${AGENT_LIVE_DB_PASSWORD}@live-platform-gateway:5432/${AGENT_LIVE_DB_NAME}
+      - RABBITMQ_URL=amqp://guest:guest@live-platform-gateway:5672/
+      - REDIS_URL=redis://live-platform-gateway:6379
+      - LANGGRAPH_URL=http://langgraph:8000
+      - OPENAI_API_BASE=http://live-platform-gateway:4000/v1
+      - OPENAI_BASE_URL=http://live-platform-gateway:4000/v1
+      - REPO_ROOT=/aiassistant
+      - ENV_TIER=live
+    extra_hosts:
+      - "model-runner.docker.internal:host-gateway"
+    entrypoint:
+      - python3
+      - /wait_for.py
+      - live-platform-gateway:5432
+      - live-platform-gateway:5672
+      - langgraph:8000
+      - "--"
+      - uvicorn
+      - api:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+    volumes:
+      - ../../infra/wait_for.py:/wait_for.py:ro
+    networks:
+      - live-network
+    restart: unless-stopped
+
+  langgraph:
+    image: ${REGISTRY_URL}/langgraph:${IMAGE_TAG}
+    container_name: live_langgraph
+    env_file:
+      - ../../.env
+    expose:
+      - 8000
+    environment:
+      - DATABASE_URI=postgresql://${LANGGRAPH_LIVE_DB_USER}:${LANGGRAPH_LIVE_DB_PASSWORD}@live-platform-gateway:5432/${LANGGRAPH_LIVE_DB_NAME}
+      - REDIS_URI=redis://live-platform-gateway:6379
+      - ENV_TIER=live
+    extra_hosts:
+      - "model-runner.docker.internal:host-gateway"
+    volumes:
+      - langgraph_config:/app/config
+    networks:
+      - live-network
+    restart: unless-stopped
+
+  # ---------- Optional (disabled by default) ----------
+  n8n:
+    image: n8nio/n8n:latest
+    profiles: ["disabled"]
+    env_file:
+      - ../../.env
+    environment:
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=${N8N_PORT}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
+      - N8N_PROXY_HOPS=${N8N_PROXY_HOPS}
+      - DB_TYPE=${N8N_DB_TYPE}
+      - DB_POSTGRESDB_HOST=live-platform-gateway
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${N8N_DB_NAME}
+      - DB_POSTGRESDB_USER=${N8N_DB_USER}
+      - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD}
+      - N8N_OTEL_ENABLED=${N8N_OTEL_ENABLED}
+      - N8N_OTEL_SERVICE_NAME=${N8N_OTEL_SERVICE_NAME}
+      - N8N_OTEL_EXPORTER_OTLP_ENDPOINT=http://live-platform-gateway:4318
+      - LANGCHAIN_TRACING_V2=${N8N_LANGCHAIN_TRACING_V2}
+      - LANGCHAIN_API_KEY=${N8N_LANGCHAIN_API_KEY}
+      - LANGCHAIN_ENDPOINT=${N8N_LANGCHAIN_ENDPOINT}
+      - LANGCHAIN_PROJECT=${N8N_LANGCHAIN_PROJECT}
+    networks:
+      - live-network
+
+networks:
+  live-network:
+    name: live-network
+    external: true
+
+volumes:
+  langgraph_config:

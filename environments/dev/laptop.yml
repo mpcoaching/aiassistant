@@ -1,0 +1,59 @@
+# =============================================================================
+# Laptop-only dev overlay (merged with environments/dev/compose.yml).
+# Provides a Docker-in-Docker workspace for building single services without
+# disturbing the host Docker. The full platform (infrastructure/compose.yml)
+# must be up first so dev-network / platform-network exist.
+#   docker compose -f environments/dev/compose.yml -f environments/dev/laptop.yml up -d
+# =============================================================================
+
+services:
+  workspace:
+    build:
+      context: ../..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: dev_workspace
+    restart: unless-stopped
+    security_opt:
+      - label:disable
+    volumes:
+      - ../..:/aiassistant:cached,z
+    environment:
+      - DOCKER_HOST=tcp://docker-dind:2375
+      - DOCKER_TLS_VERIFY=
+    depends_on:
+      - docker-dind
+    networks:
+      - dev-network
+      - platform-network
+    command: sleep infinity
+
+  docker-dind:
+    image: docker:dind
+    container_name: dev_docker_dind
+    privileged: true
+    environment:
+      - DOCKER_TLS_VERIFY=0
+      - DOCKER_TLS_CERTDIR=
+      - DOCKER_HOST=tcp://0.0.0.0:2375
+    expose:
+      - "2375"
+    volumes:
+      - dind_data:/var/lib/docker
+    networks:
+      - dev-network
+      - platform-network
+    restart: unless-stopped
+    command:
+      - dockerd
+      - --host=tcp://0.0.0.0:2375
+
+networks:
+  dev-network:
+    name: dev-network
+    external: true
+  platform-network:
+    name: platform-network
+    external: true
+
+volumes:
+  dind_data:

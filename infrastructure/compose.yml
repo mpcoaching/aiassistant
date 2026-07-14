@@ -1,0 +1,148 @@
+# =============================================================================
+# Infrastructure stack — control plane + private registry.
+# Owns the four networks (single owner). Start FIRST:
+#   docker compose -f infrastructure/compose.yml up -d
+# Platform / dev / live composes reference these networks as external.
+# =============================================================================
+name: infrastructure
+
+services:
+  # ----- Nginx: the ONLY sanctioned bridge for human/client traffic -----
+  # Attaches to infra + platform; proxies control-plane UIs and the two
+  # per-environment platform gateways. Never attaches to dev/live networks.
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: infra_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - infrastructure-network
+      - platform-network
+    volumes:
+      - ./configs/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./configs/nginx/certs/local.test.crt:/etc/nginx/certs/local.test.crt:ro
+      - ./configs/nginx/certs/local.test.key:/etc/nginx/certs/local.test.key:ro
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----- DNS: wildcard *.local.test -> host -----
+  dns:
+    image: strm/dnsmasq
+    container_name: infra_dns
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - ./configs/dnsmasq/dnsmasq.conf:/etc/dnsmasq.conf:ro
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - infrastructure-network
+      - platform-network
+
+  # ----- CI: Gitea (git source of truth) -----
+  gitea:
+    image: gitea/gitea:1.22
+    container_name: infra_gitea
+    environment:
+      - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__server__ROOT_URL=https://gitea.local.test/
+      - GITEA__server__SSH_DOMAIN=gitea.local.test
+      - GITEA__webhook__ALLOWED_HOST_LIST=teamcity-server:8111
+      - GITEA__service__DISABLE_REGISTRATION=false
+    restart: unless-stopped
+    networks:
+      - infrastructure-network
+    volumes:
+      - gitea_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+
+  # ----- CI: TeamCity server (backed by shared Postgres `teamcity` DB) -----
+  # NOTE: postgres lives in the platform project; cross-project depends_on is
+  # unsupported. TeamCity retries its DB connection until Postgres is ready.
+  teamcity-server:
+    image: jetbrains/teamcity-server:2024.12
+    container_name: infra_teamcity_server
+    environment:
+      - TEAMCITY_SERVER_OPTS=-Dteamcity.db.pg.connUrl=jdbc:postgresql://postgres:5432/${TEAMCITY_DB_NAME} -Dteamcity.db.pg.user=${TEAMCITY_DB_USER} -Dteamcity.db.pg.password=${TEAMCITY_DB_PASSWORD}
+      - GIT_SSL_NO_VERIFY=true
+    restart: unless-stopped
+    networks:
+      - infrastructure-network
+      - platform-network
+    volumes:
+      - teamcity_data:/data/teamcity_server/datadir
+      - teamcity_logs:/opt/teamcity/logs
+
+  # ----- CI: TeamCity build agent (uses host docker.sock — Option A) -----
+  teamcity-agent:
+    image: jetbrains/teamcity-agent:2024.12
+    container_name: infra_teamcity_agent
+    environment:
+      - SERVER_URL=http://teamcity-server:8111
+      - AGENT_NAME=agentic-builder
+    restart: unless-stopped
+    privileged: true
+    networks:
+      - infrastructure-network
+      - platform-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - teamcity_agent_conf:/opt/buildagent/conf
+    depends_on:
+      - teamcity-server
+
+  # ----- Private registry (immutable <git-sha> images) -----
+  # Serves plain HTTP internally; TLS is terminated by nginx-proxy for
+  # registry.local.test (local.test.crt covers *.local.test). Basic auth at
+  # the registry layer. Host-context pulls (TeamCity agent uses host daemon)
+  # hit host:443 -> nginx -> registry:5000.
+  registry:
+    image: registry:2
+    container_name: infra_registry
+    restart: unless-stopped
+    networks:
+      - infrastructure-network
+    environment:
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: "Registry Realm"
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /data
+    volumes:
+      - registry_data:/data
+      - ./configs/registry/htpasswd:/auth/htpasswd:ro
+    healthcheck:
+      test: ["CMD", "registry", "garbage-collect", "--dry-run", "/etc/docker/registry/config.yml"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  # Single owner of all four networks. Explicit names => globally consistent
+  # across the four Compose projects (no project-prefix surprises).
+  infrastructure-network:
+    name: infrastructure-network
+    driver: bridge
+  platform-network:
+    name: platform-network
+    driver: bridge
+  dev-network:
+    name: dev-network
+    driver: bridge
+  live-network:
+    name: live-network
+    driver: bridge
+
+volumes:
+  gitea_data:
+  teamcity_data:
+  teamcity_logs:
+  teamcity_agent_conf:
+  registry_data:

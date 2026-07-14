@@ -1,0 +1,58 @@
+# Laptop-only dev overlay: one-service-at-a-time sandbox.
+# Must be merged with docker-compose.yml so the agentic stack's single-service
+# `up` runs against local networks instead of external ones.
+
+services:
+  workspace:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    container_name: dev_workspace
+    restart: unless-stopped
+    security_opt:
+      - label:disable
+    volumes:
+      - .:/aiassistant:cached,z
+      - ./ai-assistant-infra/configs:/aiassistant/ai-assistant-infra/configs:cached,z
+    environment:
+      - DOCKER_HOST=tcp://docker-dind:2375
+      - DOCKER_TLS_VERIFY=
+    depends_on:
+      - docker-dind
+    networks:
+      - ai_net
+      - monitoring-net
+    command: sleep infinity
+
+  docker-dind:
+    image: docker:dind
+    container_name: dev_docker_dind
+    privileged: true
+    environment:
+      - DOCKER_TLS_VERIFY=0
+      - DOCKER_TLS_CERTDIR=
+      - DOCKER_HOST=tcp://0.0.0.0:2375
+    expose:
+      - "2375"
+    volumes:
+      - dind_data:/var/lib/docker
+    networks:
+      - ai_net
+      - monitoring-net
+    restart: unless-stopped
+    command:
+      - dockerd
+      - --host=tcp://0.0.0.0:2375
+
+# Override the agentic stack's networks from `external: true` to local, with
+# explicit names that match everywhere else in the environment.
+networks:
+  ai_net:
+    name: ai_net
+    driver: bridge
+  monitoring-net:
+    name: monitoring-net
+    driver: bridge
+
+volumes:
+  dind_data:
