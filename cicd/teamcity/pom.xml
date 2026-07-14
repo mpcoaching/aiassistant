@@ -33,7 +33,7 @@
   </pluginRepositories>
 
   <build>
-    <sourceDirectory>${basedir}/cicd/teamcity</sourceDirectory>
+    <sourceDirectory>${basedir}</sourceDirectory>
     <plugins>
       <plugin>
         <artifactId>kotlin-maven-plugin</artifactId>
