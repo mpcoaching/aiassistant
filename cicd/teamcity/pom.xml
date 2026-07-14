@@ -62,18 +62,6 @@
   <dependencies>
     <dependency>
       <groupId>org.jetbrains.teamcity</groupId>
-      <artifactId>configs-dsl-kotlin</artifactId>
-      <version>${teamcity.dsl.version}</version>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jetbrains.teamcity</groupId>
-      <artifactId>configs-dsl-kotlin-latest</artifactId>
-      <version>${teamcity.dsl.version}</version>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.jetbrains.teamcity</groupId>
       <artifactId>teamcity-dsl-all</artifactId>
       <version>2024.12</version>
       <scope>system</scope>
