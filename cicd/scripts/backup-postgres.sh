@@ -9,7 +9,7 @@ TS="$(date +%Y%m%d-%H%M%S)"
 OUT="$BACKUP_ROOT/$TS"
 mkdir -p "$OUT"
 
-DBS=("${@:-agent_dev agent_live langgraph_dev langgraph_live litellm langfuse n8n teamcity openobserve openhands manifest opencode}")
+DBS=("${@:-agent_dev agent_live langgraph_dev langgraph_live litellm langfuse n8n teamcity openobserve manifest}")
 
 echo "[backup-postgres] dumping: ${DBS[*]} -> $OUT"
 for db in "${DBS[@]}"; do

@@ -75,37 +75,6 @@ services:
       - dev-network
     restart: unless-stopped
 
-  # ---------- Optional (disabled by default) ----------
-  openhands:
-    image: ghcr.io/openhands/openhands:latest
-    profiles: ["disabled"]
-    env_file:
-      - ../../.env
-    environment:
-      - AGENT_SERVER_IMAGE_REPOSITORY=ghcr.io/openhands/agent-server
-      - AGENT_SERVER_IMAGE_TAG=latest-python
-      - WORKSPACE_MOUNT_PATH=/opt/workspace_base
-      - LLM_MODEL=groq/openai/gpt-oss-120b
-      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      - OPENAI_API_KEY=${FULL_ACCESS_KEY}
-      - LLM_API_KEY=${FULL_ACCESS_KEY}
-      - OPENAI_BASE_URL=http://dev-platform-gateway:4000/v1
-      - SANDBOX_RUNTIME_NETWORK=dev-network
-      - WORKSPACE_MOUNT_PATH=${PWD}/workspace
-      - OH_WEB_URL=http://openhands.dev.local.test
-      - WEB_HOST=openhands:3000
-      - OH_USE_HOST_NETWORK=false
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./workspace:/opt/workspace_base
-    networks:
-      - dev-network
-
 networks:
   dev-network:
     name: dev-network

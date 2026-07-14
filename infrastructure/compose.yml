@@ -114,11 +114,13 @@ services:
       REGISTRY_AUTH_HTPASSWD_REALM: "Registry Realm"
       REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /data
+      REGISTRY_USER: ${REGISTRY_USER}
+      REGISTRY_PASSWORD: ${REGISTRY_PASSWORD}
     volumes:
       - registry_data:/data
       - ./configs/registry/htpasswd:/auth/htpasswd:ro
     healthcheck:
-      test: ["CMD", "registry", "garbage-collect", "--dry-run", "/etc/docker/registry/config.yml"]
+      test: ["CMD-SHELL", "wget --quiet --spider --tries=1 --header=\"Authorization: Basic $$(echo -n \"$$REGISTRY_USER:$$REGISTRY_PASSWORD\" | base64)\" http://localhost:5000/v2/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

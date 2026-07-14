@@ -12,10 +12,8 @@ WITH dbs(name) AS (
            ('${OPENOBSERVE_DB_NAME}'),
            ('${LITELLM_DB_NAME}'),
            ('${CLICKHOUSE_DB_NAME}'),
-           ('${OPENHANDS_DB_NAME}'),
            ('${TEAMCITY_DB_NAME}'),
-           ('${MANIFEST_DB_NAME}'),
-           ('${OPENCODE_DB_NAME}')
+           ('${MANIFEST_DB_NAME}')
 )
 SELECT 'CREATE DATABASE "' || name || '"'
 FROM dbs

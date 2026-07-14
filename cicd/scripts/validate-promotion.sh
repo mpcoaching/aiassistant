@@ -1,27 +1,50 @@
 #!/usr/bin/env bash
-# Pre-deploy validation gate: reject any promoted service that uses a moving
+# Pre-deploy validation gate: reject any PROMOTED service that uses a moving
 # `latest` tag or a `build:` block. Promotion MUST use an immutable <git-sha>.
+# Services declared under a disabled profile (e.g. profiles: ["disabled"]) are
+# not part of the promoted set and are skipped.
 set -euo pipefail
 
 COMPOSE_FILE="${1:?usage: validate-promotion.sh <compose-file>}"
 echo "[validate] checking $COMPOSE_FILE for mutable tags / build blocks"
 
-violations=0
-while IFS= read -r line; do
-  svc=$(echo "$line" | cut -d: -f1)
-  tag=$(echo "$line" | cut -d: -f2-)
-  if [[ "$tag" == *":latest" || "$tag" == "latest" ]]; then
-    echo "  [FAIL] $svc uses :latest"; violations=$((violations+1))
-  fi
-done < <(grep -E "^[[:space:]]+image:" "$COMPOSE_FILE" | sed -E 's/^[[:space:]]+image:[[:space:]]*//; s/["'\'']//g' | awk -F'[/:]' '{print $0}')
+python3 - "$COMPOSE_FILE" <<'PY'
+import re, sys
+path = sys.argv[1]
+text = open(path).read()
+lines = text.splitlines()
 
-if grep -nE "^[[:space:]]+build:" "$COMPOSE_FILE" >/dev/null; then
-  echo "  [FAIL] compose contains build: blocks (promoted services must use image: only)"
-  violations=$((violations+1))
-fi
+disabled = set()
+current = None
+for ln in lines:
+    m = re.match(r'^  ([A-Za-z0-9_-]+):\s*(#.*)?$', ln)
+    if m:
+        current = m.group(1)
+    if re.search(r'profiles:', ln) and 'disabled' in ln and current:
+        disabled.add(current)
 
-if [[ "$violations" -gt 0 ]]; then
-  echo "[validate] FAILED: $violations mutable-reference violation(s). Aborting promotion."
-  exit 1
-fi
-echo "[validate] OK: all promoted services use immutable references."
+violations = 0
+current = None
+for ln in lines:
+    m = re.match(r'^  ([A-Za-z0-9_-]+):\s*(#.*)?$', ln)
+    if m:
+        current = m.group(1)
+    im = re.match(r'^\s+image:\s*([^\s#]+)', ln)
+    if im:
+        tag = im.group(1).strip().strip('"\'')
+        if current in disabled:
+            print(f"  [skip] {current} (disabled profile)")
+            continue
+        if tag == 'latest' or tag.endswith(':latest'):
+            print(f"  [FAIL] {current} uses :latest")
+            violations += 1
+
+if re.search(r'^\s+build:', text, re.M):
+    print("  [FAIL] compose contains build: blocks (promoted services must use image: only)")
+    violations += 1
+
+if violations:
+    print(f"[validate] FAILED: {violations} mutable-reference violation(s). Aborting promotion.")
+    sys.exit(1)
+print("[validate] OK: all promoted services use immutable references.")
+PY

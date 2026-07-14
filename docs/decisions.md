@@ -43,9 +43,4 @@ Isolation between `agent_dev` and `agent_live` is enforced at the Postgres role 
 `AIASSIST_PATH=C:/Users/...` was removed (breaks inside WSL2 containers). Path-dependent tooling must
 derive locations from the repo root at runtime.
 
-## ADR-009 — openhands host-network assumption
-`openhands` historically used `OH_USE_HOST_NETWORK=true` (Windows/WSL-specific) and referenced
-`litellm:4000` directly. In the isolated topology it is carried as a **disabled** profile with
-`OH_USE_HOST_NETWORK=false`, `SANDBOX_RUNTIME_NETWORK=dev-network`, and
-`OPENAI_BASE_URL=http://dev-platform-gateway:4000/v1`. Re-enable only after validating sandbox
-networking on the target host.
+

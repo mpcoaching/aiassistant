@@ -1,8 +1,5 @@
 dev_controller_config/
-.aider*
 .env
-autogenstudio/
-**/autogenstudio/
 .ai-assistant-infra
 **/.cache
 **/.venv
@@ -18,9 +15,6 @@ playwright-results.xml
 
 # Node
 node_modules/
-
-# Aider Studio (auto-added)
-REPO_MAP.md
 
 # Backup artifacts (Phase 7.5) and encrypted secrets
 backups/

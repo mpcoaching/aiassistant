@@ -12,7 +12,6 @@ platform default (`agent`):
 | `langgraph_dev` | `langgraph_dev_user` | dev langgraph |
 | `langgraph_live` | `langgraph_live_user` | live langgraph |
 | `litellm` | `litellm_user` | shared LiteLLM (both envs) |
-| `langfuse`, `clickhouse`, `teamcity`, `n8n`, `openobserve`, `openhands`, `manifest`, `opencode` | respective roles | platform services |
 
 **Isolation is enforced by roles + GRANTs** (see `platform/db-setup/003_apply_permissions.sql`):
 each user owns exactly one DB; `REVOKE ALL ... FROM PUBLIC` removes the default connect grant. Even

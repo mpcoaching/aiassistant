@@ -176,10 +176,10 @@ services:
     networks:
       - platform-network
     healthcheck:
-      test: ["CMD", "clickhouse-client", "-u", "${CLICKHOUSE_DB_USER}", "--password", "${CLICKHOUSE_DB_PASSWORD}", "-q", "SELECT 1"]
+      test: ["CMD", "clickhouse-client", "-u", "default", "-q", "SELECT 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
     restart: unless-stopped
 
   langfuse:

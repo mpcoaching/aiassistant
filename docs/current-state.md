@@ -54,7 +54,7 @@ open across every environment.
 | `80` / `443` | nginx-proxy | TLS via `ai-assistant-infra/configs/nginx/certs/local.test.crt` |
 | `53/udp` + `53/tcp` | dns (dnsmasq) | requires `CAP_NET_ADMIN`; may conflict with `systemd-resolved` on Ubuntu/WSL2 |
 | `15672` | rabbitmq management | published |
-| `8081` | autogen-studio (optional, `disabled` profile) | published |
+| `8081` | (reserved) | published |
 | (in-container only) | qdrant 6333/6334, litellm 4000, langfuse 3000, otel 4318, openobserve 5080, gitea 3000, teamcity 8111, control-center-ui 80, workflow-engine 8000, langgraph 8000 | reached via nginx or `ai_net` |
 
 There is **no** explicit `*.dev.local.test` / `*.live.local.test` routing today. nginx routes a
@@ -96,8 +96,6 @@ server block. The refactor rewrites this config with explicit upstreams and remo
   `litellm` (`ghcr.io/berriai/litellm:main-latest` — **moving tag**, pinned in refactor).
 - **DEV:** `dev-controller` (`node:20-alpine`, runs on `:8443` directly, NOT behind nginx),
   `dev-workflow-engine`, `dev-langgraph`, `dev-litellm` (**separate per-env litellm** today).
-- **OPTIONAL (`disabled`):** `openhands` (uses `OH_USE_HOST_NETWORK=true` + `host.docker.internal`
-  host-gateway — Windows/WSL-specific, breaks under isolated networks), `aider`, `autogen-studio`, `n8n`.
 
 **Dev UI is NOT behind nginx today.** `dev-controller` runs on `:8443` and is reached directly. The
 refactor adds explicit `*.dev.local.test` routing.
@@ -114,7 +112,6 @@ refactor adds explicit `*.dev.local.test` routing.
 `postgres_db`, `qdrant_data`, `rabbitmq_data`, `redis_agents_data`, `langfuse_redis_data`,
 `langfuse_data`, `clickhouse_data`, `openobserve_storage`, `minio_data`, `ollama_models`,
 `n8n_data`, `gitea_data`, `teamcity_data`, `teamcity_logs`, `teamcity_agent_conf`,
-`langgraph_config`, `langgraph_data`, `openhands_state`.
 
 All are declared in `docker-compose.platform.yml`. There is no cross-file `external` volume sharing
 today because everything runs under that one project.
@@ -186,7 +183,6 @@ this to a single immutable `registry.local/aiassistant/<svc>:<git-sha>` promoted
 1. Flat shared `ai_net` — no environment isolation (Phase 7 fixes).
 2. Duplicate nginx `qdrant.local.test` server block (rewrite fixes).
 3. `litellm` moving tag; `migrate` moving `latest` tag (immutability fixes).
-4. `openhands` host-network assumption (decision needed in Phase 7).
 5. `AIASSIST_PATH` Windows path in `.env` (removed).
 6. DB naming `aiassistant_dev`/`aiassistant_live` vs plan's `agent_dev`/`agent_live` (renamed).
 7. DNS port 53 / `systemd-resolved` conflict risk on Ubuntu/WSL2 (verify in Phase 3).
