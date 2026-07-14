@@ -63,12 +63,19 @@ project {
 
 object GiteaAiAssistant : GitVcsRoot({
     name = "Gitea ai/aiassistant"
-    url = "https://gitea.local.test/ai/aiassistant.git"
+    // SSH URL: the deploy key (cicd/scripts/gitea-seed.sh) is an SSH key, so the
+    // transport MUST be ssh:// — an HTTPS URL cannot consume an SSH private key.
+    // `gitea:22` is the Gitea container on the infrastructure-network, reachable
+    // by the TeamCity server/agent (no host port mapping required).
+    url = "ssh://git@gitea:22/ai/aiassistant.git"
     branch = "refs/heads/main"
-    authMethod = password {
-        // Deploy key is installed on the agent; use "custom private key" in UI if needed.
-        userName = "teamcity-bot"
-        password = ""
+    authMethod = defaultPrivateKey {
+        // The Gitea deploy key is installed as the TeamCity server/agent default
+        // SSH key (id_rsa); the matching public key is registered on
+        // ai/aiassistant by cicd/scripts/gitea-seed.sh. (customPrivateKey maps
+        // to an authMethod enum this TeamCity 2024.12 build rejects, so we use
+        // the default-key approach instead.)
+        userName = "git"
     }
     pollInterval = 30
 })
