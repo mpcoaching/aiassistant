@@ -6,25 +6,12 @@ on:
       - main
 
 jobs:
-  discover:
-    runs-on: ubuntu-latest
-    outputs:
-      packages: ${{ steps.discover.outputs.packages }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - id: discover
-        run: |
-          . .venv/bin/activate
-          echo "packages=$(delivery discover --format names)" >> "$GITHUB_OUTPUT"
-
   unit-tests:
-    needs: discover
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery test ${{ needs.discover.outputs.packages }} unit
+      - run: . .venv/bin/activate && delivery test all unit
 
   build-and-push:
     needs: unit-tests
@@ -32,8 +19,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery build ${{ needs.discover.outputs.packages }}
-      - run: . .venv/bin/activate && delivery publish ${{ needs.discover.outputs.packages }}
+      - run: . .venv/bin/activate && delivery build all
+      - run: . .venv/bin/activate && delivery publish all
 
   deploy-dev:
     needs: build-and-push
@@ -41,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery deploy dev ${{ needs.discover.outputs.packages }}
+      - run: . .venv/bin/activate && delivery deploy dev all
 
   validate:
     needs: deploy-dev
