@@ -99,5 +99,10 @@ def deploy(
             console.print(f"[red]{name}: {result.error}[/red]")
 
 
+@app.command()
+def validate(environment: str) -> None:
+    console.print(f"[yellow]Validation for {environment} is not yet implemented[/yellow]")
+
+
 if __name__ == "__main__":
     app()
