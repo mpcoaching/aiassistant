@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from .models import Release, Deployment, ValidationResult
+from ..models import Release, Deployment, ValidationResult
 
 
 DB_PATH = Path(os.environ.get("DELIVERY_STATE_DIR", "delivery/state")) / "delivery.db"
