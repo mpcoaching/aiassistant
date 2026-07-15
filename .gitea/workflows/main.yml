@@ -32,12 +32,6 @@ jobs:
           MATRIX=$(echo "$PACKAGES" | tr ' ' '\n' | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
 
-  runner-health:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash cicd/scripts/runner-healthcheck.sh
-
   unit-tests:
     needs: discover
     runs-on: ubuntu-latest
