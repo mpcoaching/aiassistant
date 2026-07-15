@@ -311,43 +311,22 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
 
-  # ===== CI: Gitea (git source of truth) =====
-  gitea:
-    image: gitea/gitea:latest
-    container_name: gitea
-    environment:
-      - GITEA__database__DB_TYPE=sqlite3
-      - GITEA__server__ROOT_URL=https://gitea.local.test/
-      - GITEA__server__SSH_DOMAIN=gitea.local.test
-      - GITEA__service__DISABLE_REGISTRATION=false
-    restart: unless-stopped
-    networks:
-      - ai_net
-      - monitoring-net
-    volumes:
-      - gitea_data:/data
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-    depends_on:
-      - postgres
-
   # ===== CI: Gitea Actions runner (executes .gitea/actions/workflows/*.yml) =====
   gitea-runner:
     image: gitea/act_runner:latest
     container_name: gitea-runner
     environment:
-      - GITEA_INSTANCE_URL=http://gitea:3000
+      - GITEA_INSTANCE_URL=http://infra_gitea:3000
       - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_TOKEN}
     restart: unless-stopped
     privileged: true
     networks:
       - ai_net
       - monitoring-net
+      - infrastructure-network
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - gitea_runner_data:/data
-    depends_on:
-      - gitea
 
 networks:
   ai_net:
@@ -356,6 +335,9 @@ networks:
   monitoring-net:
     name: monitoring-net
     driver: bridge
+  infrastructure-network:
+    external: true
+    name: infrastructure-network
 
 volumes:
   postgres_db:
