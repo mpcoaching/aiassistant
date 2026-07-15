@@ -6,7 +6,16 @@ on:
       - main
 
 jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r delivery/requirements.txt
+      - run: pip install -e delivery/
+      - run: delivery test unit --coverage
+
   build-and-push:
+    needs: unit-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +33,16 @@ jobs:
       - run: pip install -r delivery/requirements.txt
       - run: delivery deploy dev ${{ github.sha }}
 
-  validate:
+  integration-tests:
     needs: deploy-dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r delivery/requirements.txt
+      - run: delivery test integration
+
+  validate:
+    needs: integration-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

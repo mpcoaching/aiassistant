@@ -18,9 +18,9 @@ def test(
         if coverage:
             cmd.extend(["--cov=agents", "--cov-report=term-missing"])
     elif kind == "integration":
-        cmd = ["bash", "cicd/scripts/integration-tests.sh"]
+        cmd = ["python", "-m", "pytest", "infra/ci/", "-v"]
     elif kind == "e2e":
-        cmd = ["bash", "cicd/scripts/integration-tests.sh"]
+        cmd = ["python", "-m", "pytest", "agents/*/tests", "-v", "-k", "e2e"]
     else:
         console.print(f"[red]Unknown test kind: {kind}[/red]")
         raise typer.Exit(1)

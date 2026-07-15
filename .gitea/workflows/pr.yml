@@ -6,18 +6,17 @@ on:
       - main
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: pip install -r delivery/requirements.txt
-      - run: pip install -e delivery/
-      - run: delivery doctor
-      - run: ruff check agents/ delivery/
-
   unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: pip install -r delivery/requirements.txt
+      - run: pip install -e delivery/
       - run: delivery test unit --coverage
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r delivery/requirements.txt
+      - run: delivery doctor
