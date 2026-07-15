@@ -27,6 +27,8 @@ def discover(format: str = "table") -> None:
     packages = package_registry.discover()
     if format == "json":
         console.print(json.dumps([{"name": p.name, "version": p.version, "type": p.type} for p in packages]))
+    elif format == "names":
+        console.print(" ".join(p.name for p in packages))
     else:
         table = Table(title="Packages")
         table.add_column("Name")

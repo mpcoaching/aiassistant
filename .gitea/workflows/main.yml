@@ -16,7 +16,7 @@ jobs:
       - id: discover
         run: |
           . .venv/bin/activate
-          echo "packages=$(delivery discover --format json | python3 -c 'import json,sys; print(" ".join(p["name"] for p in json.load(sys.stdin)))')" >> "$GITHUB_OUTPUT"
+          echo "packages=$(delivery discover --format names)" >> "$GITHUB_OUTPUT"
 
   unit-tests:
     needs: discover
