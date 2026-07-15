@@ -20,7 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r delivery/requirements.txt
-      - run: pip install -e delivery/
-      - run: delivery promote ${{ github.event.inputs.source }} ${{ github.event.inputs.target }} ${{ github.event.inputs.release }}
-      - run: delivery validate ${{ github.event.inputs.target }}
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery promote ${{ github.event.inputs.source }} ${{ github.event.inputs.target }} ${{ github.event.inputs.release }}
+      - run: . .venv/bin/activate && delivery validate ${{ github.event.inputs.target }}

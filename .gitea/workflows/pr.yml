@@ -10,13 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r delivery/requirements.txt
-      - run: pip install -e delivery/
-      - run: delivery test unit --coverage
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery test unit --coverage
 
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r delivery/requirements.txt
-      - run: delivery doctor
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery doctor

@@ -10,41 +10,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r delivery/requirements.txt
-      - run: pip install -e delivery/
-      - run: delivery test unit --coverage
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery test unit --coverage
 
   build-and-push:
     needs: unit-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r delivery/requirements.txt
-      - run: pip install -e delivery/
-      - run: delivery doctor
-      - run: delivery build workflow-runner control-center-ui
-      - run: delivery publish workflow-runner control-center-ui
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery doctor
+      - run: . .venv/bin/activate && delivery build workflow-runner control-center-ui
+      - run: . .venv/bin/activate && delivery publish workflow-runner control-center-ui
 
   deploy-dev:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r delivery/requirements.txt
-      - run: delivery deploy dev ${{ github.sha }}
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery deploy dev ${{ github.sha }}
 
   integration-tests:
     needs: deploy-dev
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r delivery/requirements.txt
-      - run: delivery test integration
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery test integration
 
   validate:
     needs: integration-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r delivery/requirements.txt
-      - run: delivery validate dev
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery validate dev
