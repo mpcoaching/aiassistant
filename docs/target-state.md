@@ -15,7 +15,7 @@
    `agent_dev_user` / `agent_live_user`; no cross-env access (enforced by roles + GRANTs).
 3. **Private registry, immutable tags:** `registry.local.test`; tag = `<git-sha>`; promote the SAME
    image; rollback = redeploy prior tag. Never rebuild on promotion.
-4. **Gitea Actions + delivery CLI:** workflows in `.gitea/actions/workflows/`; capabilities in `delivery/`; immutable image promotion via registry.
+4. **Gitea Actions + delivery CLI:** workflows in `.gitea/workflows/`; package metadata in `packages/*/package.yaml`; delivery engine in `delivery/`; immutable image promotion via registry.
 5. **Nginx + dnsmasq kept** (no Traefik/Ollama); extended to `*.dev.local.test` / `*.live.local.test`
    with explicit upstreams (no dynamic regex proxy).
 6. **Incremental, reversible:** 8 phases + a pre-live backup-validation gate (Phase 7.5). Legacy files
@@ -109,11 +109,27 @@ platform/configs/otel/otel-collector.config.yaml
 platform/db-setup/*.sql                     # db-bootstrapper + goose migrations
 environments/dev/compose.yml  environments/dev/laptop.yml  environments/dev/config/*  environments/dev/.env
 environments/live/compose.yml  environments/live/config/*  environments/live/.env
-agents/                                       # app source + Dockerfiles
-delivery/                                     # delivery CLI (build, test, publish, deploy, validate, promote, rollback, status, doctor, backup, restore, logs)
-.gitea/actions/workflows/*.yml                # Gitea Actions orchestration (thin)
+packages/                                       # deployable packages (each owns code, tests, Dockerfile, package.yaml)
+  workflow-runner/
+  control-center-ui/
+  langgraph/
+  opencode/
+  autogen/
+platform/
+  configs/...
+  db-setup/*.sql                                # db-bootstrapper + goose migrations
+  tests/
+    integration/
+    e2e/
+    perf/
+    security/
+environments/
+  dev/compose.yml  dev/laptop.yml  dev/config/*  dev/.env
+  live/compose.yml  live/config/*  live/.env
+delivery/                                       # package-based delivery engine (discover, build, test, publish, deploy, validate)
+.gitea/workflows/*.yml                          # Gitea Actions orchestration (thin)
 docs/...
-legacy/                                       # previous docker-compose*.yml, ai-assistant-infra/, infra/ci, migration notes
+legacy/                                         # previous docker-compose*.yml, ai-assistant-infra/, infra/ci, migration notes
 .env .env.template
 ```
 
@@ -123,7 +139,7 @@ legacy/                                       # previous docker-compose*.yml, ai
 - `docker-compose.dev.yml` → `environments/dev/laptop.yml`
 - `ai-assistant-infra/configs` → `infrastructure/configs` + `platform/configs`
 - `infra/ci/*` → `cicd/*`; `infra/wait_for.py` → preserved at `infra/wait_for.py` (mounted into apps)
-- `agentic/src/*` app services → `agents/*` (Phase 8)
+- `agentic/src/*` + `agents/*` → `packages/*` (this phase)
 
 ---
 
