@@ -14,13 +14,13 @@ def test(
     fail_fast: bool = False,
 ) -> None:
     if kind == "unit":
-        cmd = ["python", "-m", "pytest", "agents/*/tests", "-v"]
+        cmd = ["python", "-m", "pytest", "agentic/src/*/tests", "-v"]
         if coverage:
-            cmd.extend(["--cov=agents", "--cov-report=term-missing"])
+            cmd.extend(["--cov=agentic/src/workflow-runner", "--cov-report=term-missing"])
     elif kind == "integration":
         cmd = ["python", "-m", "pytest", "infra/ci/", "-v"]
     elif kind == "e2e":
-        cmd = ["python", "-m", "pytest", "agents/*/tests", "-v", "-k", "e2e"]
+        cmd = ["python", "-m", "pytest", "agentic/src/*/tests", "-v", "-k", "e2e"]
     else:
         console.print(f"[red]Unknown test kind: {kind}[/red]")
         raise typer.Exit(1)
