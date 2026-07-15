@@ -1,0 +1,33 @@
+name: Main Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r delivery/requirements.txt
+      - run: pip install -e delivery/
+      - run: delivery doctor
+      - run: delivery build workflow-runner control-center-ui
+      - run: delivery publish workflow-runner control-center-ui
+
+  deploy-dev:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r delivery/requirements.txt
+      - run: delivery deploy dev ${{ github.sha }}
+
+  validate:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r delivery/requirements.txt
+      - run: delivery validate dev
