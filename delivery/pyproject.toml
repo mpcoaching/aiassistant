@@ -1,7 +1,7 @@
 [project]
 name = "delivery"
-version = "0.1.0"
-description = "Capability-oriented delivery CLI for Gitea Actions"
+version = "0.2.0"
+description = "Package-based delivery engine"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

@@ -318,6 +318,7 @@ services:
     environment:
       - GITEA_INSTANCE_URL=http://infra_gitea:3000
       - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_TOKEN}
+      - CONFIG_FILE=/data/config.yml
     restart: unless-stopped
     privileged: true
     networks:
@@ -327,6 +328,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - gitea_runner_data:/data
+      - /tmp/gitea-runner-config/config.yml:/data/config.yml:ro
 
 networks:
   ai_net:

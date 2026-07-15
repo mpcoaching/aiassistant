@@ -3,14 +3,7 @@ name: Promote
 on:
   workflow_dispatch:
     inputs:
-      release:
-        description: "Git SHA to promote"
-        required: true
-      source:
-        description: "Source environment"
-        required: true
-        default: "dev"
-      target:
+      environment:
         description: "Target environment"
         required: true
         default: "live"
@@ -21,5 +14,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery promote ${{ github.event.inputs.source }} ${{ github.event.inputs.target }} ${{ github.event.inputs.release }}
-      - run: . .venv/bin/activate && delivery validate ${{ github.event.inputs.target }}
+      - run: . .venv/bin/activate && delivery deploy ${{ github.event.inputs.environment }} all

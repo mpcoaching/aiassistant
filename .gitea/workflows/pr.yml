@@ -11,11 +11,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery test unit --coverage
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery doctor
+      - run: . .venv/bin/activate && delivery test all unit

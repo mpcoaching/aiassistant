@@ -47,7 +47,7 @@ services:
 
   # ----- CI: Gitea (git source of truth) -----
   gitea:
-    image: gitea/gitea:1.22
+    image: gitea/gitea:1.27
     container_name: infra_gitea
     environment:
       - GITEA__database__DB_TYPE=sqlite3
