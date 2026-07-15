@@ -48,9 +48,9 @@ def _resolve_packages(names: list[str]) -> list[str]:
 
 
 @app.command()
-def build(packages: list[str]) -> None:
+def build(packages: list[str], changed: bool = False) -> None:
     names = _resolve_packages(packages)
-    results = engine.build(names)
+    results = engine.build(names, changed_only=changed)
     for name, result in results.items():
         if result.success:
             console.print(f"[green]{name}: built[/green]")

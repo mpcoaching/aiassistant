@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from .models import BuildResult, DeployResult, Package, PublishResult, TestResult
@@ -12,7 +13,30 @@ class ExecutionEngine:
         self.package_registry = package_registry
         self.provider_registry = provider_registry
 
-    def build(self, package_names: list[str]) -> dict[str, BuildResult]:
+    def _changed_packages(self, base: str = "main") -> list[str]:
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--name-only", f"{base}..HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                return []
+            changed = set(result.stdout.splitlines())
+            packages = []
+            for package in self.package_registry.discover():
+                if any(str(package.path / f) in changed for f in ["package.yaml", "pyproject.toml", "package.json", "Dockerfile"]):
+                    packages.append(package.name)
+                elif any(str(package.path / f) in changed for f in ["src/", "tests/"]):
+                    packages.append(package.name)
+            return packages
+        except Exception:
+            return []
+
+    def build(self, package_names: list[str], changed_only: bool = False) -> dict[str, BuildResult]:
+        if changed_only:
+            package_names = self._changed_packages()
         packages = self.package_registry.discover()
         results: dict[str, BuildResult] = {}
         for name in package_names:
@@ -49,9 +73,8 @@ class ExecutionEngine:
         return results
 
     def deploy(self, environment: str, package_names: list[str]) -> dict[str, DeployResult]:
-        # Placeholder: deploy would invoke docker compose per package
-        results: dict[str, DeployResult] = {}
         packages = self.package_registry.discover()
+        results: dict[str, DeployResult] = {}
         for name in package_names:
             package = self.package_registry.get(name, packages)
             if not package:

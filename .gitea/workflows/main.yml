@@ -4,31 +4,73 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  unit-tests:
+  runner-health:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: bash cicd/scripts/runner-healthcheck.sh
+
+  discover:
+    needs: runner-health
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.discover.outputs.packages }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
       - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery test all unit
+      - id: discover
+        run: |
+          . .venv/bin/activate
+          echo "packages=$(delivery discover --format names)" >> "$GITHUB_OUTPUT"
+      - id: set-matrix
+        run: |
+          PACKAGES="${{ steps.discover.outputs.packages }}"
+          MATRIX=$(echo "$PACKAGES" | tr ' ' '\n' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
+
+  runner-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash cicd/scripts/runner-healthcheck.sh
+
+  unit-tests:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery test ${{ matrix.package }} unit
 
   build-and-push:
     needs: unit-tests
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery build all
-      - run: . .venv/bin/activate && delivery publish all
+      - run: . .venv/bin/activate && delivery build ${{ matrix.package }}
+      - run: . .venv/bin/activate && delivery publish ${{ matrix.package }}
 
   deploy-dev:
     needs: build-and-push
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery deploy dev all
+      - run: . .venv/bin/activate && delivery deploy dev ${{ matrix.package }}
 
   validate:
     needs: deploy-dev

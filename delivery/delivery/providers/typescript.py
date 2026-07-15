@@ -56,14 +56,22 @@ class TypeScriptProvider(Provider):
 
     def publish(self, package_path: Path, package: Package) -> PublishResult:
         try:
+            image = package.docker_image
+            cache_image = image.replace(":latest", ":cache").replace(":${GIT_SHA}", ":cache")
             result = subprocess.run(
-                ["docker", "build", "-t", package.docker_image, str(package_path)],
+                [
+                    "docker", "buildx", "build",
+                    "-t", image,
+                    "--cache-from", f"type=registry,ref={cache_image}",
+                    "--cache-to", f"type=registry,ref={cache_image},mode=max",
+                    str(package_path),
+                ],
                 capture_output=True,
                 text=True,
                 check=False,
             )
             if result.returncode != 0:
                 return PublishResult(success=False, package=package, error=result.stderr)
-            return PublishResult(success=True, package=package, image=package.docker_image)
+            return PublishResult(success=True, package=package, image=image)
         except Exception as exc:
             return PublishResult(success=False, package=package, error=str(exc))

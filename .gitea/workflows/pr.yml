@@ -4,9 +4,17 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
+  runner-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash cicd/scripts/runner-healthcheck.sh
+
   unit-tests:
+    needs: runner-health
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
