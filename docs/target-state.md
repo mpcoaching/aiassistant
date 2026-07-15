@@ -15,7 +15,7 @@
    `agent_dev_user` / `agent_live_user`; no cross-env access (enforced by roles + GRANTs).
 3. **Private registry, immutable tags:** `registry.local.test`; tag = `<git-sha>`; promote the SAME
    image; rollback = redeploy prior tag. Never rebuild on promotion.
-4. **TeamCity CaaS:** Kotlin DSL in VCS (`cicd/teamcity/`); 10 build configs; build chains in code.
+4. **Gitea Actions + delivery CLI:** workflows in `.gitea/actions/workflows/`; capabilities in `delivery/`; immutable image promotion via registry.
 5. **Nginx + dnsmasq kept** (no Traefik/Ollama); extended to `*.dev.local.test` / `*.live.local.test`
    with explicit upstreams (no dynamic regex proxy).
 6. **Incremental, reversible:** 8 phases + a pre-live backup-validation gate (Phase 7.5). Legacy files
@@ -33,7 +33,7 @@ Applications → their Environment → controlled Platform services → Infrastr
 
 | Network | Owner file | Members |
 |---|---|---|
-| `infrastructure-network` | `infrastructure/compose.yml` | nginx-proxy, dns, gitea, teamcity-server, teamcity-agent, registry |
+| `infrastructure-network` | `infrastructure/compose.yml` | nginx-proxy, dns, gitea, gitea-runner, registry |
 | `platform-network` | `platform/compose.yml` | postgres, redis, qdrant, rabbitmq, litellm, otel-collector, langfuse, clickhouse, openobserve, dev-platform-gateway, live-platform-gateway (+ model-runner via host-gateway) |
 | `dev-network` | `environments/dev/compose.yml` | dev app/worker containers (reached only via dev-platform-gateway) |
 | `live-network` | `environments/live/compose.yml` | live app/worker containers (reached only via live-platform-gateway) |
@@ -68,8 +68,8 @@ Applications → their Environment → controlled Platform services → Infrastr
 ## 3. Stack → network → services
 
 | Stack | Compose | Networks | Services |
-|---|---|---|---|
-| Infrastructure | `infrastructure/compose.yml` | infrastructure + platform | nginx-proxy, dns, gitea, teamcity-server, teamcity-agent, registry |
+|------|---------|----------|----------|
+| Infrastructure | `infrastructure/compose.yml` | infrastructure + platform | nginx-proxy, dns, gitea, gitea-runner, registry |
 | Platform | `platform/compose.yml` | platform (+ bridges dev/live) | postgres, redis, qdrant, rabbitmq, litellm, otel-collector, langfuse, clickhouse, openobserve, dev-platform-gateway, live-platform-gateway (+ model-runner host-gw) |
 | Dev | `environments/dev/compose.yml` | dev | dev app/worker services (reach platform via dev-platform-gateway) |
 | Live | `environments/live/compose.yml` | live | live app/worker services (reach platform via live-platform-gateway) |
@@ -110,11 +110,9 @@ platform/db-setup/*.sql                     # db-bootstrapper + goose migrations
 environments/dev/compose.yml  environments/dev/laptop.yml  environments/dev/config/*  environments/dev/.env
 environments/live/compose.yml  environments/live/config/*  environments/live/.env
 agents/                                       # app source + Dockerfiles
-cicd/teamcity/settings.kts                    # Kotlin DSL (CaaS)
-cicd/scripts/{deploy-dev,deploy-live,rollback,integration-tests,backup-*}.sh
-cicd/coverage/{check-coverage.py, coverage.baseline.json}
-docs/{current-state,target-state,architecture,deployment,database-strategy,ci-cd,networking,operations,decisions}.md
-docs/runbooks/{runbook-startup,runbook-shutdown,runbook-deployment,runbook-rollback,runbook-recovery}.md
+delivery/                                     # delivery CLI (build, test, publish, deploy, validate, promote, rollback, status, doctor, backup, restore, logs)
+.gitea/actions/workflows/*.yml                # Gitea Actions orchestration (thin)
+docs/...
 legacy/                                       # previous docker-compose*.yml, ai-assistant-infra/, infra/ci, migration notes
 .env .env.template
 ```
@@ -151,7 +149,7 @@ server { listen 443 ssl; server_name langgraph.live.local.test; location / { pro
 #   langgraph.dev.local.test  → dev-langgraph:8000
 # (mirror for live-platform-gateway → control-center-ui / workflow-engine / langgraph)
 # Control plane (nginx reaches directly on platform/infra nets):
-#   gitea.local.test, teamcity.local.test, registry.local.test, lf.local.test,
+#   gitea.local.test, registry.local.test, lf.local.test,
 #   oo.local.test, otel.local.test, litellm.local.test
 ```
 
@@ -160,22 +158,26 @@ RabbitMQ 5672, LiteLLM 4000, OTEL 4318, Langfuse 3000) and **`http` blocks** for
 
 ---
 
-## 7. TeamCity (CaaS) — 10 build configs
+## 7. Delivery capabilities
 
-1. Agent Unit Tests — pytest (`agents/workflow-runner`) + vitest (`agents/control-center-ui`).
-2. Platform Unit Tests — `platform/` service tests (extensible placeholder).
-3. Coverage Verification — `cicd/coverage/check-coverage.py` ratchet vs baseline; **fail on decrease**.
-4. Docker Image Build — build app images, tag `<git-sha>`.
-5. Push Image To Registry — `docker push registry.local.test/aiassistant/<svc>:<git-sha>`.
-6. Deploy Development — `cicd/scripts/deploy-dev.sh`.
-7. Integration Tests — against dev.
-8. Promotion Approval — manual gate (after Phase 7.5 backup validation green).
-9. Deploy Live — `deploy-live.sh` deploys SAME `<git-sha>`.
-10. Rollback — `rollback.sh <prior-tag>`.
+Capabilities are implemented as `delivery` CLI subcommands and orchestrated by Gitea Actions workflows.
 
-Server persistent data: `teamcity_data` → `/data/teamcity_server/datadir`; `teamcity_logs` →
-`/opt/teamcity/logs`. DB = shared Postgres `teamcity` DB (JDBC via `TEAMCITY_SERVER_OPTS`). Agent uses
-host `/var/run/docker.sock` (Option A, recorded in `docs/decisions.md`; Option B = future dind hardening).
+| Capability | CLI subcommand | Purpose |
+|---|---|---|
+| Build | `delivery build <services>` | Build images with buildx |
+| Test | `delivery test <kind>` | Run unit/integration/e2e tests |
+| Publish | `delivery publish <services>` | Push images to registry |
+| Deploy | `delivery deploy <env> <sha>` | Deploy to environment |
+| Validate | `delivery validate <env>` | Health checks + smoke tests |
+| Promote | `delivery promote <src> <dst> <sha>` | Promote release between envs |
+| Rollback | `delivery rollback <env>` | Redeploy previous tag |
+| Status | `delivery status [sha]` | Show release/deployment status |
+| Doctor | `delivery doctor` | Verify environment prerequisites |
+| Backup | `delivery backup` | Backup runtime state |
+| Restore | `delivery restore <archive>` | Restore runtime state |
+| Logs | `delivery logs <env>` | Stream deployment logs |
+
+Runner uses host `/var/run/docker.sock` so builds run in host build context; host DNS applies.
 
 ---
 
@@ -193,20 +195,20 @@ PG instance, C per-enterprise host) trade off isolation vs cost; design allows A
 ## 9. Private registry
 
 - Hostname `registry.local.test` (under `.local.test`). DNS resolves via dnsmasq wildcard (host). Pulls
-  run in **host build context** (TeamCity agent uses host daemon) so host DNS applies.
+  run in **host build context** (gitea-runner uses host daemon) so host DNS applies.
 - TLS: cert with SAN `registry.local.test`; install the `local.test` CA into the Docker daemon trust
   store (preferred) or list `registry.local.test` under `insecure-registries` (documented trade-off).
-- Auth: basic auth (`htpasswd`); agent logs in via TeamCity password params before push.
+- Auth: basic auth; credentials flow through environment `.env` files or Gitea Actions secrets.
 - Rollback: `docker pull registry.local.test/aiassistant/<svc>:<prev-sha>` (immutable, already present).
 
 ---
 
 ## 10. Backup & restore (validated in Phase 7.5)
 
-Postgres `pg_dump` per DB; registry `registry_data` volume tar; Gitea `gitea dump`; TeamCity
-`teamcity_data` volume; git tag at promoted SHA + encrypted `.env`. Rule: *a backup is not complete
-until its restore is tested.* Gate Live promotion on green restore tests. Details in
-`docs/operations.md` + `docs/runbooks/runbook-recovery.md`.
+Postgres `pg_dump` per DB; registry `registry_data` volume tar; Gitea `gitea dump`; `delivery`
+runtime SQLite store (`delivery/state/delivery.db`); git tag at promoted SHA + encrypted `.env`.
+Rule: *a backup is not complete until its restore is tested.* Gate Live promotion on green restore tests.
+Details in `docs/operations.md` + `docs/runbooks/runbook-recovery.md`.
 
 ---
 
@@ -214,9 +216,10 @@ until its restore is tested.* Gate Live promotion on green restore tests. Detail
 
 Desired state lives in Git; deployments reconcile current→desired (Compose converges; volumes persist).
 Five change classes: (1) app code → rebuild only affected image; (2) infra config → `up -d <svc>`
-only; (3) DB schema → goose migration + restore-tested backup first; (4) TeamCity CaaS → edit
-`settings.kts`, validate before apply; (5) platform service upgrade → pin image tag, `up -d <svc>`.
-Full detail in `docs/deployment.md`, `docs/operations.md`, `docs/runbooks/runbook-deployment.md`.
+only; (3) DB schema → goose migration + restore-tested backup first; (4) delivery CLI / workflow
+change → edit workflow YAML or `delivery` subcommand, validate before apply; (5) platform service
+upgrade → pin image tag, `up -d <svc>`. Full detail in `docs/deployment.md`, `docs/operations.md`,
+`docs/runbooks/runbook-deployment.md`.
 
 ---
 
@@ -227,7 +230,7 @@ Phase 1 current-state ─┐
 Phase 2 target-state  ─┤ (docs)
 Phase 3 networks+control-plane  ──┐ (needs 1+2)
 Phase 4 registry  ────────────────┤ (parallel w/ 3; registry on infra-net)
-Phase 5 TeamCity CaaS ────────────┤ (needs infra up)
+Phase 5 Gitea Actions + delivery ─┤ (needs infra up)
 Phase 6 build & promotion ────────┤ (needs 4+5)
 Phase 7 dev/live separation ──────┤ (needs 3: dev/live nets exist)
 Phase 7.5 backup validation ──────┤ (gate before first Live)

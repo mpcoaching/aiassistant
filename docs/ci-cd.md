@@ -1,68 +1,46 @@
 # CI/CD
 
-Continuous delivery is provided by **TeamCity Configuration-as-Code** (Kotlin DSL in Gitea) with a
-self-hosted agent that uses the host Docker daemon (Option A). Gitea is the VCS source of truth.
+Continuous delivery is provided by **Gitea Actions** with a stateless runner container. The `delivery` Python CLI implements all capabilities. Gitea is the VCS source of truth.
 
 ## Topology
 
 ```
-Gitea (ai/aiassistant)  ──webhook──▶  TeamCity server  ──schedules──▶  TeamCity agent
-   (VCS root)                        (reads cicd/teamcity)              (host docker.sock)
+Gitea (ai/aiassistant)  ──triggers──▶  Gitea Actions runner  ──invokes──▶  delivery CLI
+    (repo + workflows)                     (docker)                     (build/test/deploy)
 ```
 
-- **Versioned Settings:** TeamCity reads `cicd/teamcity/settings.kts` from Gitea. A broken config is
-  rejected at validate time; the previous config stays active.
-- **Agent (Option A):** mounts host `/var/run/docker.sock` (near-privileged) — acceptable on a single
-  trusted host. Option B (rootless dind) is recorded as future hardening (ADR-002).
-- **Registry auth:** TeamCity password params `REGISTRY_USER` / `REGISTRY_PASSWORD`; the push step
-  logs in via `echo "$REGISTRY_PASSWORD" | docker login ... --password-stdin` before pushing.
+- **Workflows:** thin YAML in `.gitea/actions/workflows/*.yml` that invoke `delivery` subcommands.
+- **Runner:** `gitea-runner` container with host Docker socket access.
+- **Registry auth:** flows through environment `.env` files or Gitea Actions secrets; never committed to Git.
 
-## Build chain (10 configs, snapshot dependencies)
+## Workflows
 
-```
-1 Agent Unit Tests ─▶ 2 Platform Unit Tests ─▶ 3 Coverage Verification
-  ─▶ 4 Docker Image Build ─▶ 5 Push Image To Registry
-  ─▶ 6 Deploy Development ─▶ 7 Integration Tests
-  ─▶ 8 Promotion Approval (manual) ─▶ 9 Deploy Live ─▶ 10 Rollback (manual, on demand)
-```
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `.gitea/actions/workflows/pr.yml` | Pull request to `main` | Lint + unit tests |
+| `.gitea/actions/workflows/main.yml` | Push to `main` | Build → publish → deploy dev → validate |
+| `.gitea/actions/workflows/promote.yml` | Manual dispatch | Promote dev → live |
 
-- **1 Agent Unit Tests** — `pytest` (`agents/workflow-runner`) + `vitest` (`agents/control-center-ui`).
-- **2 Platform Unit Tests** — extensible placeholder for `platform/` service tests.
-- **3 Coverage Verification** — `cicd/coverage/check-coverage.py` ratchet vs baseline; **fails on
-  decrease** (`cicd/coverage/coverage.baseline.json`).
-- **4 Docker Image Build** — build `workflow-runner` / `control-center-ui` / `langgraph`, tag `<git-sha>`.
-- **5 Push Image To Registry** — `docker push registry.local.test/aiassistant/<svc>:<git-sha>`.
-- **6 Deploy Development** — `cicd/scripts/deploy-dev.sh` (login + pull + `up -d`).
-- **7 Integration Tests** — `cicd/scripts/integration-tests.sh` against dev.
-- **8 Promotion Approval** — **manual gate**; requires Phase 7.5 backup validation green.
-- **9 Deploy Live** — `cicd/scripts/deploy-live.sh` deploys the **same** `<git-sha>`.
-- **10 Rollback** — `cicd/scripts/rollback.sh <prior-tag>`.
+## Delivery capabilities
 
-## Quality gate
-
-- Coverage ratchet must pass (no regression).
-- Integration tests green.
-- Phase 7.5 restore tests green (marker `cicd/state/backup-validation-green`).
-- Manual promotion approval given.
-- `validate-promotion.sh` rejects any `latest` / `build:` reference for promoted services.
-
-A failing test (e.g. drop coverage) blocks promotion automatically.
-
-## Scripts
-
-| Script | Purpose |
-|---|---|
-| `cicd/scripts/deploy-dev.sh` | login + pull + `up -d` dev from registry |
-| `cicd/scripts/deploy-live.sh` | deploy live (same tag); blocked until backup-validation green |
-| `cicd/scripts/rollback.sh` | redeploy a prior immutable tag |
-| `cicd/scripts/integration-tests.sh` | smoke tests against dev |
-| `cicd/scripts/validate-promotion.sh` | reject mutable image references |
-| `cicd/scripts/gitea-seed.sh` | one-time Gitea org/repo/deploy-key/webhook bootstrap |
-| `cicd/coverage/check-coverage.py` | ratcheting coverage gate |
+| Capability | CLI subcommand | Purpose |
+|---|---|---|
+| Build | `delivery build <services>` | Build images with buildx |
+| Test | `delivery test <kind>` | Run unit/integration/e2e tests |
+| Publish | `delivery publish <services>` | Push images to registry |
+| Deploy | `delivery deploy <env> <sha>` | Deploy to environment |
+| Validate | `delivery validate <env>` | Health checks + smoke tests |
+| Promote | `delivery promote <src> <dst> <sha>` | Promote release between envs |
+| Rollback | `delivery rollback <env>` | Redeploy previous tag |
+| Status | `delivery status [sha]` | Show release/deployment status |
+| Doctor | `delivery doctor` | Verify environment prerequisites |
+| Backup | `delivery backup` | Backup runtime state |
+| Restore | `delivery restore <archive>` | Restore runtime state |
+| Logs | `delivery logs <env>` | Stream deployment logs |
 
 ## Bootstrap
 
-1. Bring up infrastructure + platform (`infrastructure:up`, `platform:up`).
-2. `bash cicd/scripts/gitea-seed.sh` to create `ai/aiassistant` + webhook.
-3. In TeamCity, enable Versioned Settings → point at Gitea `cicd/teamcity`. The 10 build configs
-   load automatically.
+1. Bring up infrastructure + platform (`infrastructure/compose.yml`, `platform/compose.yml`).
+2. Run `bash cicd/scripts/gitea-seed.sh` to create `ai/aiassistant` + deploy key + webhook (if needed).
+3. Ensure `.gitea/actions/workflows/*.yml` are present in the repo.
+4. Enable Gitea Actions in Gitea admin settings and register the runner.

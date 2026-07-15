@@ -1,0 +1,23 @@
+name: PR Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r delivery/requirements.txt
+      - run: pip install -e delivery/
+      - run: delivery doctor
+      - run: ruff check agents/ delivery/
+
+  unit-tests:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r delivery/requirements.txt
+      - run: delivery test unit --coverage

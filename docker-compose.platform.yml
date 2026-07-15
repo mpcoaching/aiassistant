@@ -1,4 +1,4 @@
-# Tier 0 — Platform substrate (always-on, shared) + CI stack (TeamCity + Gitea)
+# Tier 0 — Platform substrate (always-on, shared) + CI stack (Gitea + runner)
 # Owns ai_net + monitoring-net. Agentic stack declares these as external.
 # Start first: docker compose -f docker-compose.platform.yml up -d
 
@@ -319,7 +319,6 @@ services:
       - GITEA__database__DB_TYPE=sqlite3
       - GITEA__server__ROOT_URL=https://gitea.local.test/
       - GITEA__server__SSH_DOMAIN=gitea.local.test
-      - GITEA__webhook__ALLOWED_HOST_LIST=teamcity-server:8111
       - GITEA__service__DISABLE_REGISTRATION=false
     restart: unless-stopped
     networks:
@@ -332,31 +331,13 @@ services:
     depends_on:
       - postgres
 
-  # ===== CI: TeamCity server (backed by shared Postgres `teamcity` DB) =====
-  teamcity-server:
-    image: jetbrains/teamcity-server:latest
-    container_name: teamcity-server
+  # ===== CI: Gitea Actions runner (executes .gitea/actions/workflows/*.yml) =====
+  gitea-runner:
+    image: gitea/act_runner:latest
+    container_name: gitea-runner
     environment:
-      - TEAMCITY_SERVER_OPTS=-Dteamcity.db.pg.connUrl=jdbc:postgresql://postgres:5432/${TEAMCITY_DB_NAME} -Dteamcity.db.pg.user=${TEAMCITY_DB_USER} -Dteamcity.db.pg.password=${TEAMCITY_DB_PASSWORD}
-      - GIT_SSL_NO_VERIFY=true
-    restart: unless-stopped
-    networks:
-      - ai_net
-      - monitoring-net
-    volumes:
-      - teamcity_data:/data/teamcity_server/datadir
-      - teamcity_logs:/opt/teamcity/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  # ===== CI: TeamCity build agent (uses host docker.sock) =====
-  teamcity-agent:
-    image: jetbrains/teamcity-agent:latest
-    container_name: teamcity-agent
-    environment:
-      - SERVER_URL=http://teamcity-server:8111
-      - AGENT_NAME=agentic-builder
+      - GITEA_INSTANCE_URL=http://gitea:3000
+      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_TOKEN}
     restart: unless-stopped
     privileged: true
     networks:
@@ -364,9 +345,9 @@ services:
       - monitoring-net
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - teamcity_agent_conf:/opt/buildagent/conf
+      - gitea_runner_data:/data
     depends_on:
-      - teamcity-server
+      - gitea
 
 networks:
   ai_net:
@@ -389,6 +370,4 @@ volumes:
   redis_agents_data:
   langfuse_data:
   gitea_data:
-  teamcity_data:
-  teamcity_logs:
-  teamcity_agent_conf:
+  gitea_runner_data:
