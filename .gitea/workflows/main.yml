@@ -52,5 +52,7 @@ jobs:
     if: success()
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - run: git remote add github https://${{ secrets.MIRROR_PAT }}@github.com/mpcoaching/aiassistant.git || git remote set-url --push github https://${{ secrets.MIRROR_PAT }}@github.com/mpcoaching/aiassistant.git
       - run: git push github HEAD:main --force 2>&1 | tee /tmp/git-push.log || (cat /tmp/git-push.log && exit 1)
