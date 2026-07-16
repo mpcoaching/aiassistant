@@ -1,0 +1,21 @@
+name: control-center-ui
+version: 0.1.0
+description: Control center web UI
+
+kind: service
+type: typescript
+
+provides:
+  - web-ui
+  - workflow-visualization
+
+deployable: true
+dockerfile: Dockerfile
+
+depends_on: []
+build_dependencies: []
+runtime_dependencies: []
+
+tags:
+  - frontend
+  - ui

@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""
+Workflow Runner CLI — execute workflow YAML files from the terminal.
+
+Usage:
+    wf run <workflow.yaml>                   Execute a workflow
+    wf run <workflow.yaml> --role <role>     Override the role for all steps
+    wf status <workflow_id> <workflow.yaml>  Check workflow status
+    wf list <workflow.yaml>                  List past executions
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+# Ensure the script's directory is on sys.path
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+
+from executor import execute_workflow_from_file, get_workflow_status
+from state import list_workflow_states
+
+
+def print_result(result: dict) -> None:
+    """Pretty-print a workflow result."""
+    status = result.get("status", "unknown")
+    if status == "completed":
+        print(f"✅ [{status.upper()}] {result.get('workflow_name', 'unknown')}")
+    elif status == "failed":
+        print(f"❌ [{status.upper()}] {result.get('error', 'Unknown error')}")
+    else:
+        print(f"⏳ [{status.upper()}]")
+
+    steps = result.get("step_results", [])
+    if steps:
+        print(f"\nSteps ({len(steps)} total):")
+        for s in steps:
+            name = s.get("step_name", "?")
+            st = s.get("status", "?")
+            icon = "✅" if st == "completed" else "❌" if st == "failed" else "⏳"
+            dur = s.get("duration_seconds")
+            dur_str = f" ({dur:.1f}s)" if dur else ""
+            print(f"  {icon} {name}{dur_str}")
+            if s.get("composed_prompt"):
+                print(f"     Composed prompt ready for execution")
+            if s.get("error"):
+                print(f"     Error: {s['error']}")
+
+    if result.get("workflow_id"):
+        print(f"\nWorkflow ID: {result['workflow_id']}")
+        print(f"Log: .wf/{result['workflow_id']}.log")
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+
+    command = sys.argv[1]
+
+    if command == "run":
+        if len(sys.argv) < 3:
+            print("Usage: wf run <workflow.yaml> [--role <role>]")
+            sys.exit(1)
+
+        workflow_path = sys.argv[2]
+        role_override = None
+
+        if "--role" in sys.argv:
+            idx = sys.argv.index("--role")
+            if idx + 1 < len(sys.argv):
+                role_override = sys.argv[idx + 1]
+
+        if not os.path.exists(workflow_path):
+            print(f"Error: File not found: {workflow_path}")
+            sys.exit(1)
+
+        result = execute_workflow_from_file(
+            workflow_path=workflow_path,
+            role_override=role_override,
+        )
+        print_result(result)
+
+        if result.get("status") == "failed":
+            sys.exit(1)
+
+    elif command == "status":
+        if len(sys.argv) < 4:
+            print("Usage: wf status <workflow_id> <workflow.yaml>")
+            sys.exit(1)
+
+        workflow_id = sys.argv[2]
+        workflow_path = sys.argv[3]
+        result = get_workflow_status(workflow_id, workflow_path)
+
+        if not result.get("found"):
+            print(f"Workflow '{workflow_id}' not found")
+            sys.exit(1)
+
+        print(f"Status: {result['status']}")
+        print(f"Step: {result['current_step_index']}/{result['total_steps']}")
+
+    elif command == "list":
+        if len(sys.argv) < 3:
+            print("Usage: wf list <workflow.yaml>")
+            sys.exit(1)
+
+        workflow_path = sys.argv[2]
+        states = list_workflow_states(workflow_path)
+
+        if not states:
+            print("No past executions found.")
+            return
+
+        print("Past executions:")
+        for s in states:
+            icon = "✅" if s["status"] == "completed" else "❌" if s["status"] == "failed" else "⏳"
+            print(f"  {icon} {s['workflow_id']}: {s['status']} ({s['current_step']}/{s['total_steps']} steps)")
+
+    else:
+        print(f"Unknown command: {command}")
+        print(__doc__)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

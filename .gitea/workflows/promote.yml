@@ -1,0 +1,24 @@
+name: Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "live"
+
+jobs:
+  runner-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash cicd/scripts/runner-healthcheck.sh
+
+  promote:
+    needs: runner-health
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - run: . .venv/bin/activate && delivery deploy ${{ github.event.inputs.environment }} all

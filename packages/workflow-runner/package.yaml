@@ -1,0 +1,27 @@
+name: workflow-runner
+version: 0.1.0
+description: Workflow runner service
+
+kind: service
+type: python
+
+provides:
+  - workflow-execution
+  - step-execution
+  - state-management
+
+deployable: true
+dockerfile: Dockerfile
+
+depends_on:
+  - postgres
+  - redis
+
+build_dependencies: []
+runtime_dependencies:
+  - postgres
+  - redis
+
+tags:
+  - backend
+  - core

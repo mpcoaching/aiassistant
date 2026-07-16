@@ -1,0 +1,20 @@
+name: opencode
+version: 0.1.0
+description: OpenCode agent integration
+
+kind: service
+type: python
+
+provides:
+  - agent-runtime
+
+deployable: true
+dockerfile: Dockerfile
+
+depends_on: []
+build_dependencies: []
+runtime_dependencies: []
+
+tags:
+  - agent
+  - runtime

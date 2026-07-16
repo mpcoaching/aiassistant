@@ -1,8 +1,0 @@
-# DEPRECATED — superseded by TeamCity.
-#
-# CI for this repo now runs on the self-hosted TeamCity server
-# (docker-compose.platform.yml: teamcity-server) with Gitea as the VCS root.
-# See infra/ci/teamcity-build-configs.md for the BC1/BC2/BC3 definitions.
-#
-# This workflow is retained only as an optional GitHub mirror and intentionally
-# does nothing. Remove this file if GitHub CI is no longer desired.
