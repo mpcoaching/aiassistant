@@ -53,4 +53,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: git remote add github https://${{ secrets.GITHUB_PAT }}@github.com/yourorg/aiassistant.git || git remote set-url --push github https://${{ secrets.GITHUB_PAT }}@github.com/yourorg/aiassistant.git
-      - run: git push github HEAD:main --force
+      - run: git push github HEAD:main --force --verbose
