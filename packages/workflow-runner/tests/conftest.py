@@ -1,8 +1,8 @@
 """
 Pytest configuration for the workflow-runner test suite.
 
-Adds sibling package src/ directories to sys.path so tests can import from
-bus, capability_registry, and ai using flat imports.
+Adds sibling package src/ directories to sys.path so tests can use flat imports
+matching the existing workflow-runner convention.
 """
 
 from __future__ import annotations
@@ -15,13 +15,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 _packages_root = Path(__file__).resolve().parent.parent.parent
-for _pkg in ["bus", "capability_registry", "ai", "api"]:
+for _pkg in ["bus", "capability_registry", "ai", "api", "workflow-runner", "langgraph"]:
     _src = _packages_root / _pkg / "src"
     if _src.exists() and str(_src) not in sys.path:
         sys.path.insert(0, str(_src))
-_this_src = Path(__file__).resolve().parent.parent / "src"
-if _this_src.exists() and str(_this_src) not in sys.path:
-    sys.path.insert(0, str(_this_src))
 
 from api import app
 

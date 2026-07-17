@@ -11,6 +11,8 @@ services:
   dev-control-center-ui:
     image: ${REGISTRY_URL}/control-center-ui:${IMAGE_TAG}
     container_name: dev_control_center_ui
+    ports:
+      - "5173:80"
     expose:
       - 80
     networks:
@@ -22,6 +24,8 @@ services:
     container_name: dev_workflow_engine
     env_file:
       - ../../.env
+    ports:
+      - "5173:80"
     expose:
       - 8000
     environment:
@@ -61,6 +65,8 @@ services:
     container_name: dev_langgraph
     env_file:
       - ../../.env
+    ports:
+      - "5173:80"
     expose:
       - 8000
     environment:

@@ -532,6 +532,71 @@ async def list_leads() -> List[_LeadProfile]:
     return list(_LEADS.values())
 
 
+# ---- Assistant Chat (Phase 6) ----------------------------------------------
+
+class _ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+
+class _ChatResponse(BaseModel):
+    message: str
+    session_id: str
+    status: str
+    reasoning: Optional[str] = None
+    previous_solution: Optional[Dict[str, Any]] = None
+    human_input_request: Optional[Dict[str, Any]] = None
+    telemetry: Dict[str, Any] = Field(default_factory=dict)
+
+
+_chat_service: Optional[Any] = None
+
+
+def _get_chat_service() -> Any:
+    global _chat_service
+    if _chat_service is None:
+        from ai.chat import AssistantChatService
+        from langgraph.runtime import LangGraphRuntime
+        _chat_service = AssistantChatService(runtime=LangGraphRuntime())
+    return _chat_service
+
+
+@app.post("/assistant/chat", response_model=_ChatResponse)
+async def assistant_chat(body: _ChatRequest) -> _ChatResponse:
+    service = _get_chat_service()
+    from ai.chat import ChatRequest
+    request = ChatRequest(
+        message=body.message,
+        session_id=body.session_id,
+        user_id=body.user_id,
+        context=body.context,
+    )
+    response = service.chat(request)
+    return _ChatResponse(
+        message=response.message,
+        session_id=response.session_id,
+        status=response.status,
+        reasoning=response.reasoning,
+        previous_solution=response.previous_solution,
+        human_input_request=response.human_input_request,
+        telemetry=response.telemetry,
+    )
+
+
+@app.post("/assistant/chat/{session_id}/resume")
+async def assistant_chat_resume(session_id: str, body: Dict[str, Any]) -> _ChatResponse:
+    service = _get_chat_service()
+    response = service.resume_with_human_input(session_id, body)
+    return _ChatResponse(
+        message=response.message,
+        session_id=response.session_id,
+        status=response.status,
+        telemetry=response.telemetry,
+    )
+
+
 # ---- Internal helpers ----
 
 def _load_or_404(workflow_id: str, workflow_path: str) -> Any:
