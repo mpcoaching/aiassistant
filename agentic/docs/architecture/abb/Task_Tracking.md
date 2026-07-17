@@ -29,3 +29,9 @@ The **Daily Task Tracking** ABB provides the business capability to manage, moni
 
 ## Realization
 This ABB will be realized by the `Task_Tracking_Service` Solution Building Block (SBB).
+
+---
+
+## Relationship to Cognition Model
+
+**First-class Capability, not a passive consumer.** Per the elevated modeling decision, Daily Task Tracking is an enterprise business capability whose realization (the `Task_Tracking_Service` SBB) is a durable **Service** = a **Capability** (`kind=tool|skill`) in the canonical model (`ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md` §10). The reasoning core designs, creates, and invokes it; a "track tasks" **workflow** is a transient **Session** that calls this Capability. See the `Service_Composition` ABB. (Previously tagged a consumer; reclassified by decision 2026-07-16.)

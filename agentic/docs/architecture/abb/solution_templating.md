@@ -15,3 +15,14 @@ To accelerate the development and deployment of new agents and agentic solutions
 ## Relationship to Other ABBs
 *   **Agent Management**: Provides foundational definitions that can be used to instantiate new agents under the Agent Management ABB.
 *   **Automated Task Execution**: Templates can define common task execution patterns for agents.
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Pattern templates (scaffolds), distinct from the **Concept Payload** library (learned conclusions, `kind=solved_approach`). See anchor doc §9.3.
+- **Vocabulary map:** "template / blueprint" → a **Pattern template** or **manifest template** a Strategy/Pattern instantiates into a Session. It is *not* an Enterprise Concept record.
+- **Relationship to core:** Links to `sbb/agent_template_repository.md`. Templates seed new agents/sessions; the Learning Loop writes the *results* back as Concept Payloads. The two libraries must not be conflated.
+- **No rename:** "solution templating" retained.

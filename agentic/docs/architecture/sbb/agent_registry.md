@@ -20,3 +20,14 @@ To provide a centralized, discoverable, and version-controlled repository for ag
 
 ## Data Ownership
 *   **Source of Truth for**: Agent Definitions, Agent Capabilities, Agent Configurations.
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Role / Pattern participant definitions — the "who's in the meeting" list (ADR §7). It holds the participant metadata that a Strategy/Pattern selects into a Session.
+- **Vocabulary map:** "agent definition / manifest / capability" → a **ParticipantRecord** role configuration and a **Capability** registry entry (`kind=tool|skill`, `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md` §10). "Agent capabilities" declared here are the classification metadata that Strategy Selection and patterns consult.
+- **Relationship to core:** The registry supplies the *participant definitions* a Pattern step or Strategy references; it is not the reasoning engine. Links to `agent_runtime` (execution) and `tool_registry` (Capability Registry intent).
+- **No rename:** "agent" stays as implementation terminology; under the model it is one `kind` of participant.

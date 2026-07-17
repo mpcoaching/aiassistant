@@ -43,3 +43,9 @@ The Control Center UI primarily handles transient UI state. It does not own any 
 *   Choice of front-end framework (e.g., React, Vue, Angular).
 *   Integration strategy for real-time updates (e.g., WebSockets, Server-Sent Events).
 *   Authentication flow implementation.
+
+---
+
+## Relationship to Cognition Model
+
+Business-domain **consumer** of the reasoning core (ADR §7): consumes Concept Payloads / Capabilities via the bus; not part of the reasoning core. See `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md` §16.

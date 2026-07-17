@@ -22,7 +22,12 @@ from loader import load_workflow
 
 def _repo_root() -> Path:
     """Return the repo root path based on this file's location."""
-    return Path(__file__).resolve().parent.parent.parent.parent.parent
+    from pathlib import Path
+    _start = Path(__file__).resolve().parent
+    for _parent in [_start] + list(_start.parents):
+        if (_parent / ".git").exists() or (_parent / ".kilo").exists():
+            return _parent
+    return _start
 
 
 def _workflow_search_paths() -> List[Path]:

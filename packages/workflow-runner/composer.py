@@ -16,6 +16,13 @@ from typing import Any, Dict, List, Optional
 from models import Step, WorkflowDefinition
 
 
+def _find_repo_root(start: Path) -> Path:
+    for parent in [start] + list(start.parents):
+        if (parent / ".git").exists() or (parent / ".kilo").exists():
+            return parent
+    return start
+
+
 class CompositionError(Exception):
     """Raised when prompt composition fails."""
     pass
@@ -33,7 +40,7 @@ def _read_file_content(path: Path) -> str:
 def _load_role_content(role_name: str, search_paths: Optional[List[Path]] = None) -> str:
     """Load a role definition file."""
     if search_paths is None:
-        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        _repo_root = _find_repo_root(Path(__file__).resolve().parent)
         search_paths = [_repo_root / "agentic" / "docs" / "roles"]
 
     for base in search_paths:
@@ -52,7 +59,7 @@ def _load_role_content(role_name: str, search_paths: Optional[List[Path]] = None
 def _load_skill_content(skill_name: str, search_paths: Optional[List[Path]] = None) -> str:
     """Load a skill definition file (markdown or YAML)."""
     if search_paths is None:
-        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        _repo_root = _find_repo_root(Path(__file__).resolve().parent)
         search_paths = [_repo_root / "agentic" / "skills"]
 
     for base in search_paths:

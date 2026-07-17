@@ -28,3 +28,9 @@ The **Work Session Management** ABB encapsulates the business capability to defi
 
 ## Realization
 This ABB will be realized by the `Work_Session_Service` Solution Building Block (SBB).
+
+---
+
+## Relationship to Cognition Model
+
+**First-class Capability, not a passive consumer.** Per the elevated modeling decision, Work Session Management is an enterprise business capability whose realization (the `Work_Session_Service` SBB) is a durable **Service** = a **Capability** (`kind=tool|skill`) in the canonical model (`ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md` §10). The reasoning core designs, creates, and invokes it; a "run a work session" **workflow** is a transient **Session** that calls this Capability. See the `Service_Composition` ABB. (Previously tagged a consumer; reclassified by decision 2026-07-16.)

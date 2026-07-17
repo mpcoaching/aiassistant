@@ -17,3 +17,14 @@ To provide stakeholders with comprehensive insights into the operational state o
 *   **Agent Management**: Provides visibility into the health and activity of managed agents.
 *   **Tooling Integration**: Monitors the usage and performance of integrated tools.
 *   **Automated Task Execution**: Tracks the progress and outcomes of automated tasks.
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Observability / **Learning Loop** instrumentation (anchor doc §13, §16). The enterprise-facing view of the Learning Loop's telemetry.
+- **Vocabulary map:** "logs / traces / metrics / traceability" → the telemetry the Learning Loop and Strategy Selection consume: **cost-per-request-type**, **reuse hit-rate**, **exploration spend** (ADR §16). `KnowledgeChunkDiscovered` events feed the epistemic Knowledge graph through this ABB's stream.
+- **Relationship to core:** This ABB is the feedback channel for the Learning Loop; it does not select Strategy or Pattern. Links to `sbb/agentic_observability_platform.md`.
+- **No rename:** "operational visibility" retained.

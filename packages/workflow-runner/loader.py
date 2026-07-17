@@ -25,6 +25,13 @@ from models import (
 )
 
 
+def _find_repo_root(start: Path) -> Path:
+    for parent in [start] + list(start.parents):
+        if (parent / ".git").exists() or (parent / ".kilo").exists():
+            return parent
+    return start
+
+
 class WorkflowLoadError(Exception):
     """Raised when a workflow cannot be loaded or validated."""
     pass
@@ -174,7 +181,12 @@ def resolve_skill_path(skill_name: str, search_paths: Optional[List[Path]] = Non
     - <skill_name>/ (directory with index or matching files)
     """
     if search_paths is None:
-        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        _script_dir = Path(__file__).resolve().parent
+        _repo_root = _script_dir
+        for _parent in [_script_dir] + list(_script_dir.parents):
+            if (_parent / ".git").exists() or (_parent / ".kilo").exists():
+                _repo_root = _parent
+                break
         search_paths = [
             _repo_root / "agentic" / "skills",
             _repo_root / "agentic" / "docs" / "skills",
@@ -202,7 +214,7 @@ def resolve_tool_path(tool_name: str, search_paths: Optional[List[Path]] = None)
     Resolve a tool name to a file path.
     """
     if search_paths is None:
-        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        _repo_root = _find_repo_root(Path(__file__).resolve().parent)
         search_paths = [
             _repo_root / "agentic" / "tools",
         ]
@@ -223,7 +235,7 @@ def resolve_workflow_path(workflow_name: str, search_paths: Optional[List[Path]]
     Resolve a workflow name to a file path.
     """
     if search_paths is None:
-        _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        _repo_root = _find_repo_root(Path(__file__).resolve().parent)
         search_paths = [
             _repo_root / "agentic" / "docs" / "workflows",
             _repo_root / "agentic" / "workflows",

@@ -16,5 +16,10 @@
       "showInExplorerContextMenu": true,
       "where": "relative_path =~ /^docs\\/workflows\\/.*\\.md$/"
     }
-  ]
+  ],
+  "python.testing.pytestArgs": [
+    "packages"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
 }
