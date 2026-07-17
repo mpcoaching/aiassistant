@@ -25,7 +25,7 @@ services:
     env_file:
       - ../../.env
     ports:
-      - "5173:80"
+      - "8000:8000"
     expose:
       - 8000
     environment:
@@ -56,6 +56,11 @@ services:
       - --reload
     volumes:
       - ../../infra/wait_for.py:/wait_for.py:ro
+      - ../../packages/workflow-runner/src:/aiassistant/packages/workflow-runner/src:ro
+      - ../../packages/ai/src:/aiassistant/packages/ai/src:ro
+      - ../../packages/bus/src:/aiassistant/packages/bus/src:ro
+      - ../../packages/langgraph/src:/aiassistant/packages/langgraph/src:ro
+      - ../../packages/capability_registry/src:/aiassistant/packages/capability_registry/src:ro
     networks:
       - dev-network
     restart: unless-stopped

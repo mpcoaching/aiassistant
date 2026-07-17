@@ -557,8 +557,14 @@ _chat_service: Optional[Any] = None
 def _get_chat_service() -> Any:
     global _chat_service
     if _chat_service is None:
-        from ai.chat import AssistantChatService
-        from langgraph.runtime import LangGraphRuntime
+        _script_dir = Path(__file__).resolve().parent
+        _packages_root = _script_dir.parent.parent
+        for _pkg in ["ai", "bus", "langgraph", "capability_registry"]:
+            _src = _packages_root / _pkg / "src"
+            if _src.exists() and str(_src) not in sys.path:
+                sys.path.insert(0, str(_src))
+        from chat import AssistantChatService
+        from langgraph_runtime import LangGraphRuntime
         _chat_service = AssistantChatService(runtime=LangGraphRuntime())
     return _chat_service
 
@@ -566,7 +572,7 @@ def _get_chat_service() -> Any:
 @app.post("/assistant/chat", response_model=_ChatResponse)
 async def assistant_chat(body: _ChatRequest) -> _ChatResponse:
     service = _get_chat_service()
-    from ai.chat import ChatRequest
+    from chat import ChatRequest
     request = ChatRequest(
         message=body.message,
         session_id=body.session_id,

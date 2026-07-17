@@ -30,6 +30,10 @@ export const createSchedule = (body) => api("POST", "/schedules", body);
 export const deleteSchedule = (id) =>
   api("DELETE", `/schedules/${encodeURIComponent(id)}`);
 
+export const chat = (body) => api("POST", "/assistant/chat", body);
+export const chatResume = (sessionId, body) =>
+  api("POST", `/assistant/chat/${encodeURIComponent(sessionId)}/resume`, body);
+
 export function esc(s) {
   if (s == null) return "";
   return String(s).replace(

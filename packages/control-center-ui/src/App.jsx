@@ -2,11 +2,13 @@ import { useState, useCallback } from "react";
 import Workflows from "./components/Workflows.jsx";
 import Instances from "./components/Instances.jsx";
 import Schedules from "./components/Schedules.jsx";
+import Chat from "./components/Chat.jsx";
 
 const TABS = [
   { id: "workflows", label: "Workflows" },
   { id: "instances", label: "Instances" },
   { id: "schedules", label: "Schedules" },
+  { id: "chat", label: "Assistant" },
 ];
 
 export default function App() {
@@ -59,6 +61,7 @@ export default function App() {
         )}
         {tab === "instances" && <Instances toast={toast} pending={pending} />}
         {tab === "schedules" && <Schedules toast={toast} prefill={schedulePrefill} />}
+        {tab === "chat" && <Chat toast={toast} />}
       </main>
 
       <div className="cc-toasts">
