@@ -30,3 +30,9 @@ The Control Center primarily deals with transient UI state. Persistent data rela
 
 ## Realization
 This ABB will be realized by the `Control_Center_UI` Solution Building Block (SBB).
+
+---
+
+## Relationship to Cognition Model
+
+Business-domain **consumer** of the reasoning core (ADR §7): consumes Concept Payloads / Capabilities via the bus; not part of the reasoning core. See `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md` §16.

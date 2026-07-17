@@ -39,3 +39,9 @@ The **Work Session Service** is a Solution Architecture Building Block (SBB) ded
 *   Data model for the `Work Session` entity.
 *   Integration with authentication/authorization for user context.
 *   Consideration for linking tasks (from Task Tracking Service) to work sessions.
+
+---
+
+## Relationship to Cognition Model
+
+**First-class Capability, not a passive consumer.** Per the elevated modeling decision, the Work Session Service is a durable **Service** = a **Capability** (`kind=tool|skill`) in the canonical model (`ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md` §10). The reasoning core **designs, creates, and invokes** it: a "run a work session" **workflow** is a transient **Session** that calls this Capability. The Workflow Engine (SBB) owns Session execution; this service owns the durable Work Session asset. See the `Service_Composition` ABB and `Capability_Registry_Service` SBB. (Previously tagged a consumer; reclassified by decision 2026-07-16.)

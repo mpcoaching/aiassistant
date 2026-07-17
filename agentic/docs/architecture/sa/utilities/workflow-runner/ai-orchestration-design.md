@@ -174,3 +174,14 @@ completes as fast as it can."
 6. **Async UI hardening** — immediate run response, polling (already present).
 
 Each phase ships with tests that pass before the next begins.
+
+---
+
+## Cognition Alignment
+
+Canonical model: `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`.
+
+- The "workflow" here is a **Session**; steps are **pattern steps / Capability calls**; the Registry is the **Capability Registry** (`kind=tool|skill`, anchor doc §10).
+- The skill `prompt | code | distilled` tiers map to Capability `execution_mode: ai_mediated | distilled | compiled` (anchor doc §10).
+- The Choreographer + Skill Workers are one **Pattern Runtime** adapter (the `workflow-runner`); LangGraph is another (anchor doc §12, `RUNTIME-MAPPING.md`).
+- Strategy Selection (anchor doc §6) decides *which* pattern pipeline a workflow runs; this design executes whatever pipeline is selected.

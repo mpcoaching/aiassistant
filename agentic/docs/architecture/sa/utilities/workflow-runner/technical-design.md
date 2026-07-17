@@ -135,3 +135,9 @@ exit()
 
 The Aider Runtime implements this interface.
 
+---
+
+## Cognition Alignment
+
+Canonical model: `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. This document describes components of one **Pattern Runtime** adapter (the `workflow-runner`); see anchor doc §12 and `RUNTIME-MAPPING.md`. The "Workflow" is a **Session**; steps are **pattern steps / Capability calls** (`kind=tool|skill`, §10). The skill `prompt|code|distilled` tiers map to `ai_mediated|distilled|compiled` (§10). Strategy Selection (§6) selects the pipeline this runtime executes.
+

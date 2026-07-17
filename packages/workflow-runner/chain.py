@@ -16,6 +16,13 @@ from loader import load_workflow, WorkflowLoadError
 from models import WorkflowDefinition
 
 
+def _find_repo_root(start: Path) -> Path:
+    for parent in [start] + list(start.parents):
+        if (parent / ".git").exists() or (parent / ".kilo").exists():
+            return parent
+    return start
+
+
 class ChainDetectionError(Exception):
     """Raised when chain detection fails."""
     pass
@@ -24,8 +31,7 @@ class ChainDetectionError(Exception):
 def _scan_workflow_files(search_paths: Optional[List[Path]] = None) -> List[Path]:
     """Find all workflow YAML files in the given directories."""
     if search_paths is None:
-        # Resolve relative to the repo root (five levels up from this file)
-        _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        _repo_root = _find_repo_root(Path(__file__).resolve().parent)
         search_paths = [
             _repo_root / "agentic" / "docs" / "workflows",
             _repo_root / "agentic" / "workflows",
@@ -98,7 +104,7 @@ def find_downstream_chain(
     returns ``[workflow_name]``.
     """
     if search_paths is None:
-        _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        _repo_root = _find_repo_root(Path(__file__).resolve().parent)
         search_paths = [_repo_root / "agentic" / "docs" / "workflows"]
 
     deps = build_dependency_graph(search_paths)
@@ -142,7 +148,7 @@ def is_chain_workflow(
         True if the workflow is referenced by at least one other workflow.
     """
     if search_paths is None:
-        _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        _repo_root = _find_repo_root(Path(__file__).resolve().parent)
         search_paths = [_repo_root / "agentic" / "docs" / "workflows"]
 
     deps = build_dependency_graph(search_paths)

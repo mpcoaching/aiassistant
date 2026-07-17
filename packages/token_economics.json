@@ -1,0 +1,44 @@
+{
+  "accruals": [
+    {
+      "session_id": "ses-tok-2",
+      "capability_id": "cap-tok",
+      "prompt_cost": 0.03,
+      "completion_cost": 0.03,
+      "total_cost": 0.06,
+      "model": "gpt-4",
+      "currency": "USD",
+      "recorded_at": "2026-07-17T00:45:08.046694Z"
+    },
+    {
+      "session_id": "ses-tok-2",
+      "capability_id": "cap-tok",
+      "prompt_cost": 0.03,
+      "completion_cost": 0.03,
+      "total_cost": 0.06,
+      "model": "gpt-4",
+      "currency": "USD",
+      "recorded_at": "2026-07-17T00:45:58.573949Z"
+    },
+    {
+      "session_id": "ses-tok-2",
+      "capability_id": "cap-tok",
+      "prompt_cost": 0.03,
+      "completion_cost": 0.03,
+      "total_cost": 0.06,
+      "model": "gpt-4",
+      "currency": "USD",
+      "recorded_at": "2026-07-17T04:25:58.134552Z"
+    },
+    {
+      "session_id": "ses-tok-2",
+      "capability_id": "cap-tok",
+      "prompt_cost": 0.03,
+      "completion_cost": 0.03,
+      "total_cost": 0.06,
+      "model": "gpt-4",
+      "currency": "USD",
+      "recorded_at": "2026-07-17T04:34:53.788316Z"
+    }
+  ]
+}

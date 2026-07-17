@@ -24,3 +24,14 @@ To ensure that agent code runs safely and predictably, preventing unauthorized a
 
 ## Data Ownership
 *   **Source of Truth for**: Current state of an executing agent instance, detailed execution logs.
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Pattern Runtime (sandboxed execution of a Capability / pattern step). The Agent Runtime is one concrete **Pattern Runtime** adapter (`RUNTIME-MAPPING.md` §12); LangGraph is the designated substrate.
+- **Vocabulary map:** "agent code execution" → execution of a **pattern step** (or Capability call) inside a **Session**; "tool invocation" → a **Capability** invocation (`kind=tool|skill`, `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md` §10); "sandboxed environment" → the runtime's isolation boundary.
+- **Relationship to core:** The runtime executes what Strategy Selection + the pattern catalogue decided; it contains zero reasoning-strategy logic. Logs/traces it emits feed the Knowledge graph and Observability/Learning Loop.
+- **No rename:** "agent runtime" stays; under the model it is a Pattern Runtime adapter.

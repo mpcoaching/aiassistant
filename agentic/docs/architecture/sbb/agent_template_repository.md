@@ -19,3 +19,14 @@ To streamline the development and deployment of agents by offering reusable, sta
 
 ## Data Ownership
 *   **Source of Truth for**: Pre-defined Agent Templates.
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Reusable Pattern / manifest templates. The repository stores structural blueprints for agents/sessions — distinct from the **Concept Payload** library (which holds *learned, proven* approaches, `kind=solved_approach`).
+- **Vocabulary map:** "agent template / parameterized manifest" → a **Pattern template** or **manifest template** (a scaffold a Strategy/Pattern instantiates into a Session). It is *not* an Enterprise Concept record.
+- **Relationship to core:** Templates are the reusable starting points that Solution Templating and the pattern catalogue draw on; Concept Payloads are the conclusions the Learning Loop writes back. The two libraries must not be conflated (anchor doc §9.3).
+- **No rename:** "template" terminology retained.

@@ -17,3 +17,14 @@ To enable agents to extend their capabilities beyond their core logic by interac
 *   **Agent Management**: Agents managed by the Agent Management ABB will consume tools provided by this ABB.
 *   **Automated Task Execution**: Tools are essential components for agents to perform complex tasks as part of Automated Task Execution.
 *   **Operational Visibility**: Tool invocations and their outcomes will be monitored by the Operational Visibility ABB.
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Capability transport. This ABB realises the **Capability** invocation layer (`kind=tool|skill`, anchor doc §10) — making Capabilities callable by pattern steps.
+- **Vocabulary map:** "tool discovery / registration / secure access" → Capability Registry discovery + invocation (links to `sbb/tool_registry.md`). "Interface standardization" → the Capability request/reply envelope.
+- **Transport tiers (ADR §6.2):** Tier 2 = in-process Capability calls (direct); Tier 3 = bus-mediated Capability calls (Request-Reply envelopes over the Agent Bus). Both are Capability invocations under the model; the tier is a transport concern, not a reasoning concern.
+- **No rename:** "tooling integration" retained.

@@ -18,3 +18,14 @@ To provide a centralized and standardized approach for handling all aspects rela
 *   **Automated Task Execution**: Agents will be deployed to execute tasks defined by the Automated Task Execution ABB.
 *   **Operational Visibility**: Agent activities will contribute to the data collected by the Operational Visibility ABB.
 *   **Solution Templating**: Agent definitions can be derived from templates provided by the Solution Templating ABB.
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Governance of reasoning **participants**. "Agents" are reasoning participants *configured by* a Strategy/Pattern, not autonomous decision-makers.
+- **Vocabulary map:** "agent definition / capability declaration" → **ParticipantRecord** role configuration + **Capability** registry entry (`kind=tool|skill`, anchor doc §10). "Lifecycle control / access control" → participant governance within a Session (`SESSION-MODEL.md`).
+- **Relationship to core:** Links to `sbb/agent_registry.md` (participant definitions) and `sbb/agent_runtime.md` (Pattern Runtime execution). This ABB governs *who* can participate; Strategy Selection + the pattern catalogue decide *how* they participate.
+- **No rename:** "agent management" retained as implementation terminology.

@@ -43,3 +43,9 @@ The **Lead Enrichment Service** is a Solution Architecture Building Block (SBB) 
 *   Integration strategy for specific external data providers.
 *   Definition of business rules or models for "interesting" lead identification and suggestion generation.
 *   Security considerations for handling sensitive lead data.
+
+---
+
+## Relationship to Cognition Model
+
+**First-class Capability, not a passive consumer.** Per the elevated modeling decision, the Lead Enrichment Service is a durable **Service** = a **Capability** (`kind=tool|skill`) in the canonical model (`ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md` §10). The reasoning core designs, creates, and invokes it; a "enrich lead" **workflow** is a transient **Session** that calls this Capability (which may in turn invoke external-tool Capabilities). See the `Service_Composition` ABB and `Capability_Registry_Service` SBB. (Previously tagged a consumer; reclassified by decision 2026-07-16.)

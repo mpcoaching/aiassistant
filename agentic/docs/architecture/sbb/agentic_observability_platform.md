@@ -22,3 +22,14 @@ To provide comprehensive insights into the health, performance, and behavior of 
 
 ## Data Ownership
 *   **Source of Truth for**: System logs, traces, metrics.
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Token Economics / Learning Loop tracking. The platform is the instrumentation sink for the **Learning Loop** (anchor doc §13) and the epistemic **Knowledge** graph (§9.2).
+- **Vocabulary map:** "logs / traces / metrics" → telemetry that the Learning Loop and Strategy Selection consume: **cost-per-request-type**, **reuse hit-rate** (direct-reuse vs exploration), and **exploration spend** (ADR §16). `KnowledgeChunkDiscovered` events route into the Knowledge graph via this platform's trace/metric stream.
+- **Relationship to core:** Observability is the feedback channel that lets the Learning Loop promote experimental patterns to `production_ready` and retire stale ones. It does not itself select Strategy or Pattern.
+- **No rename:** "observability platform" retained.

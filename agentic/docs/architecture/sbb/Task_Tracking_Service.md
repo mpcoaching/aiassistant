@@ -41,3 +41,9 @@ The **Task Tracking Service** is a Solution Architecture Building Block (SBB) re
 *   Data model for the `Task` entity, including potential links to `Work Session`.
 *   Implementation of filtering and sorting for task retrieval.
 *   Consideration for recurring tasks or sub-tasks.
+
+---
+
+## Relationship to Cognition Model
+
+**First-class Capability, not a passive consumer.** Per the elevated modeling decision, the Task Tracking Service is a durable **Service** = a **Capability** (`kind=tool|skill`) in the canonical model (`ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md` §10). The reasoning core designs, creates, and invokes it; a "track tasks" **workflow** is a transient **Session** that calls this Capability. See the `Service_Composition` ABB and `Capability_Registry_Service` SBB. (Previously tagged a consumer; reclassified by decision 2026-07-16.)

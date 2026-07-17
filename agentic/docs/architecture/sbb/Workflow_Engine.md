@@ -45,3 +45,9 @@ The **Workflow Engine** is a core Solution Architecture Building Block (SBB) res
 *   Data model for workflow instances and their states.
 *   Error handling and retry mechanisms for workflow steps.
 *   Integration with Agent Orchestrator for agent-specific workflow steps.
+
+---
+
+## Relationship to Cognition Model
+
+The Workflow Engine is a **business-domain consumer**, not part of the reasoning core (ADR §7). In the canonical model (`ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`) it **owns the Session (workflow instance) execution**: it materialises a Session, calls **Strategy Selection** (which picks the Reasoning Strategy + Pattern pipeline) and the **Pattern Runtime** (which executes pattern steps), and publishes Session lifecycle events (`WorkflowStarted`/`Completed`/`Failed` ≈ the `workflow.lifecycle.*` events). It consumes Concept Payloads / Capabilities via the bus but does not itself reason.

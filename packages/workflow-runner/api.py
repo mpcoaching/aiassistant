@@ -52,8 +52,13 @@ from scheduler import schedule_workflow, start_scheduler, shutdown_scheduler, ge
 logger = logging.getLogger("workflow-engine.api")
 app = FastAPI(title="Workflow Engine", version="1.0.0")
 
-# Resolve repo root for workflow discovery
-_REPO_ROOT = Path(os.getenv("REPO_ROOT", "/aiassistant"))
+# Resolve repo root for workflow discovery (walk up to .git or .kilo)
+_script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+_REPO_ROOT = _script_dir
+for _parent in [_script_dir] + list(_script_dir.parents):
+    if (_parent / ".git").exists() or (_parent / ".kilo").exists():
+        _REPO_ROOT = _parent
+        break
 _WORKFLOW_PATHS = [
     _REPO_ROOT / "agentic" / "docs" / "workflows",
     _REPO_ROOT / "agentic" / "workflows",
@@ -392,6 +397,139 @@ async def list_schedules() -> List[ScheduleResponse]:
             enabled=True,
         ))
     return items
+
+
+# ---- Business Service endpoints (C7) --------------------------------------
+
+class _SessionRecord(BaseModel):
+    session_id: str
+    user_id: Optional[str] = None
+    objectives: str = ""
+    outcomes: Optional[str] = None
+    learnings: Optional[str] = None
+    status: str = "open"
+
+
+class _TaskRecord(BaseModel):
+    task_id: str
+    user_id: Optional[str] = None
+    description: str
+    status: str = "TODO"
+    priority: str = "medium"
+    due_date: Optional[str] = None
+    work_session_id: Optional[str] = None
+
+
+class _LeadProfile(BaseModel):
+    lead_id: str
+    raw_data: Dict[str, Any] = Field(default_factory=dict)
+    enriched_data: Dict[str, Any] = Field(default_factory=dict)
+    suggestions: Dict[str, Any] = Field(default_factory=dict)
+
+
+_SESSIONS: Dict[str, _SessionRecord] = {}
+_TASKS: Dict[str, _TaskRecord] = {}
+_LEADS: Dict[str, _LeadProfile] = {}
+
+
+@app.post("/sessions", response_model=_SessionRecord)
+async def create_session(body: Dict[str, Any]) -> _SessionRecord:
+    sid = str(__import__("uuid").uuid4())[:8]
+    record = _SessionRecord(session_id=sid, **body)
+    _SESSIONS[sid] = record
+    _bus().publish_workflow_started(sid, {"event_id": str(__import__("uuid").uuid4()), "workflow_id": sid, "type": "work_session_created"})
+    return record
+
+
+@app.put("/sessions/{session_id}/close")
+async def close_session(session_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    record = _SESSIONS.get(session_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    record.outcomes = body.get("outcomes")
+    record.learnings = body.get("learnings")
+    record.status = "closed"
+    return {"status": "closed", "session_id": session_id}
+
+
+@app.get("/sessions/{session_id}")
+async def get_session(session_id: str) -> _SessionRecord:
+    record = _SESSIONS.get(session_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return record
+
+
+@app.get("/sessions")
+async def list_sessions() -> List[_SessionRecord]:
+    return list(_SESSIONS.values())
+
+
+@app.post("/tasks", response_model=_TaskRecord)
+async def create_task(body: Dict[str, Any]) -> _TaskRecord:
+    tid = str(__import__("uuid").uuid4())[:8]
+    record = _TaskRecord(task_id=tid, **body)
+    _TASKS[tid] = record
+    return record
+
+
+@app.get("/tasks/{task_id}")
+async def get_task(task_id: str) -> _TaskRecord:
+    record = _TASKS.get(task_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return record
+
+
+@app.put("/tasks/{task_id}")
+async def update_task(task_id: str, body: Dict[str, Any]) -> _TaskRecord:
+    record = _TASKS.get(task_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    for k, v in body.items():
+        setattr(record, k, v)
+    return record
+
+
+@app.patch("/tasks/{task_id}/status")
+async def patch_task_status(task_id: str, body: Dict[str, Any]) -> _TaskRecord:
+    record = _TASKS.get(task_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    record.status = body.get("status", record.status)
+    return record
+
+
+@app.delete("/tasks/{task_id}")
+async def delete_task(task_id: str) -> Dict[str, str]:
+    _TASKS.pop(task_id, None)
+    return {"status": "removed", "task_id": task_id}
+
+
+@app.get("/tasks")
+async def list_tasks() -> List[_TaskRecord]:
+    return list(_TASKS.values())
+
+
+@app.post("/leads/enrich")
+async def enrich_lead(body: Dict[str, Any]) -> Dict[str, str]:
+    lid = str(__import__("uuid").uuid4())[:8]
+    _LEADS[lid] = _LeadProfile(lead_id=lid, raw_data=body)
+    _bus().publish_workflow_started(lid, {"event_id": str(__import__("uuid").uuid4()), "workflow_id": lid, "type": "lead_enriched"})
+    return {"lead_id": lid}
+
+
+@app.get("/leads/{lead_id}")
+async def get_lead(lead_id: str) -> _LeadProfile:
+    profile = _LEADS.get(lead_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return profile
+
+
+@app.get("/leads")
+async def list_leads() -> List[_LeadProfile]:
+    return list(_LEADS.values())
 
 
 # ---- Internal helpers ----

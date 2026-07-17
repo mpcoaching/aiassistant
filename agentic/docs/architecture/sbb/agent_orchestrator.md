@@ -27,3 +27,14 @@ To provide a robust and reliable mechanism for initiating and controlling agent 
 
 ## Data Ownership
 *   **Source of Truth for**: Active Agent Executions, Task Status, Agent Instance State (high-level).
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Strategy / Session dispatch. The Agent Orchestrator decides *that* a Session runs (it instantiates and supervises the execution of a pattern pipeline); it does **not** decide *how* — Strategy Selection does.
+- **Vocabulary map:** "agent instance / agent task" → a **Pattern Runtime** execution of a pattern step or Capability call within a **Session** (workflow instance). "Task scheduling / execution monitoring" → Session lifecycle management (`SESSION-MODEL.md`).
+- **Relationship to core:** The Orchestrator is the dispatch surface between Strategy Selection (which picks the Strategy + Pattern pipeline) and the Pattern Runtime (which executes it, `RUNTIME-MAPPING.md`). Events it publishes (`AgentTaskStarted/Completed/Failed`) are Session lifecycle events.
+- **No rename:** the term "agent" is retained as implementation terminology; under the model it is a transient participant configured by a Strategy/Pattern.

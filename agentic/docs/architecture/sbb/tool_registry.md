@@ -20,3 +20,14 @@ To enable agents and the Agent Orchestrator to discover and securely invoke exte
 
 ## Data Ownership
 *   **Source of Truth for**: Tool Definitions, Tool Interfaces, Tool Invocation details.
+
+---
+
+## Cognition Alignment
+
+*Maps existing terms to the canonical model in `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`. Do not rewrite responsibility bodies.*
+
+- **Model role:** Capability Registry. A tool is one `kind` of **Capability** (`kind=tool|skill`) — an Enterprise Concept record describing *what the business does* and how to invoke it (anchor doc §10).
+- **Vocabulary map:** "tool definition / capability mapping" → a **Capability** record with `execution_mode: ai_mediated | compiled` and the `prompt|code|distilled` → `ai_mediated|distilled|compiled` tier lineage. "Tool invocation" → Tier 2 (in-process) or Tier 3 (bus-mediated) Capability transport (ADR §6.2).
+- **Open question (ADR §7 item 11):** whether Tool Registry and Agent Registry merge into one service is **open**. This alignment maps to the **single Capability Registry intent** (one registry, `kind: tool|skill`) without resolving that decision. The *record shape* is mandated regardless of the service boundary.
+- **No rename:** "tool" retained as implementation terminology.

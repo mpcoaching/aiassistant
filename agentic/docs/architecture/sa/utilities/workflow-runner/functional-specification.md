@@ -104,3 +104,15 @@ Write execution logs.
 ### FR-010
 
 Return success or failure.
+
+---
+
+## Cognition Alignment
+
+Canonical model: `ENTERPRISE-COGNITION-REFERENCE-ARCHITECTURE.md`.
+
+- A **workflow** = a **Session** executing a **Pattern** pipeline (workflow instance, `SESSION-MODEL.md`).
+- Workflow **steps** = pattern steps / **Capability** calls (`kind=tool|skill`, anchor doc §10).
+- The existing skill tier duality `prompt | code | distilled` maps to the model's Capability `execution_mode`: **`ai_mediated | distilled | compiled`** (anchor doc §10; ADR `ai_orchestration_duality.md`).
+- The Workflow Engine (SBB) owns Session execution and calls Strategy Selection + the Pattern Runtime; this spec describes one Pattern Runtime adapter (the `workflow-runner`).
+- No rename of step types (`workflow | skill | tool`) — they are retained as implementation terminology.
