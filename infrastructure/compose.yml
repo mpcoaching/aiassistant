@@ -35,10 +35,11 @@ services:
     image: strm/dnsmasq
     container_name: infra_dns
     ports:
-      - "53:53/udp"
-      - "53:53/tcp"
+      - "127.0.0.1:53:53/udp"
+      - "127.0.0.1:53:53/tcp"
+    command: -conf /etc/coredns/Corefile
     volumes:
-      - ./configs/dnsmasq/dnsmasq.conf:/etc/dnsmasq.conf:ro
+      - ./configs/coredns/Corefile:/etc/coredns/Corefile:ro
     cap_add:
       - NET_ADMIN
     networks:
