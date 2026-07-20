@@ -11,7 +11,7 @@ platform default (`agent`):
 | `agent_live` | `agent_live_user` | live workflow-engine |
 | `langgraph_dev` | `langgraph_dev_user` | dev langgraph |
 | `langgraph_live` | `langgraph_live_user` | live langgraph |
-| `litellm` | `litellm_user` | shared LiteLLM (both envs) |
+| `litellm` | `litellm_user` | REMOVED — LiteLLM retired; replaced by Portkey AI Gateway (ADR-009). Portkey is stateless (no Postgres DB). |
 
 **Isolation is enforced by roles + GRANTs** (see `platform/db-setup/003_apply_permissions.sql`):
 each user owns exactly one DB; `REVOKE ALL ... FROM PUBLIC` removes the default connect grant. Even
@@ -23,7 +23,7 @@ vice-versa.
 No application code is changed for multi-tenancy in this phase. To add a tenant `acme` to live:
 
 1. Add `acme_live` DB + `acme_live_user` (a documented bootstrap SQL, mirroring 001/002/003).
-2. Issue an LiteLLM virtual key scoped to that tenant.
+2. Issue a Portkey API key (PORTKEY_MASTER_KEY) scoped to that tenant.
 3. Parameterise Redis key prefix (`acme:live:*`) and Qdrant collection prefix (`acme_live_*`) per env.
 4. Point the tenant's connection string + credentials at the new DB.
 

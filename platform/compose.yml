@@ -119,41 +119,44 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
-  # Shared LiteLLM on platform-network. Reached by BOTH envs via their gateway
-  # with per-env virtual keys (parameterised in config.yaml / .env).
-  litellm:
-    image: ghcr.io/berriai/litellm:v1.71.1-stable
+  # Shared Portkey AI Gateway on platform-network. Reached by BOTH envs via their
+  # gateway. Portkey is the single AI Gateway abstraction boundary (ADR-009); all
+  # provider credentials live in conf.json and are resolved from .env. Apps call
+  # the OpenAI-compatible surface at :4000 (the container is started on --port 4000
+  # so the existing gateway/nginx contract is preserved unchanged; Portkey's default
+  # is 8787).
+  # Image pinned (immutability, ADR-006) — update digest on promotion.
+  portkey:
+    image: portkeyai/gateway:1.15.2
     expose:
       - 4000
     env_file:
       - ../.env
     environment:
-      - STORE_MODEL_IN_DB=False
-      - LITELLM_CONFIG_PATH=/app/config/config.yaml
-      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      - LITELLM_SALT_KEY=${LITELLM_SALT_KEY}
-      - DATABASE_URL=postgresql://${LITELLM_DB_USER}:${LITELLM_DB_PASSWORD}@postgres:5432/${LITELLM_DB_NAME}
-      - REDIS_URL=redis://redis-agents:6379
+      - PORTKEY_MASTER_KEY=${PORTKEY_MASTER_KEY}
+      - PORTKEY_ADMIN_TOKEN=${PORTKEY_ADMIN_TOKEN}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - RELOAD_CONFIG_FROM_DISK=True
+      - HF_API_KEY=${HF_API_KEY}
+    # entrypoint expands ${VAR} placeholders in the conf template from the
+    # environment (../.env) and writes /app/conf.json before starting Portkey.
+    entrypoint: ["/app/entrypoint.sh"]
+    extra_hosts:
+      - "model-runner.docker.internal:host-gateway"
+    healthcheck:
+      # Portkey gateway exposes GET / (returns "AI Gateway says hey!") with no
+      # auth; there is no /health route in this version. Use / as the liveness probe.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/", "||", "exit", "1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - platform-network
-    entrypoint:
-      - python3
-      - /wait_for.py
-      - postgres:5432
-      - redis-agents:6379
-      - "--"
-      - litellm
-      - --config
-      - /app/config/config.yaml
-      - --port
-      - "4000"
     volumes:
-      - ./configs/litellm/config.yaml:/app/config/config.yaml:ro
-      - ../infra/wait_for.py:/wait_for.py:ro
+      - ./configs/portkey/config.json:/app/conf.template.json:ro
+      - ./configs/portkey/entrypoint.sh:/app/entrypoint.sh:ro
     restart: unless-stopped
 
   redis:

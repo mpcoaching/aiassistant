@@ -34,15 +34,15 @@ Applications → their Environment → controlled Platform services → Infrastr
 | Network | Owner file | Members |
 |---|---|---|
 | `infrastructure-network` | `infrastructure/compose.yml` | nginx-proxy, dns, gitea, gitea-runner, registry |
-| `platform-network` | `platform/compose.yml` | postgres, redis, qdrant, rabbitmq, litellm, otel-collector, langfuse, clickhouse, openobserve, dev-platform-gateway, live-platform-gateway (+ model-runner via host-gateway) |
+| `platform-network` | `platform/compose.yml` | postgres, redis, qdrant, rabbitmq, portkey, otel-collector, langfuse, clickhouse, openobserve, dev-platform-gateway, live-platform-gateway (+ model-runner via host-gateway) |
 | `dev-network` | `environments/dev/compose.yml` | dev app/worker containers (reached only via dev-platform-gateway) |
 | `live-network` | `environments/live/compose.yml` | live app/worker containers (reached only via live-platform-gateway) |
 
 **Crossing the boundaries**
 - `dev-platform-gateway` (nginx:alpine) attaches to `[dev-network, platform-network]` — the ONLY
   bridge from dev to platform. Forwards ONLY to allowed platform backends: `postgres:5432` (stream),
-  `redis:6379`, `qdrant:6333`/`6334`, `rabbitmq:5672`, `litellm:4000` (http), `otel-collector:4318`,
-  `langfuse:3000`; and routes client ingress (`*.dev.local.test`) to dev app containers on `dev-network`.
+   `redis:6379`, `qdrant:6333`/`6334`, `rabbitmq:5672`, `portkey:4000` (http), `otel-collector:4318`,
+   `langfuse:3000`; and routes client ingress (`*.dev.local.test`) to dev app containers on `dev-network`.
   It has NO route to `live-network`.
 - `live-platform-gateway` mirrors this on `[live-network, platform-network]`; no route to `dev-network`.
 - `nginx-proxy` attaches to `[infrastructure-network, platform-network]` ONLY. It is the single
@@ -51,7 +51,7 @@ Applications → their Environment → controlled Platform services → Infrastr
   to `dev-network`/`live-network`.
 - **Path:** `client → nginx(infra+platform) → platform-gateway(platform+env) → app(env)`.
 - **Docker Model Runner** is host-local; reached via `extra_hosts: model-runner.docker.internal:host-gateway`
-  on apps + litellm (any network; not published to LAN).
+   on apps + portkey (any network; not published to LAN).
 
 ### Why this satisfies isolation
 - Apps attach ONLY to their env network → no route to the other env's apps or to platform/infra directly.
@@ -70,7 +70,7 @@ Applications → their Environment → controlled Platform services → Infrastr
 | Stack | Compose | Networks | Services |
 |------|---------|----------|----------|
 | Infrastructure | `infrastructure/compose.yml` | infrastructure + platform | nginx-proxy, dns, gitea, gitea-runner, registry |
-| Platform | `platform/compose.yml` | platform (+ bridges dev/live) | postgres, redis, qdrant, rabbitmq, litellm, otel-collector, langfuse, clickhouse, openobserve, dev-platform-gateway, live-platform-gateway (+ model-runner host-gw) |
+| Platform | `platform/compose.yml` | platform (+ bridges dev/live) | postgres, redis, qdrant, rabbitmq, portkey, otel-collector, langfuse, clickhouse, openobserve, dev-platform-gateway, live-platform-gateway (+ model-runner host-gw) |
 | Dev | `environments/dev/compose.yml` | dev | dev app/worker services (reach platform via dev-platform-gateway) |
 | Live | `environments/live/compose.yml` | live | live app/worker services (reach platform via live-platform-gateway) |
 
@@ -104,8 +104,7 @@ infrastructure/configs/nginx/nginx.conf
 infrastructure/configs/dnsmasq/dnsmasq.conf
 infrastructure/configs/registry/{htpasswd, registry.local.test.crt, registry.local.test.key}
 platform/compose.yml
-platform/configs/litellm/config.dev.yaml   platform/configs/litellm/config.live.yaml
-platform/configs/otel/otel-collector.config.yaml
+platform/configs/portkey/config.json   platform/configs/otel/otel-collector.config.yaml
 platform/db-setup/*.sql                     # db-bootstrapper + goose migrations
 environments/dev/compose.yml  environments/dev/laptop.yml  environments/dev/config/*  environments/dev/.env
 environments/live/compose.yml  environments/live/config/*  environments/live/.env
@@ -166,11 +165,11 @@ server { listen 443 ssl; server_name langgraph.live.local.test; location / { pro
 # (mirror for live-platform-gateway → control-center-ui / workflow-engine / langgraph)
 # Control plane (nginx reaches directly on platform/infra nets):
 #   gitea.local.test, registry.local.test, lf.local.test,
-#   oo.local.test, otel.local.test, litellm.local.test
+#   oo.local.test, otel.local.test, portkey.local.test
 ```
 
 The gateway uses **nginx `stream` blocks** for TCP (Postgres 5432, Redis 6379, Qdrant 6333/6334,
-RabbitMQ 5672, LiteLLM 4000, OTEL 4318, Langfuse 3000) and **`http` blocks** for client ingress.
+RabbitMQ 5672, Portkey 4000, OTEL 4318, Langfuse 3000) and **`http` blocks** for client ingress.
 
 ---
 

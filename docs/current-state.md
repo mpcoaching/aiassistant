@@ -41,7 +41,7 @@ depends on which overlay is active — the refactor gives each of the four new n
 | `monitoring-net` | bridge | `docker-compose.platform.yml` | nginx-proxy, dns, redis (langfuse), clickhouse, langfuse, otel-collector, openobserve, n8n, langgraph, dev-langgraph, teamcity-server, teamcity-agent |
 
 **Every app container attaches to `ai_net`.** There is **no** dev/live network separation today:
-`dev-workflow-engine`, `workflow-engine`, `dev-langgraph`, `langgraph`, `dev-litellm`, `litellm`
+   `dev-workflow-engine`, `workflow-engine`, `dev-langgraph`, `langgraph`, `dev-portkey`, `portkey`
 all share the same `ai_net` and `monitoring-net`. App-to-app and app-to-platform traffic is fully
 open across every environment.
 
@@ -55,11 +55,11 @@ open across every environment.
 | `53/udp` + `53/tcp` | dns (dnsmasq) | requires `CAP_NET_ADMIN`; may conflict with `systemd-resolved` on Ubuntu/WSL2 |
 | `15672` | rabbitmq management | published |
 | `8081` | (reserved) | published |
-| (in-container only) | qdrant 6333/6334, litellm 4000, langfuse 3000, otel 4318, openobserve 5080, gitea 3000, teamcity 8111, control-center-ui 80, workflow-engine 8000, langgraph 8000 | reached via nginx or `ai_net` |
+| (in-container only) | qdrant 6333/6334, portkey 4000, langfuse 3000, otel 4318, openobserve 5080, gitea 3000, teamcity 8111, control-center-ui 80, workflow-engine 8000, langgraph 8000 | reached via nginx or `ai_net` |
 
 There is **no** explicit `*.dev.local.test` / `*.live.local.test` routing today. nginx routes a
 flat set of `.local.test` hostnames (including `control-center.local.test`, `workflow-engine.local.test`,
-`langgraph.local.test`, `litellm.local.test`, `gitea.local.test`, `teamcity.local.test`, `lf.local.test`,
+`langgraph.local.test`, `portkey.local.test`, `gitea.local.test`, `teamcity.local.test`, `lf.local.test`,
 `oo.local.test`, `otel.local.test`, `qdrant.local.test`).
 
 ### Known nginx defect (fixed by refactor)
@@ -81,7 +81,7 @@ server block. The refactor rewrites this config with explicit upstreams and remo
   migrations from `ai-assistant-infra/migrations`. **Moving `latest` tag flagged for immutability.**
 - **qdrant** (`qdrant/qdrant:latest`) — vector store; api key from `QDRANT_KEY`.
 - **rabbitmq** (`rabbitmq:3-management-alpine`) — message bus (guest/guest).
-- **redis-agents** (`redis:7-alpine`) — shared cache for litellm/langgraph.
+- **redis-agents** (`redis:7-alpine`) — shared cache for portkey/langgraph.
 - **langfuse** (`langfuse/langfuse:3`) + **redis** (langfuse) + **clickhouse** (`clickhouse/clickhouse-server:24-alpine`) — LLM observability.
 - **otel-collector** (`otel/opentelemetry-collector-contrib:latest`) — OTLP → OpenObserve.
 - **openobserve** (`openobserve/openobserve:latest`) — logs/traces UI.
@@ -93,9 +93,9 @@ server block. The refactor rewrites this config with explicit upstreams and remo
 
 ### Agentic app tiers (`docker-compose.yml`)
 - **LIVE:** `control-center-ui` (nginx, `live` target), `workflow-engine` (uvicorn), `langgraph`,
-  `litellm` (`ghcr.io/berriai/litellm:main-latest` — **moving tag**, pinned in refactor).
+  `portkey` (`portkeyai/gateway:1.15.2` — AI Gateway; replaced `litellm`).
 - **DEV:** `dev-controller` (`node:20-alpine`, runs on `:8443` directly, NOT behind nginx),
-  `dev-workflow-engine`, `dev-langgraph`, `dev-litellm` (**separate per-env litellm** today).
+  `dev-workflow-engine`, `dev-langgraph`, `dev-portkey` (**separate per-env portkey** today).
 
 **Dev UI is NOT behind nginx today.** `dev-controller` runs on `:8443` and is reached directly. The
 refactor adds explicit `*.dev.local.test` routing.
@@ -150,7 +150,7 @@ teamcity-server  →  teamcity-agent
 Cross-project `depends_on` is **unsupported** (platform vs app are separate compose projects), so
 app containers use a `wait_for.py` entrypoint loop to block on `postgres:5432`, `rabbitmq:5672`,
 `langgraph:8000`, `redis-agents:6379`. `infra/wait_for.py` is volume-mounted into `workflow-engine`,
-`dev-workflow-engine`, `litellm`, `dev-litellm`.
+  `dev-workflow-engine`, `portkey`, `dev-portkey`.
 
 ---
 
@@ -182,7 +182,7 @@ this to a single immutable `registry.local/aiassistant/<svc>:<git-sha>` promoted
 
 1. Flat shared `ai_net` — no environment isolation (Phase 7 fixes).
 2. Duplicate nginx `qdrant.local.test` server block (rewrite fixes).
-3. `litellm` moving tag; `migrate` moving `latest` tag (immutability fixes).
+3. `litellm` retired (replaced by `portkeyai/gateway:1.15.2` AI Gateway); `migrate` moving `latest` tag (immutability fixes).
 5. `AIASSIST_PATH` Windows path in `.env` (removed).
 6. DB naming `aiassistant_dev`/`aiassistant_live` vs plan's `agent_dev`/`agent_live` (renamed).
 7. DNS port 53 / `systemd-resolved` conflict risk on Ubuntu/WSL2 (verify in Phase 3).

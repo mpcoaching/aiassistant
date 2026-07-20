@@ -1,0 +1,94 @@
+{
+  "plugins_enabled": ["default"],
+  "cache": false,
+  "integrations": [
+    {
+      "provider": "groq",
+      "slug": "groq-cloud",
+      "credentials": {
+        "apiKey": "${GROQ_API_KEY}"
+      },
+      "models": [
+        { "slug": "llama-3.3-70b-versatile", "status": "active" },
+        { "slug": "llama-3.1-8b-instant", "status": "active" }
+      ]
+    },
+    {
+      "provider": "openai",
+      "slug": "github-models",
+      "credentials": {
+        "apiKey": "${GITHUB_PAT}"
+      },
+      "base_url": "https://models.inference.ai.azure.com",
+      "models": [
+        { "slug": "gpt-4o", "status": "active" },
+        { "slug": "gpt-4o-mini", "status": "active" }
+      ]
+    },
+    {
+      "provider": "openai",
+      "slug": "openrouter",
+      "credentials": {
+        "apiKey": "${OPENROUTER_API_KEY}"
+      },
+      "base_url": "https://openrouter.ai/api/v1",
+      "models": [
+        { "slug": "meta-llama/llama-3.3-70b-instruct:free", "status": "active" },
+        { "slug": "meta-llama/llama-3.1-8b-instruct:free", "status": "active" }
+      ]
+    },
+    {
+      "provider": "openai",
+      "slug": "gemini-cloud",
+      "credentials": {
+        "apiKey": "${GEMINI_API_KEY}"
+      },
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "models": [
+        { "slug": "gemini-1.5-flash", "status": "active" },
+        { "slug": "gemini-1.5-pro", "status": "active" }
+      ]
+    },
+    {
+      "provider": "openai",
+      "slug": "model-runner-local",
+      "credentials": {
+        "apiKey": "DUMMY"
+      },
+      "base_url": "http://model-runner.docker.internal:12434/engines/llama.cpp/v1",
+      "models": [
+        { "slug": "coding-local", "status": "active" },
+        { "slug": "qwen2.5-coder-7b-instruct", "status": "active" },
+        { "slug": "gemma-3-4b-it", "status": "active" },
+        { "slug": "deepseek-coder-v2-lite-instruct", "status": "active" }
+      ]
+    }
+  ],
+  "defaultConfig": {
+    "strategy": { "mode": "fallback" },
+    "retry": { "attempts": 3, "on_status_codes": [429, 500, 502, 503, 504] },
+    "request_timeout": 30000,
+    "targets": [
+      {
+        "provider": "@groq-cloud",
+        "override_params": { "model": "llama-3.3-70b-versatile" }
+      },
+      {
+        "provider": "@github-models",
+        "override_params": { "model": "gpt-4o" }
+      },
+      {
+        "provider": "@openrouter",
+        "override_params": { "model": "meta-llama/llama-3.3-70b-instruct:free" }
+      },
+      {
+        "provider": "@gemini-cloud",
+        "override_params": { "model": "gemini-1.5-flash" }
+      },
+      {
+        "provider": "@model-runner-local",
+        "override_params": { "model": "coding-local" }
+      }
+    ]
+  }
+}

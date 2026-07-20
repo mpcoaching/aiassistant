@@ -6,7 +6,7 @@ consistent across the four Compose projects (no project-prefix surprises).
 | Network | Owner file | Attached services |
 |---|---|---|
 | `infrastructure-network` | `infrastructure/compose.yml` | nginx-proxy, dns, gitea, teamcity-server, teamcity-agent, registry |
-| `platform-network` | `platform/compose.yml` | postgres, redis, qdrant, rabbitmq, litellm, otel-collector, langfuse, clickhouse, openobserve, dev-platform-gateway, live-platform-gateway |
+| `platform-network` | `platform/compose.yml` | postgres, redis, qdrant, rabbitmq, portkey, otel-collector, langfuse, clickhouse, openobserve, dev-platform-gateway, live-platform-gateway |
 | `dev-network` | `environments/dev/compose.yml` | dev app/worker containers + dev-platform-gateway |
 | `live-network` | `environments/live/compose.yml` | live app/worker containers + live-platform-gateway |
 
@@ -19,7 +19,7 @@ infrastructure is up). **Start infrastructure first.**
 1. App containers attach ONLY to `dev-network`/`live-network`.
 2. They can only reach `platform-network` via their gateway (which is on both `env` + `platform`).
 3. The gateway exposes ONLY approved backends (`postgres:5432`, `redis:6379`, `qdrant:6333/6334`,
-   `rabbitmq:5672`, `litellm:4000`, `otel-collector:4318`, `langfuse:3000`) and the Host-based
+   `rabbitmq:5672`, `portkey:4000`, `otel-collector:4318`, `langfuse:3000`) and the Host-based
    ingress for `*.dev.local.test` / `*.live.local.test`.
 4. `dev-platform-gateway` has NO route to `live-network`; `live-platform-gateway` has NO route to
    `dev-network`. There is no path between the two environments.
@@ -50,7 +50,7 @@ with `systemd-resolved` on port 53 — stop/disable `systemd-resolved` or rebind
 
 ## Docker Model Runner
 
-Host-local; apps + litellm reach it via `extra_hosts: model-runner.docker.internal:host-gateway`.
+Host-local; apps + portkey reach it via `extra_hosts: model-runner.docker.internal:host-gateway`.
 Not published to LAN. Works from any network.
 
 ## Private registry trust

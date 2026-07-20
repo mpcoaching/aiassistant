@@ -152,6 +152,27 @@ services:
       retries: 3
       start_period: 10s
 
+  # ----- CI: Gitea Actions runner (executes .gitea/workflows/*.yml) -----
+  # Self-hosted act_runner; needs host docker.sock to build/publish images
+  # and to reach platform services during the `validate` stage. Registration
+  # token comes from GITEA_RUNNER_TOKEN (see .env.template). Bring up with:
+  #   docker compose -f infrastructure/compose.yml up -d gitea-runner
+  gitea-runner:
+    image: gitea/act_runner:latest
+    container_name: infra_gitea_runner
+    environment:
+      - GITEA_INSTANCE_URL=http://gitea:3000
+      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_TOKEN}
+      - CONFIG_FILE=/data/config.yml
+    restart: unless-stopped
+    privileged: true
+    networks:
+      - infrastructure-network
+      - platform-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gitea_runner_data:/data
+
 networks:
   # Single owner of all four networks. Explicit names => globally consistent
   # across the four Compose projects (no project-prefix surprises).
@@ -176,4 +197,5 @@ volumes:
   teamcity_data:
   teamcity_logs:
   teamcity_agent_conf:
+  gitea_runner_data:
   registry_data:

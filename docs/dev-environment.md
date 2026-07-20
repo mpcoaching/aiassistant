@@ -39,8 +39,8 @@ openobserve, plus **Gitea** (repo/config source of truth) and **TeamCity server 
 (CI that runs deploys on the server docker daemon).
 
 The **agentic** stack owns the live and dev tiers (`control-center-ui/b`, `workflow-engine`,
-`langgraph`, `litellm`, `dev-controller`, `dev-workflow-engine`, `dev-langgraph`,
-`dev-litellm`) plus optional tools (n8n). It declares
+`langgraph`, `portkey`, `dev-controller`, `dev-workflow-engine`, `dev-langgraph`,
+`dev-portkey`) plus optional tools (n8n). It declares
 the networks `external: true` and connects to platform services by hostname
 (`postgres`, `rabbitmq`, `redis-agents`).
 
@@ -113,7 +113,7 @@ curl -I http://gitea.local.test
 Supports portably. Add to `C:\Windows\System32\drivers\etc\hosts` or `/etc/hosts`:
 
 ```
-192.168.1.30  gitea.local.test teamcity.local.test control-center.local.test dev.local.test qdrant.local.test langfuse.local.test litellm.local.test langgraph.local.test workflow-engine.local.test otel.local.test openobserve.local.test n8n.local.test
+192.168.1.30  gitea.local.test teamcity.local.test control-center.local.test dev.local.test qdrant.local.test langfuse.local.test portkey.local.test langgraph.local.test workflow-engine.local.test otel.local.test openobserve.local.test n8n.local.test
 ```
 
 Then browse to e.g. `http://gitea.local.test` (port 80, proxied by nginx).
