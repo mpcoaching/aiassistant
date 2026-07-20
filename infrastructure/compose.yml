@@ -32,19 +32,19 @@ services:
 
   # ----- DNS: wildcard *.local.test -> host -----
   dns:
-    image: strm/dnsmasq
+    image: coredns/coredns:1.11.1
     container_name: infra_dns
     ports:
       - "127.0.0.1:53:53/udp"
       - "127.0.0.1:53:53/tcp"
-    command: -conf /etc/coredns/Corefile
     volumes:
-      - ./configs/coredns/Corefile:/etc/coredns/Corefile:ro
+      - ./configs/coredns/Corefile:/Corefile:ro
     cap_add:
       - NET_ADMIN
     networks:
       - infrastructure-network
       - platform-network
+    restart: unless-stopped
 
   # ----- CI: Gitea (git source of truth) -----
   gitea:
