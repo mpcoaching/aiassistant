@@ -23,12 +23,13 @@ cache:
   port: 0
 
 container:
+  image: "node:20"
   network: "bridge"     # Network for execution containers (e.g., "gitea_network")
   privileged: false     # Set to true only if jobs require Docker-in-Docker (DinD)
   options: ""           # Extra Docker arguments (e.g., "--add-host=host:ip")
   workdir_parent: ""    # Parent directory for job workspaces
   valid_volumes: []     # Allowed host paths that jobs can mount
-  force_pull: false     # Always pull container images before executing
+  force_pull: false     # Always pull container images when executing
 
 host:
   workdir_parent: ""    # Path used if executing jobs directly on the host machine
