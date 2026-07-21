@@ -1,20 +1,27 @@
-local.test:53 {
+.:53 {
+    log
+    errors
+
     hosts {
         127.0.0.1 gitea.local.test
+        127.0.0.1 teamcity.local.test
+        127.0.0.1 registry.local.test
+        127.0.0.1 lf.local.test
+        127.0.0.1 oo.local.test
+        127.0.0.1 otel.local.test
+        127.0.0.1 qdrant.local.test
+
         127.0.0.1 agent.dev.local.test
         127.0.0.1 api.dev.local.test
         127.0.0.1 langgraph.dev.local.test
+
         127.0.0.1 agent.live.local.test
         127.0.0.1 api.live.local.test
         127.0.0.1 langgraph.live.local.test
-        127.0.0.1 teamcity.local.test
+
         fallthrough
     }
-    forward . 8.8.8.8 1.1.1.1
-    cache 30
-}
 
-.:53 {
-    forward . 8.8.8.8 1.1.1.1
+    forward . 1.1.1.1 8.8.8.8
     cache 30
 }

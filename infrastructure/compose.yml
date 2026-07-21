@@ -37,6 +37,7 @@ services:
     ports:
       - "127.0.0.1:53:53/udp"
       - "127.0.0.1:53:53/tcp"
+    command: -conf /Corefile
     volumes:
       - ./configs/coredns/Corefile:/Corefile:ro
     cap_add:
