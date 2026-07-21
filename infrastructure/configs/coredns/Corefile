@@ -3,28 +3,28 @@
     errors
 
     hosts {
-        127.0.0.1 gitea.local.test
-        127.0.0.1 registry.local.test
-        127.0.0.1 lf.local.test
-        127.0.0.1 oo.local.test
-        127.0.0.1 otel.local.test
-        127.0.0.1 qdrant.local.test
-        127.0.0.1 control-center.local.test
-        127.0.0.1 dev.local.test
-        127.0.0.1 workflow-engine.local.test
-        127.0.0.1 portkey.local.test
-        127.0.0.1 n8n.local.test
-        127.0.0.1 langfuse.local.test
-        127.0.0.1 langgraph.local.test
-        127.0.0.1 openobserve.local.test
+        192.168.1.30 gitea.local.test
+        192.168.1.30 registry.local.test
+        192.168.1.30 lf.local.test
+        192.168.1.30 oo.local.test
+        192.168.1.30 otel.local.test
+        192.168.1.30 qdrant.local.test
+        192.168.1.30 control-center.local.test
+        192.168.1.30 dev.local.test
+        192.168.1.30 workflow-engine.local.test
+        192.168.1.30 portkey.local.test
+        192.168.1.30 n8n.local.test
+        192.168.1.30 langfuse.local.test
+        192.168.1.30 langgraph.local.test
+        192.168.1.30 openobserve.local.test
 
-        127.0.0.1 agent.dev.local.test
-        127.0.0.1 api.dev.local.test
-        127.0.0.1 langgraph.dev.local.test
+        192.168.1.30 agent.dev.local.test
+        192.168.1.30 api.dev.local.test
+        192.168.1.30 langgraph.dev.local.test
 
-        127.0.0.1 agent.live.local.test
-        127.0.0.1 api.live.local.test
-        127.0.0.1 langgraph.live.local.test
+        192.168.1.30 agent.live.local.test
+        192.168.1.30 api.live.local.test
+        192.168.1.30 langgraph.live.local.test
 
         fallthrough
     }
