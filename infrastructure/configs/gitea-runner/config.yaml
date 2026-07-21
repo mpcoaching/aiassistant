@@ -3,7 +3,7 @@ log:
   level: "info"         # Options: trace, debug, info, warn, error
 
 runner:
-  file: ".runner"       # Path to the registration file
+  file: "/data/.runner"      # Path to the registration file
   capacity: 2           # Number of parallel tasks it can execute
   envs:                 # Environment variables passed to all jobs
     GITEA_RUNNER_NAME: ${GITEA_RUNNER_NAME}

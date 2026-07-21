@@ -99,8 +99,9 @@ services:
       - infrastructure-network
       - platform-network
     volumes:
+      - ./configs/gitea-runner/config.yaml:/data/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock
-      - gitea_runner_data:/data
+      - ./configs/gitea-runner/data:/data
 
   # ----- Private registry (immutable <git-sha> images) -----
   # Serves plain HTTP internally; TLS is terminated by nginx-proxy for
