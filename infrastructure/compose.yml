@@ -35,8 +35,8 @@ services:
     image: coredns/coredns:1.11.1
     container_name: infra_dns
     ports:
-      - "192.168.1.30:53:53/udp"
-      - "192.168.1.30:53:53/tcp"
+      - "53:53/udp"
+      - "53:53/tcp"
     command: -conf /Corefile
     volumes:
       - ./configs/coredns/Corefile:/Corefile:ro
@@ -152,5 +152,4 @@ networks:
 
 volumes:
   gitea_data:
-  gitea_runner_data:
   registry_data:
