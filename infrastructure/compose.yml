@@ -68,25 +68,39 @@ services:
       - gitea_data:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   gitea-runner:
     image: gitea/act_runner:latest
-    container_name: infra_gitea_action_runner
+    container_name: infra_gitea_runner
     environment:
       - GITEA_RUNNER_NAME=ai-assistant-runner
       - GITEA_INSTANCE_URL=http://gitea:3000
-      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_REGISTRATION_TOKEN}
+      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_TOKEN}
       - GITEA_RUNNER_LABELS=ubuntu-latest
-
-      - CONFIG_FILE=/config.yaml
-    volumes:
-      - ./configs/gitea-runner/config.yaml:/config.yaml:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./configs/gitea-runner/data:/data
+      - CONFIG_FILE=/data/config.yml
+    depends_on:
+      gitea:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep -q '[a]ct_runner' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    privileged: true
     networks:
       - infrastructure-network
-      - ai_net
-    restart: unless-stopped
+      - platform-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gitea_runner_data:/data
 
   # ----- CI: TeamCity server (backed by shared Postgres `teamcity` DB) -----
   # NOTE: postgres lives in the platform project; cross-project depends_on is
@@ -152,27 +166,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-
-  # ----- CI: Gitea Actions runner (executes .gitea/workflows/*.yml) -----
-  # Self-hosted act_runner; needs host docker.sock to build/publish images
-  # and to reach platform services during the `validate` stage. Registration
-  # token comes from GITEA_RUNNER_TOKEN (see .env.template). Bring up with:
-  #   docker compose -f infrastructure/compose.yml up -d gitea-runner
-  gitea-runner:
-    image: gitea/act_runner:latest
-    container_name: infra_gitea_runner
-    environment:
-      - GITEA_INSTANCE_URL=http://gitea:3000
-      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_TOKEN}
-      - CONFIG_FILE=/data/config.yml
-    restart: unless-stopped
-    privileged: true
-    networks:
-      - infrastructure-network
-      - platform-network
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - gitea_runner_data:/data
 
 networks:
   # Single owner of all four networks. Explicit names => globally consistent
