@@ -37,8 +37,8 @@ depends on which overlay is active — the refactor gives each of the four new n
 
 | Network | Driver | Owner | Members |
 |---|---|---|---|
-| `ai_net` | bridge | `docker-compose.platform.yml` | nginx-proxy, dns, postgres, qdrant, rabbitmq, redis-agents, langfuse/clickhouse/otel/openobserve (via monitoring-net), gitea, teamcity-server, teamcity-agent, **and all app + optional containers** |
-| `monitoring-net` | bridge | `docker-compose.platform.yml` | nginx-proxy, dns, redis (langfuse), clickhouse, langfuse, otel-collector, openobserve, n8n, langgraph, dev-langgraph, teamcity-server, teamcity-agent |
+| `ai_net` | bridge | `docker-compose.platform.yml` | nginx-proxy, dns, postgres, qdrant, rabbitmq, redis-agents, langfuse/clickhouse/otel/openobserve (via monitoring-net), gitea, **and all app + optional containers** |
+| `monitoring-net` | bridge | `docker-compose.platform.yml` | nginx-proxy, dns, redis (langfuse), clickhouse, langfuse, otel-collector, openobserve, n8n, langgraph, dev-langgraph |
 
 **Every app container attaches to `ai_net`.** There is **no** dev/live network separation today:
    `dev-workflow-engine`, `workflow-engine`, `dev-langgraph`, `langgraph`, `dev-portkey`, `portkey`
@@ -55,11 +55,11 @@ open across every environment.
 | `53/udp` + `53/tcp` | dns (dnsmasq) | requires `CAP_NET_ADMIN`; may conflict with `systemd-resolved` on Ubuntu/WSL2 |
 | `15672` | rabbitmq management | published |
 | `8081` | (reserved) | published |
-| (in-container only) | qdrant 6333/6334, portkey 4000, langfuse 3000, otel 4318, openobserve 5080, gitea 3000, teamcity 8111, control-center-ui 80, workflow-engine 8000, langgraph 8000 | reached via nginx or `ai_net` |
+| (in-container only) | qdrant 6333/6334, portkey 4000, langfuse 3000, otel 4318, openobserve 5080, gitea 3000, control-center-ui 80, workflow-engine 8000, langgraph 8000 | reached via nginx or `ai_net` |
 
 There is **no** explicit `*.dev.local.test` / `*.live.local.test` routing today. nginx routes a
 flat set of `.local.test` hostnames (including `control-center.local.test`, `workflow-engine.local.test`,
-`langgraph.local.test`, `portkey.local.test`, `gitea.local.test`, `teamcity.local.test`, `lf.local.test`,
+`langgraph.local.test`, `portkey.local.test`, `gitea.local.test`, `lf.local.test`,
 `oo.local.test`, `otel.local.test`, `qdrant.local.test`).
 
 ### Known nginx defect (fixed by refactor)
@@ -86,9 +86,6 @@ server block. The refactor rewrites this config with explicit upstreams and remo
 - **otel-collector** (`otel/opentelemetry-collector-contrib:latest`) — OTLP → OpenObserve.
 - **openobserve** (`openobserve/openobserve:latest`) — logs/traces UI.
 - **gitea** (`gitea/gitea:latest`) — git source of truth (sqlite3).
-- **teamcity-server** (`jetbrains/teamcity-server:latest`) — backed by shared Postgres `teamcity` DB.
-- **teamcity-agent** (`jetbrains/teamcity-agent:latest`) — **`privileged: true`**, mounts host
-  `/var/run/docker.sock` (Option A, recorded as a security boundary decision).
 - *Disabled by default:* `minio`, `ollama`, `n8n`.
 
 ### Agentic app tiers (`docker-compose.yml`)
@@ -111,7 +108,7 @@ refactor adds explicit `*.dev.local.test` routing.
 
 `postgres_db`, `qdrant_data`, `rabbitmq_data`, `redis_agents_data`, `langfuse_redis_data`,
 `langfuse_data`, `clickhouse_data`, `openobserve_storage`, `minio_data`, `ollama_models`,
-`n8n_data`, `gitea_data`, `teamcity_data`, `teamcity_logs`, `teamcity_agent_conf`,
+`n8n_data`, `gitea_data`,
 
 All are declared in `docker-compose.platform.yml`. There is no cross-file `external` volume sharing
 today because everything runs under that one project.
@@ -132,8 +129,7 @@ entries. The refactor adds explicit `address=/.dev.local.test/...` and `address=
   real API keys today (`GROQ_API_KEY`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `GITHUB_PAT`,
   LiteLLM master/salt, etc.). The refactor keeps `.env` out of git history hygiene and renames the
   DB convention to `agent_dev`/`agent_live`.
-- **Gitea deploy key** — `~/.ssh/gitea_deploy.pub`, installed by `infra/ci/gitea-seed.sh`.
-- **TeamCity Postgres** — `TEAMCITY_DB_*` in `.env`; JDBC via `TEAMCITY_SERVER_OPTS`.
+- **Gitea deploy key** — `~/.ssh/gitea_deploy.pub`, installed by `cicd/scripts/gitea-seed.sh`.
 - **Windows path leak** — `.env` has `AIASSIST_PATH=C:/Users/...` which breaks inside WSL2
   containers; removed in the refactor.
 
@@ -143,8 +139,7 @@ entries. The refactor adds explicit `address=/.dev.local.test/...` and `address=
 
 ```
 db-bootstrapper  →  migrate  →  (langfuse, openobserve depend_on migrate)
-postgres (healthy)  →  teamcity-server
-teamcity-server  →  teamcity-agent
+postgres (healthy)
 ```
 
 Cross-project `depends_on` is **unsupported** (platform vs app are separate compose projects), so
@@ -156,10 +151,7 @@ app containers use a `wait_for.py` entrypoint loop to block on `postgres:5432`, 
 
 ## 9. CI / CD (current)
 
-- **TeamCity** is configured **manually** in the UI (3 build configs: BC1 Test&Build, BC2 Promote→Dev,
-  BC3 Promote→Live). The 3-BC model is documented in `infra/ci/teamcity-build-configs.md` and is
-  superseded by Kotlin-DSL CaaS in the refactor.
-- **Gitea** is seeded by `infra/ci/gitea-seed.sh` (org `ai` / repo `aiassistant`, deploy key, webhook).
+- **Gitea Actions** is the CI source-of-truth. The `aiassistant` repo is seeded by `cicd/scripts/gitea-seed.sh` (org `ai` / repo `aiassistant`, deploy key).
 - **Coverage ratchet:** `infra/ci/check-coverage.py` + `infra/ci/coverage.baseline.json`
   (all zeros today). Reused verbatim in `cicd/coverage/`.
 - **GitHub Actions** `.github/workflows/control-center-ui.yml` is **deprecated** and intentionally

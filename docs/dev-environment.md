@@ -47,11 +47,7 @@ the networks `external: true` and connects to platform services by hostname
 ## How Kilo deploys
 1. Edit config in the repo.
 2. Push to **Gitea** on the server (`gitea.local.test`).
-3. **TeamCity** build configs (in `infra/ci/teamcity-build-configs.md`) trigger deploys
-   via its agent (which mounts the host docker socket).
-   - BC1: test + ratchet coverage gate
-   - BC2: promote to dev (`dev.local.test`)
-   - BC3: promote to live (`control-center.local.test`) — manual gate
+3. **Gitea Actions** workflows trigger deploys automatically on push/PR.
 
 ## Toolchain versions
 - Node: 20, npm (no pnpm/yarn)
@@ -113,7 +109,7 @@ curl -I http://gitea.local.test
 Supports portably. Add to `C:\Windows\System32\drivers\etc\hosts` or `/etc/hosts`:
 
 ```
-192.168.1.30  gitea.local.test teamcity.local.test control-center.local.test dev.local.test qdrant.local.test langfuse.local.test portkey.local.test langgraph.local.test workflow-engine.local.test otel.local.test openobserve.local.test n8n.local.test
+192.168.1.30  gitea.local.test control-center.local.test dev.local.test qdrant.local.test langfuse.local.test portkey.local.test langgraph.local.test workflow-engine.local.test otel.local.test openobserve.local.test n8n.local.test
 ```
 
 Then browse to e.g. `http://gitea.local.test` (port 80, proxied by nginx).

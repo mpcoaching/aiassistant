@@ -102,43 +102,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - gitea_runner_data:/data
 
-  # ----- CI: TeamCity server (backed by shared Postgres `teamcity` DB) -----
-  # NOTE: postgres lives in the platform project; cross-project depends_on is
-  # unsupported. TeamCity retries its DB connection until Postgres is ready.
-  teamcity-server:
-    image: jetbrains/teamcity-server:2024.12
-    container_name: infra_teamcity_server
-    environment:
-      - TEAMCITY_SERVER_OPTS=-Dteamcity.db.pg.connUrl=jdbc:postgresql://postgres:5432/${TEAMCITY_DB_NAME} -Dteamcity.db.pg.user=${TEAMCITY_DB_USER} -Dteamcity.db.pg.password=${TEAMCITY_DB_PASSWORD}
-      - GIT_SSL_NO_VERIFY=true
-    restart: unless-stopped
-    networks:
-      - infrastructure-network
-      - platform-network
-    volumes:
-      - teamcity_data:/data/teamcity_server/datadir
-      - teamcity_logs:/opt/teamcity/logs
-    profiles: ["disabled"]
-
-  # ----- CI: TeamCity build agent (uses host docker.sock — Option A) -----
-  teamcity-agent:
-    image: jetbrains/teamcity-agent:2024.12
-    container_name: infra_teamcity_agent
-    environment:
-      - SERVER_URL=http://teamcity-server:8111
-      - AGENT_NAME=agentic-builder
-    restart: unless-stopped
-    privileged: true
-    networks:
-      - infrastructure-network
-      - platform-network
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - teamcity_agent_conf:/opt/buildagent/conf
-    depends_on:
-      - teamcity-server
-    profiles: ["disabled"]
-
   # ----- Private registry (immutable <git-sha> images) -----
   # Serves plain HTTP internally; TLS is terminated by nginx-proxy for
   # registry.local.test (local.test.crt covers *.local.test). Basic auth at
@@ -188,8 +151,5 @@ networks:
 
 volumes:
   gitea_data:
-  teamcity_data:
-  teamcity_logs:
-  teamcity_agent_conf:
   gitea_runner_data:
   registry_data:

@@ -10,7 +10,7 @@ Usage (as entrypoint):
 
 Example:
     entrypoint: ["python3","/wait_for.py","postgres:5432","redis-agents:6379","--",
-                 "litellm","--config","/app/config/config.yaml","--port","4000"]
+                 "portkey","--port","4000"]
 """
 import socket
 import subprocess

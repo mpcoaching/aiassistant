@@ -5,7 +5,7 @@ never production-named volumes/databases.
 
 ## Backup (schedule)
 ```bash
-bash cicd/scripts/backup-all.sh        # Postgres + registry + Gitea + TeamCity
+bash cicd/scripts/backup-all.sh        # Postgres + registry + Gitea
 ```
 Outputs timestamped dirs under `./backups/`. Also capture config state:
 ```bash
@@ -37,11 +37,6 @@ bash cicd/scripts/restore-test-registry.sh backups/registry/<ts>/registry_data.t
 2. Restore `/data` from the `gitea dump` into a temp Gitea container.
 3. Verify a repo + webhook exist, then promote the temp data into `gitea_data` and start.
 
-## TeamCity restore
-1. Stop `teamcity-server`.
-2. Restore `teamcity_data` + `teamcity_logs` volumes from the tars.
-3. Start; confirm the server boots and settings load from VCS (`cicd/teamcity`).
-
 ## Phase 7.5 gate
 Before the **first** Live promotion, run the automated restore tests and create the green marker:
 ```bash
@@ -51,5 +46,5 @@ bash cicd/scripts/validate-backups.sh     # touches cicd/state/backup-validation
 the backup procedure changes.
 
 ## RTO / RPO notes
-- Postgres + registry are the critical backups; Gitea/TeamCity are recoverable from VCS + volumes.
+- Postgres + registry are the critical backups; Gitea is recoverable from VCS + volumes.
 - Test restores on a schedule (e.g. monthly) so the green marker reflects reality.

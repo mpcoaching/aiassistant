@@ -34,8 +34,6 @@ actions:
 
 # Tools the Developer can use
 tools:
-  - aider.sendmessage
-  - runtime.aider.add_context
   - filesystem
   - git
 

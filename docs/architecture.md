@@ -57,7 +57,7 @@ rejects `latest` / `build:` for promoted services).
 ## Data flow
 
 - **Postgres**: shared instance, per-env DBs (`agent_dev`/`agent_live` + `langgraph_*`) + platform DBs
-  (langfuse, teamcity, …). Goose migrations applied per env (`migrate-dev`/`migrate-live`).
+  (langfuse, …). Goose migrations applied per env (`migrate-dev`/`migrate-live`).
 - **Redis / Qdrant / RabbitMQ**: shared, reached via gateway; tenant-readiness uses key/collection
   prefixes (config only).
 - **Portkey (AI Gateway)**: ONE shared instance on platform-network; all apps route through it.

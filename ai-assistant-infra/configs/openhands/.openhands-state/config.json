@@ -1,6 +1,0 @@
-{
-  "llm_provider": "litellm",
-  "llm_model": "coding",
-  "llm_base_url": "http://litellm:4000",
-  "llm_api_key": "sk-V4W4kAsVn7WSUDLO6g1pew"
-}

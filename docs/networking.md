@@ -5,7 +5,7 @@ consistent across the four Compose projects (no project-prefix surprises).
 
 | Network | Owner file | Attached services |
 |---|---|---|
-| `infrastructure-network` | `infrastructure/compose.yml` | nginx-proxy, dns, gitea, teamcity-server, teamcity-agent, registry |
+| `infrastructure-network` | `infrastructure/compose.yml` | nginx-proxy, dns, gitea, registry |
 | `platform-network` | `platform/compose.yml` | postgres, redis, qdrant, rabbitmq, portkey, otel-collector, langfuse, clickhouse, openobserve, dev-platform-gateway, live-platform-gateway |
 | `dev-network` | `environments/dev/compose.yml` | dev app/worker containers + dev-platform-gateway |
 | `live-network` | `environments/live/compose.yml` | live app/worker containers + live-platform-gateway |
@@ -56,7 +56,7 @@ Not published to LAN. Works from any network.
 ## Private registry trust
 
 `registry.local.test` TLS is terminated by nginx-proxy using the `local.test` cert (covers
-`*.local.test`). For host-context pulls (TeamCity agent uses the host Docker daemon), install the
+`*.local.test`). For host-context pulls, install the
 `local.test` CA into the Docker trust store:
 
 ```

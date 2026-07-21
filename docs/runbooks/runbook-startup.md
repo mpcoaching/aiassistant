@@ -32,12 +32,10 @@ docker network ls --filter name=network      # 4 networks present
 docker compose -f infrastructure/compose.yml ps
 docker compose -f platform/compose.yml ps
 curl -fsS https://gitea.local.test          # 200
-curl -fsS https://teamcity.local.test       # 200
 curl -fsS https://agent.dev.local.test      # 200 (after dev:up)
 ```
 
 ## First-time only
 ```bash
-bash cicd/scripts/gitea-seed.sh             # org/repo/deploy-key/webhook
-# In TeamCity: enable Versioned Settings -> Gitea cicd/teamcity
+bash cicd/scripts/gitea-seed.sh             # org/repo/deploy-key
 ```

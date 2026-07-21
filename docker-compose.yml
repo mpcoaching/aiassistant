@@ -72,42 +72,6 @@ services:
     volumes:
       - langgraph_config:/app/config
 
-  litellm:
-    image: ghcr.io/berriai/litellm:main-latest
-    container_name: litellm
-    expose:
-      - 4000
-    env_file:
-      - .env
-    environment:
-      - STORE_MODEL_IN_DB=False
-      - LITELLM_CONFIG_PATH=/app/config/config.yaml
-      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      - LITELLM_SALT_KEY=${LITELLM_SALT_KEY}
-      - DATABASE_URL=postgresql://${LITELLM_LIVE_DB_USER}:${LITELLM_LIVE_DB_PASSWORD}@postgres:5432/${LITELLM_LIVE_DB_NAME}
-      - REDIS_URL=redis://redis-agents:6379
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - RELOAD_CONFIG_FROM_DISK=True
-      - ENV_TIER=live
-    networks:
-      - ai_net
-    entrypoint:
-      - python3
-      - /wait_for.py
-      - postgres:5432
-      - redis-agents:6379
-      - "--"
-      - litellm
-      - --config
-      - /app/config/config.yaml
-      - --port
-      - "4000"
-    volumes:
-      - ./ai-assistant-infra/configs/litellm/config.yaml:/app/config/config.yaml
-      - ./infra/wait_for.py:/wait_for.py:ro
-
   # ===================== DEV TIER (convenience, source-mounted) =====================
   dev-controller:
     image: node:20-alpine
@@ -179,114 +143,6 @@ services:
     volumes:
       - ./agents/langgraph/src:/app:cached
 
-  dev-litellm:
-    image: ghcr.io/berriai/litellm:main-latest
-    container_name: dev_litellm
-    expose:
-      - 4000
-    env_file:
-      - .env
-    environment:
-      - STORE_MODEL_IN_DB=False
-      - LITELLM_CONFIG_PATH=/app/config/config.yaml
-      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      - LITELLM_SALT_KEY=${LITELLM_SALT_KEY}
-      - DATABASE_URL=postgresql://${LITELLM_DEV_DB_USER}:${LITELLM_DEV_DB_PASSWORD}@postgres:5432/${LITELLM_DEV_DB_NAME}
-      - REDIS_URL=redis://redis-agents:6379
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - RELOAD_CONFIG_FROM_DISK=True
-      - ENV_TIER=dev
-    networks:
-      - ai_net
-    entrypoint:
-      - python3
-      - /wait_for.py
-      - postgres:5432
-      - redis-agents:6379
-      - "--"
-      - litellm
-      - --config
-      - /app/config/config.yaml
-      - --port
-      - "4000"
-    volumes:
-      - ./ai-assistant-infra/configs/litellm/config.yaml:/app/config/config.yaml
-      - ./infra/wait_for.py:/wait_for.py:ro
-
-  # ===================== OPTIONAL (disabled by default) =====================
-  openhands:
-    image: ghcr.io/openhands/openhands:latest
-    container_name: openhands
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      - AGENT_SERVER_IMAGE_REPOSITORY=ghcr.io/openhands/agent-server
-      - AGENT_SERVER_IMAGE_TAG=latest-python
-      - WORKSPACE_MOUNT_PATH=/opt/workspace_base
-      - LOG_ALL_EVENTS=true
-      - LLM_MODEL=groq/openai/gpt-oss-120b
-      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
-      - OPENAI_API_KEY=${FULL_ACCESS_KEY}
-      - LLM_API_KEY=${FULL_ACCESS_KEY}
-      - OPENAI_BASE_URL=http://litellm:4000/v1
-      - OPENHANDS_CONFIG_DIR=/home/openhands/.openhands
-      - OH_SKIP_AGENT_SERVER_VERSION_CHECK=1
-      - DISABLE_DEFAULT_MCP_SERVER=1
-      - PYTHONPATH=/app:/app/openhands:/runtime/openhands
-      - SANDBOX_RUNTIME_NETWORK=ai_net
-      - SANDBOX_RUNTIME_BINDING_ADDRESS=0.0.0.0
-      - WORKSPACE_MOUNT_PATH=${PWD}/workspace
-      - SANDBOX_CONTAINER_URL_PATTERN=http://openhands.local.test:{port}
-      - OH_WEB_URL=http://openhands.local.test
-      - WEB_HOST=openhands:3000
-      - OH_USE_HOST_NETWORK=true
-      - RUNTIME_IMAGE=ghcr.io/all-hands-ai/runtime:latest
-      - RUNTIME_CONTAINER_NAME=openhands-sandbox
-      - SANDBOX_DNS=192.168.1.30
-      - USE_HTTPS=false
-      - DISABLE_HTTPS_REDIRECT=true
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-    profiles: ["disabled"]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    stdin_open: true
-    tty: true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ~/.openhands:/.openhands
-      - ./workspace:/opt/workspace_base
-      - ./ai-assistant-infra/configs/openhands/.openhands/skills:/root/.openhands/skills
-      - ./ai-assistant-infra/configs/openhands/.openhands:/home/openhands/.openhands
-    networks:
-      - ai_net
-
-  aider:
-    image: paulgauthier/aider-full:latest
-    container_name: aider
-    tty: true
-    stdin_open: true
-    command: ["--browser", "--model", "litellm_proxy/coding"]
-    volumes:
-      - .:/app
-      - /etc/passwd:/etc/passwd:ro
-      - /etc/group:/etc/group:ro
-    user: "${UID:-1000}:${GID:-1000}"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_API_BASE=http://litellm:4000/v1
-      - GIT_CEILING_DIRECTORIES=/app
-      - AIDER_CONFIG=${AIDER_CONFIG:-.aider/code-phase.yml}
-    networks:
-      - ai_net
-    depends_on:
-      - litellm
-    profiles: ["disabled"]
-
   autogen-studio:
     build:
       context: ./agents/autogen
@@ -338,5 +194,4 @@ networks:
 volumes:
   langgraph_config:
   langgraph_data:
-  openhands_state:
   n8n_data:

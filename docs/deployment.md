@@ -35,12 +35,7 @@ Author a goose migration in `platform/db-setup/migrations`, require a **restore-
 (Phase 7.5) BEFORE any destructive migration, then apply via `migrate-dev` / `migrate-live`.
 Rollback = down-migration to the previous known-good. Never hand-edit prod.
 
-### 4. TeamCity Configuration-as-Code change
-Edit `cicd/teamcity/settings.kts` → commit to Gitea → TeamCity detects the change from VCS and
-**validates** (DSL compile + dry-run) before applying. A broken config is rejected; the previous
-config stays active.
-
-### 5. Platform service upgrade
+### 4. Platform service upgrade
 Update the pinned image tag in `platform/compose.yml` (e.g. `postgres:16.x`), then:
 ```
 docker compose -f platform/compose.yml up -d <svc>
