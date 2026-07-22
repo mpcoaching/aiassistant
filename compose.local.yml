@@ -1,0 +1,18 @@
+services:
+
+  workflow-runner:
+    build:
+      context: ./agentic
+      dockerfile: workflow-runner/Dockerfile
+    image: workflow-runner:local
+
+  langgraph:
+    build:
+      context: ./agentic
+      dockerfile: langgraph/Dockerfile
+    image: langgraph:local
+
+  control-center-ui:
+    build:
+      context: ./control-center
+    image: control-center-ui:local

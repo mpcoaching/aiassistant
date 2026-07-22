@@ -10,10 +10,7 @@ WITH dbs(name) AS (
            ('${LANGGRAPH_LIVE_DB_NAME}'),
            ('${LANGFUSE_DB_NAME}'),
            ('${OPENOBSERVE_DB_NAME}'),
-           ('${LITELLM_DB_NAME}'),
-           ('${CLICKHOUSE_DB_NAME}'),
-           ('${TEAMCITY_DB_NAME}'),
-           ('${MANIFEST_DB_NAME}')
+           ('${CLICKHOUSE_DB_NAME}')
 )
 SELECT 'CREATE DATABASE "' || name || '"'
 FROM dbs
