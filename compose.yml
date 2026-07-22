@@ -1,3 +1,7 @@
 name: aiassistant
 
 services: {}
+
+networks:
+  ai_net:
+    name: ai_net
