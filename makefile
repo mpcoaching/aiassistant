@@ -19,3 +19,17 @@ restart-infrastructure:
 	docker compose -f infrastructure/compose.yml --env-file .env restart
 
 
+infra-up:
+	docker compose -f infrastructure/compose.yml --env-file .env up -d
+
+platform-up:
+	docker compose -f platform/compose.yml --env-file .env up -d
+
+up: infra-up platform-up
+
+infra-down:
+	docker compose -f infrastructure/compose.yml --env-file .env down
+
+platform-down:
+	docker compose -f platform/compose.yml --env-file .env down
+
