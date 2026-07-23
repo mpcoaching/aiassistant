@@ -155,7 +155,7 @@ services:
     networks:
       - platform-network
     volumes:
-      - ./configs/portkey/config.json:/app/conf.template.json:ro
+      - ./configs/portkey/config.template.json:/app/conf.template.json:ro
       - ./configs/portkey/entrypoint.sh:/app/entrypoint.sh:ro
     restart: unless-stopped
 

@@ -49,7 +49,7 @@ derive locations from the repo root at runtime.
 A single **Portkey AI Gateway** on `platform-network` is the one integration boundary for all
 AI-enabled applications (LangGraph, Kilo Code, Aider, OpenHands). It replaces the previous LiteLLM
 instance (`platform/configs/litellm/config.yaml`, removed). Provider credentials are centralised in
-`platform/configs/portkey/config.json` and resolved from `.env`; no application contains
+`platform/configs/portkey/config.template.json` and resolved from `.env`; no application contains
 provider-specific integration logic. Routing, resilience (fallback/retry), and observability are
 centralised at the gateway. **Alternatives considered:** direct provider integration per app
 (rejected — violates the boundary); LiteLLM (rejected — superseded by the gateway abstraction);

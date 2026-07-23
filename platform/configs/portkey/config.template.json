@@ -55,7 +55,7 @@
       "credentials": {
         "apiKey": "DUMMY"
       },
-      "base_url": "http://model-runner.docker.internal:12434/engines/llama.cpp/v1",
+      "base_url": "${AI_PROVIDER_BASE_URL}",
       "models": [
         { "slug": "coding-local", "status": "active" },
         { "slug": "qwen2.5-coder-7b-instruct", "status": "active" },

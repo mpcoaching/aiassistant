@@ -64,7 +64,7 @@ rejects `latest` / `build:` for promoted services).
   Per-env differentiation is by `PORTKEY_MASTER_KEY`. No app holds provider logic (ADR-009).
   Apps call the OpenAI-compatible surface at `<env>-platform-gateway:4000/v1` and select a provider
   + model with the `@slug/model` form (e.g. `@groq-cloud/llama-3.3-70b-versatile`); the gateway
-  resolves the provider from `platform/configs/portkey/config.json` (slugs: `groq-cloud`,
+  resolves the provider from `platform/configs/portkey/config.template.json` (slugs: `groq-cloud`,
   `model-runner-local`, `openrouter-cloud`, `gemini-cloud`). Purpose-based routing/fallback
   (Phase 3) is attached per request via the `x-portkey-config` header or defaulted on the API key.
 - **Observability**: OTEL collector → OpenObserve; Langfuse for LLM tracing; ClickHouse backs Langfuse.

@@ -104,7 +104,7 @@ infrastructure/configs/nginx/nginx.conf
 infrastructure/configs/dnsmasq/dnsmasq.conf
 infrastructure/configs/registry/{htpasswd, registry.local.test.crt, registry.local.test.key}
 platform/compose.yml
-platform/configs/portkey/config.json   platform/configs/otel/otel-collector.config.yaml
+platform/configs/portkey/config.template.json   platform/configs/otel/otel-collector.config.yaml
 platform/db-setup/*.sql                     # db-bootstrapper + goose migrations
 environments/dev/compose.yml  environments/dev/laptop.yml  environments/dev/config/*  environments/dev/.env
 environments/live/compose.yml  environments/live/config/*  environments/live/.env

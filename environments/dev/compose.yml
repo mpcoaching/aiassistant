@@ -38,8 +38,6 @@ services:
       - OPENAI_BASE_URL=http://dev-platform-gateway:4000/v1
       - REPO_ROOT=/aiassistant
       - ENV_TIER=dev
-    extra_hosts:
-      - "model-runner.docker.internal:host-gateway"
     entrypoint:
       - python3
       - /wait_for.py
@@ -78,8 +76,6 @@ services:
       - DATABASE_URI=postgresql://${LANGGRAPH_DEV_DB_USER}:${LANGGRAPH_DEV_DB_PASSWORD}@dev-platform-gateway:5432/${LANGGRAPH_DEV_DB_NAME}
       - REDIS_URI=redis://dev-platform-gateway:6379
       - ENV_TIER=dev
-    extra_hosts:
-      - "model-runner.docker.internal:host-gateway"
     volumes:
       - langgraph_config:/app/config
     networks:

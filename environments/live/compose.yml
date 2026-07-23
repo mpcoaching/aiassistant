@@ -34,8 +34,6 @@ services:
       - OPENAI_BASE_URL=http://live-platform-gateway:4000/v1
       - REPO_ROOT=/aiassistant
       - ENV_TIER=live
-    extra_hosts:
-      - "model-runner.docker.internal:host-gateway"
     entrypoint:
       - python3
       - /wait_for.py
@@ -66,8 +64,6 @@ services:
       - DATABASE_URI=postgresql://${LANGGRAPH_LIVE_DB_USER}:${LANGGRAPH_LIVE_DB_PASSWORD}@live-platform-gateway:5432/${LANGGRAPH_LIVE_DB_NAME}
       - REDIS_URI=redis://live-platform-gateway:6379
       - ENV_TIER=live
-    extra_hosts:
-      - "model-runner.docker.internal:host-gateway"
     volumes:
       - langgraph_config:/app/config
     networks:
