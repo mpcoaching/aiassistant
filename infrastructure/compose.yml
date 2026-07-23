@@ -78,35 +78,28 @@ services:
     image: gitea/act_runner:latest
     container_name: infra_gitea_runner
     environment:
-      - GITEA_RUNNER_NAME=${GITEA_RUNNER_NAME}
+      # Connection & Registration (Handled natively on first boot)
       - GITEA_INSTANCE_URL=${GITEA_INSTANCE_URL}
       - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_REGISTRATION_TOKEN}
+      - GITEA_RUNNER_NAME=${GITEA_RUNNER_NAME}
       - GITEA_RUNNER_LABELS=${GITEA_RUNNER_LABELS}
-      - CONFIG_FILE=/data/config.yml
-    # act_runner lifecycle:
-    # entrypoint.sh generates config.yml from config.template.yaml via envsubst,
-    # registers with Gitea if /data/.runner is missing, then execs the daemon.
-    # If registration token rotates, delete /data/.runner before restart.
-    entrypoint: ["/bin/bash", "/app/entrypoint.sh"]
+      # Tell the runner to load our minimal custom config file
+      - CONFIG_FILE=/data/config.yaml
     depends_on:
       gitea:
         condition: service_healthy
+    # Uses the built-in binary to check daemon health
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep -v grep | grep -q '[a]ct_runner' || exit 1"]
+      test: ["CMD", "act_runner", "ping"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 30s
     restart: unless-stopped
-    privileged: true
-    networks:
-      - infrastructure-network
-      - platform-network
     volumes:
-      - ./infrastructure/configs/gitea-runner/entrypoint.sh:/app/entrypoint.sh:ro
-      - ./infrastructure/configs/gitea-runner/config.template.yaml:/data/config.template.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - ./infrastructure/configs/gitea-runner/data:/data
+
 
   # ----- Private registry (immutable <git-sha> images) -----
   # Serves plain HTTP internally; TLS is terminated by nginx-proxy for
