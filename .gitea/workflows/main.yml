@@ -48,5 +48,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: git remote add github https://${{ secrets.MIRROR_PAT }}@github.com/mpcoaching/aiassistant.git || git remote set-url --push github https://${{ secrets.MIRROR_PAT }}@github.com/mpcoaching/aiassistant.git
-      - run: git push github HEAD:main --force 2>&1 | tee /tmp/git-push.log || (cat /tmp/git-push.log && exit 1)
+      - name: Configure Git Auth and Push
+        env:
+          GITHUB_TOKEN: ${{ secrets.MIRROR_PAT }}
+        run: |
+          # Disable interactive prompts entirely so Git fails fast rather than hanging
+          export GIT_TERMINAL_PROMPT=0
+          
+          # Force Git to inject your personal access token straight into the URL 
+          git remote add github https://x-token-auth:${GITHUB_TOKEN}@://github.com || \
+          git remote set-url github https://x-token-auth:${GITHUB_TOKEN}@://github.com
+          
+          # Force push to GitHub main
+          git push github HEAD:main --force
