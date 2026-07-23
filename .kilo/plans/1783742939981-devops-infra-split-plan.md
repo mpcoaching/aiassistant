@@ -19,7 +19,7 @@ and promotes **dev → live**.
   Playwright critical-path tests for confidence. No broad e2e surface.
 
 ## Server inventory (what runs, and what it does)
-All reachable from the laptop via `*.local.test` (dnsmasq → 192.168.1.30 → nginx-proxy:80).
+All reachable from the laptop via `*.local.test` (dnsmasq → 192.168.1.238 → nginx-proxy:80).
 
 ### Tier 0 — Platform substrate (always-on, shared; owned by `docker-compose.platform.yml`)
 | Server | Does |
@@ -59,7 +59,7 @@ Both tiers run simultaneously on the same host; separation is at the **database*
 
 ## Target topology — two compose projects, one shared external network
 ```
-LAPTOP  ── *.local.test (dnsmasq → 192.168.1.30) ──▶ nginx-proxy (platform, :80)
+LAPTOP  ── *.local.test (dnsmasq → 192.168.1.238) ──▶ nginx-proxy (platform, :80)
                                                             ├─ teamcity.local.test   → teamcity-server:8111
                                                             ├─ gitea.local.test      → gitea:3000
                                                             ├─ control-center.local.test → control-center-ui:80   (LIVE)

@@ -245,7 +245,7 @@ services:
       - OH_USE_HOST_NETWORK=true
       - RUNTIME_IMAGE=ghcr.io/all-hands-ai/runtime:latest
       - RUNTIME_CONTAINER_NAME=openhands-sandbox
-      - SANDBOX_DNS=192.168.1.30
+      - SANDBOX_DNS=192.168.1.238
       - USE_HTTPS=false
       - DISABLE_HTTPS_REDIRECT=true
       - GROQ_API_KEY=${GROQ_API_KEY}

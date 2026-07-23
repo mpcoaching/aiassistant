@@ -56,7 +56,7 @@ the networks `external: true` and connects to platform services by hostname
 
 ## Accessing the server from client machines
 
-The full stack runs **on the server** (192.168.1.30). Access dev/live environments via `.local.test` hostnames.
+The full stack runs **on the server** (192.168.1.238). Access dev/live environments via `.local.test` hostnames.
 
 ### Option A — Automatic DNS (systemd-resolved + Docker dnsmasq)
 
@@ -92,8 +92,8 @@ resolvectl query gitea.local.test
 
 ```bash
 CONN=$(nmcli -g UUID con show --active | head -n1)
-nmcli con mod "$CONN" ipv4.ignore-auto-dns yes ipv4.dns "192.168.1.30" ipv4.dns-search "~local.test"
-nmcli con mod "$CONN" ipv6.ignore-auto-dns yes ipv6.dns "192.168.1.30" ipv6.dns-search "~local.test"
+nmcli con mod "$CONN" ipv4.ignore-auto-dns yes ipv4.dns "192.168.1.238" ipv4.dns-search "~local.test"
+nmcli con mod "$CONN" ipv6.ignore-auto-dns yes ipv6.dns "192.168.1.238" ipv6.dns-search "~local.test"
 nmcli con up "$CONN"
 ```
 

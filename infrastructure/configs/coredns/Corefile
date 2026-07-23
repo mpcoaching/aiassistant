@@ -3,37 +3,32 @@
     errors
 
     hosts {
-        192.168.1.30 gitea.local.test
-        192.168.1.30 registry.local.test
-        192.168.1.30 lf.local.test
-        192.168.1.30 oo.local.test
-        192.168.1.30 otel.local.test
-        192.168.1.30 qdrant.local.test
-        192.168.1.30 control-center.local.test
-        192.168.1.30 dev.local.test
-        192.168.1.30 workflow-engine.local.test
-        192.168.1.30 portkey.local.test
-        192.168.1.30 n8n.local.test
-        192.168.1.30 langfuse.local.test
-        192.168.1.30 langgraph.local.test
-        192.168.1.30 openobserve.local.test
+        192.168.1.238 gitea.local.test
+        192.168.1.238 registry.local.test
+        192.168.1.238 lf.local.test
+        192.168.1.238 oo.local.test
+        192.168.1.238 otel.local.test
+        192.168.1.238 qdrant.local.test
+        192.168.1.238 control-center.local.test
+        192.168.1.238 dev.local.test
+        192.168.1.238 workflow-engine.local.test
+        192.168.1.238 portkey.local.test
+        192.168.1.238 n8n.local.test
+        192.168.1.238 langfuse.local.test
+        192.168.1.238 langgraph.local.test
+        192.168.1.238 openobserve.local.test
 
-        192.168.1.30 agent.dev.local.test
-        192.168.1.30 api.dev.local.test
-        192.168.1.30 langgraph.dev.local.test
+        192.168.1.238 agent.dev.local.test
+        192.168.1.238 api.dev.local.test
+        192.168.1.238 langgraph.dev.local.test
 
-        192.168.1.30 agent.live.local.test
-        192.168.1.30 api.live.local.test
-        192.168.1.30 langgraph.live.local.test
+        192.168.1.238 agent.live.local.test
+        192.168.1.238 api.live.local.test
+        192.168.1.238 langgraph.live.local.test
 
         fallthrough
     }
 
     forward . 1.1.1.1 8.8.8.8
     cache 30
-}
-
-.:53 {
-    forward . 1.1.1.1 8.8.8.8
-    cache 300
 }
