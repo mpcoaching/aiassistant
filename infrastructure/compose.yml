@@ -96,9 +96,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Map the data folder explicitly for runtime state files (.runner)
-      - ./infrastructure/configs/gitea-runner/data:/data
+      - ./configs/gitea-runner/data:/data
       # Map the config file explicitly to the root so act_runner can always find it
-      - ./infrastructure/configs/gitea-runner/data/config.yaml:/config.yaml:ro
+      - ./configs/gitea-runner/data/config.yaml:/config.yaml:ro
 
 
 
