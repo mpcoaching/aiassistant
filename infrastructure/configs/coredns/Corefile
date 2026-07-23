@@ -12,6 +12,7 @@
         192.168.1.238 control-center.local.test
         192.168.1.238 dev.local.test
         192.168.1.238 workflow-engine.local.test
+        192.168.1.238 gateway.local.test
         192.168.1.238 portkey.local.test
         192.168.1.238 n8n.local.test
         192.168.1.238 langfuse.local.test

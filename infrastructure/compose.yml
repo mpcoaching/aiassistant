@@ -44,7 +44,6 @@ services:
       - NET_ADMIN
     networks:
       - infrastructure-network
-      - platform-network
     restart: unless-stopped
 
   # ----- CI: Gitea (git source of truth) -----

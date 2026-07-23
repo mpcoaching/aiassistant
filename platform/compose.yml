@@ -130,6 +130,7 @@ services:
     image: portkeyai/gateway:1.15.2
     expose:
       - 4000
+      - 8787
     env_file:
       - ../.env
     environment:
@@ -139,11 +140,10 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - HF_API_KEY=${HF_API_KEY}
+      - AI_PROVIDER_BASE_URL=${AI_PROVIDER_BASE_URL}
     # entrypoint expands ${VAR} placeholders in the conf template from the
     # environment (../.env) and writes /app/conf.json before starting Portkey.
     entrypoint: ["/app/entrypoint.sh"]
-    extra_hosts:
-      - "model-runner.docker.internal:host-gateway"
     healthcheck:
       # Portkey gateway exposes GET / (returns "AI Gateway says hey!") with no
       # auth; there is no /health route in this version. Use / as the liveness probe.
