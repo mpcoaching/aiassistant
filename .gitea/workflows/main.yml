@@ -20,9 +20,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery build all --changed
-      - run: . .venv/bin/activate && delivery publish all
+      
+      - name: Set up Python Environment
+        run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+        
+      - name: Create Custom Buildx Configuration (As Code)
+        run: |
+          # Generate a local buildx configuration profile dynamically
+          mkdir -p .buildx
+          cat <<EOF > .buildx/buildx-config.toml
+          [registry."registry.local.test"]
+            insecure = true
+          EOF
+
+          # Create and switch to a custom builder instance utilizing this config
+          docker buildx create --name ia-builder --config .buildx/buildx-config.toml --use
+          docker buildx inspect --bootstrap
+
+      - name: Build Changes
+        run: . .venv/bin/activate && delivery build all --changed
+        
+      - name: Publish to Local Registry
+        run: . .venv/bin/activate && delivery publish all
+        
+      - name: Clean Up Builder Instance
+        if: always()
+        run: docker buildx rm ia-builder || true
+
 
   deploy-dev:
     needs: build-and-push
