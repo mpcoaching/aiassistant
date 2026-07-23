@@ -23,3 +23,6 @@ cicd/state/backup-validation-green
 
 # Kilo agent worktrees (embedded git repos)
 .kilo/worktrees/
+
+# Gitea act_runner runtime state (contains registration tokens)
+infrastructure/configs/gitea-runner/data/.runner

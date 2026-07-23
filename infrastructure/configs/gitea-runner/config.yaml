@@ -23,6 +23,11 @@ cache:
   port: 0
 
 container:
+  # Default execution container image for workflow jobs that do not specify
+  # their own container. This is NOT the runner host image; the gitea/act_runner
+  # container does not include Node.js. Node is provided by this image at job
+  # runtime. If a healthcheck or monitoring probe checks the runner container
+  # for node, that probe is checking the wrong scope.
   image: "node:20"
   network: "bridge"     # Network for execution containers (e.g., "gitea_network")
   privileged: false     # Set to true only if jobs require Docker-in-Docker (DinD)

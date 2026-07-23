@@ -83,6 +83,13 @@ services:
       - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_REGISTRATION_TOKEN}
       - GITEA_RUNNER_LABELS=ubuntu-latest
       - CONFIG_FILE=/data/config.yml
+    # act_runner reads /data/config.yml at startup.
+    # On first start (or if .runner is missing) it registers with Gitea using
+    # GITEA_RUNNER_REGISTRATION_TOKEN and writes state to /data/.runner.
+    # On subsequent starts it reuses the existing registration.
+    # If registration token rotates or the runner needs to re-register, remove
+    # /data/.runner before restarting the container.
+    command: ["daemon", "--config", "/data/config.yml"]
     depends_on:
       gitea:
         condition: service_healthy

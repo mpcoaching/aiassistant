@@ -1,6 +1,7 @@
-# Tier 0 — Platform substrate (always-on, shared) + CI stack (Gitea + runner)
-# Owns ai_net + monitoring-net. Agentic stack declares these as external.
-# Start first: docker compose -f docker-compose.platform.yml up -d
+# DEPRECATED — superseded by infrastructure/compose.yml + platform/compose.yml.
+# This file is retained only for backwards compatibility during migration.
+# See docs/target-state.md and docs/current-state.md for the current compose topology.
+# Run commands: make infra-up / make platform-up / make up
 
 services:
   nginx-proxy:
@@ -317,7 +318,7 @@ services:
     container_name: gitea-runner
     environment:
       - GITEA_INSTANCE_URL=http://infra_gitea:3000
-      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_TOKEN}
+      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_REGISTRATION_TOKEN}
       - CONFIG_FILE=/data/config.yml
     restart: unless-stopped
     privileged: true
