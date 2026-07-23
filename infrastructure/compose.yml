@@ -97,7 +97,7 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./infrastructure/configs/gitea-runner/data:/data # This maps the whole directory
+      - ./configs/gitea-runner/data:/data # This maps the whole directory
     networks:
       - infrastructure-network
       - platform-network
