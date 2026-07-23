@@ -83,6 +83,7 @@ services:
       - GITEA_RUNNER_NAME=${GITEA_RUNNER_NAME}
       - GITEA_RUNNER_LABELS=${GITEA_RUNNER_LABELS}
       - CONFIG_FILE=/data/config.yaml # Changed back to /data
+      - GITEA_RUNNER_CONTAINER_NETWORK=infrastructure-network
     depends_on:
       gitea:
         condition: service_healthy

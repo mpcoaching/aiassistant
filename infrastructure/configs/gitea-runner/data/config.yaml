@@ -11,5 +11,5 @@ cache:
 
 container:
   image: "gitea/runner-images:ubuntu-latest"  # Replaces raw node:20
-  network: "bridge"
   force_pull: true                            # Ensures you always get the latest ecosystem updates
+  network: "infrastructure-network"
