@@ -103,10 +103,10 @@ services:
       - infrastructure-network
       - platform-network
     volumes:
-      - ./configs/gitea-runner/entrypoint.sh:/app/entrypoint.sh:ro
-      - ./configs/gitea-runner/config.template.yaml:/data/config.template.yaml:ro
+      - ./infrastructure/configs/gitea-runner/entrypoint.sh:/app/entrypoint.sh:ro
+      - ./infrastructure/configs/gitea-runner/config.template.yaml:/data/config.template.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./configs/gitea-runner/data:/data
+      - ./infrastructure/configs/gitea-runner/data:/data
 
   # ----- Private registry (immutable <git-sha> images) -----
   # Serves plain HTTP internally; TLS is terminated by nginx-proxy for
