@@ -10,19 +10,24 @@ processors:
   batch:
 
 exporters:
-  otlphttp:
+  otlphttp/openobserve:
     endpoint: "http://openobserve:5080/api/default"
     headers:
       Authorization: "Basic YWRtaW5AZXhhbXBsZS5jb206bzJvaV9GcmprcHBnbTc5cHJSamc5S2l4TUtJM1JqcFFLWFgwag=="
-      stream-name: "n8n-logs"
+      stream-name: "app-telemetry"
+  otlphttp/langfuse:
+    endpoint: "http://langfuse:3000/api/public/otel"
+    headers:
+      Authorization: "Basic ${LANGFUSE_AUTH_HEADER}"
+      x-langfuse-ingestion-version: "4"
 
 service:
   pipelines:
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp]
+      exporters: [otlphttp/openobserve]
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp]
+      exporters: [otlphttp/openobserve, otlphttp/langfuse]

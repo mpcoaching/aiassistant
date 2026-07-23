@@ -21,10 +21,6 @@ check() {
   fi
 }
 
-fail() {
-  echo -e "${RED}FAIL${NC} $1"
-}
-
 echo "=== Checkpoint 1: DNS ==="
 check "gateway.local.test resolves to VM IP" dig +short gateway.local.test | grep -q '^192\.168\.1\.238$'
 check "lf.local.test resolves to VM IP" dig +short lf.local.test | grep -q '^192\.168\.1\.238$'
@@ -74,6 +70,25 @@ check "OpenObserve reachable" curl -sk https://oo.local.test/ | grep -qi "openob
 echo ""
 echo "=== Checkpoint 7: Langfuse reachable ==="
 check "Langfuse reachable" curl -sk https://lf.local.test/ | grep -qi "langfuse"
+
+echo ""
+echo "=== Checkpoint 8: Portkey OTel export ==="
+if [ -n "$PORTKEY_CONTAINER" ]; then
+  check "Portkey has OTEL_PUSH_ENABLED" docker exec "$PORTKEY_CONTAINER" env | grep -q 'OTEL_PUSH_ENABLED=true'
+  check "Portkey has EXPERIMENTAL_GEN_AI_OTEL_TRACES_ENABLED" docker exec "$PORTKEY_CONTAINER" env | grep -q 'EXPERIMENTAL_GEN_AI_OTEL_TRACES_ENABLED=true'
+else
+  echo -e "${RED}SKIP${NC} Portkey container not running"
+fi
+
+echo ""
+echo "=== Checkpoint 9: OTel collector Langfuse exporter ==="
+OTEL_CONTAINER=$(docker ps --filter "name=otel-collector" --format "{{.Names}}" | head -n1)
+if [ -n "$OTEL_CONTAINER" ]; then
+  check "otel-collector has langfuse exporter config" docker exec "$OTEL_CONTAINER" cat /config/otel-collector.config.yaml | grep -q 'otlphttp/langfuse'
+  check "otel-collector has langfuse endpoint" docker exec "$OTEL_CONTAINER" cat /config/otel-collector.config.yaml | grep -q 'http://langfuse:3000/api/public/otel'
+else
+  echo -e "${RED}SKIP${NC} otel-collector container not running"
+fi
 
 echo ""
 echo "=== Discovery complete ==="

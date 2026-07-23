@@ -141,6 +141,10 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - HF_API_KEY=${HF_API_KEY}
       - AI_PROVIDER_BASE_URL=${AI_PROVIDER_BASE_URL}
+      - OTEL_PUSH_ENABLED=true
+      - EXPERIMENTAL_GEN_AI_OTEL_TRACES_ENABLED=true
+      - EXPERIMENTAL_GEN_AI_OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - EXPERIMENTAL_GEN_AI_OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
     # entrypoint expands ${VAR} placeholders in the conf template from the
     # environment (../.env) and writes /app/conf.json before starting Portkey.
     entrypoint: ["/app/entrypoint.sh"]
