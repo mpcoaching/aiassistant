@@ -1,0 +1,43 @@
+# Gitea act_runner Configuration Template
+# Generated at container startup by entrypoint.sh using envsubst.
+# Do NOT edit config.yml directly — it is overwritten on every container start.
+# Edit this template instead.
+log:
+  level: "info"         # Options: trace, debug, info, warn, error
+
+runner:
+  file: "/data/.runner"      # Path to the registration file
+  capacity: 2           # Number of parallel tasks it can execute
+  envs:                 # Environment variables passed to all jobs
+    GITEA_RUNNER_NAME: ${GITEA_RUNNER_NAME}
+    GITEA_URL: ${GITEA_INSTANCE_URL}
+    GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_RUNNER_REGISTRATION_TOKEN}
+    GITEA_RUNNER_LABELS: ${GITEA_RUNNER_LABELS}
+  timeout: "3h"         # Maximum execution time for a job
+  shutdown_timeout: "5s"# Grace period before stopping active jobs
+  insecure: true        # Set to true only if using self-signed certificates
+  fetch_timeout: "5s"   # Timeout when communication with Gitea fails
+  fetch_interval: "2s"  # How often the runner checks Gitea for new jobs
+
+cache:
+  enabled: true         # Enables actions/cache step support
+  dir: ""               # Local folder for cache (defaults to ~/.cache/act)
+  host: ""              # Leave blank to use local storage
+  port: 0
+
+container:
+  # Default execution container image for workflow jobs that do not specify
+  # their own container. This is NOT the runner host image; the gitea/act_runner
+  # container does not include Node.js. Node is provided by this image at job
+  # runtime. If a healthcheck or monitoring probe checks the runner container
+  # for node, that probe is checking the wrong scope.
+  image: "node:20"
+  network: "bridge"     # Network for execution containers (e.g., "gitea_network")
+  privileged: false     # Set to true only if jobs require Docker-in-Docker (DinD)
+  options: ""           # Extra Docker arguments (e.g., "--add-host=host:ip")
+  workdir_parent: ""    # Parent directory for job workspaces
+  valid_volumes: []     # Allowed host paths that jobs can mount
+  force_pull: false     # Always pull container images when executing
+
+host:
+  workdir_parent: ""    # Path used if executing jobs directly on the host machine

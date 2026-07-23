@@ -3,14 +3,24 @@ set -euo pipefail
 
 RUNNER_STATE="/data/.runner"
 CONFIG="/data/config.yml"
+CONFIG_TEMPLATE="/data/config.template.yaml"
 
 # Gitea act_runner lifecycle:
-# 1. If /data/.runner is missing, run `register` with the current token to create it.
-# 2. Run `daemon` which polls Gitea for jobs using the stored registration.
+# 1. Generate config.yml from config.template.yaml using envsubst so that
+#    environment variables (GITEA_INSTANCE_URL, registration token, etc.)
+#    are resolved at runtime. Compose does not substitute into read-only
+#    volume mounts, so this step is mandatory.
+# 2. If /data/.runner is missing, run `register` with the current token.
+# 3. Run `daemon` which polls Gitea for jobs using the stored registration.
 #
 # The .runner file contains the runner UUID + token. Deleting it forces
 # re-registration on next start. Do not delete it manually during normal
 # operation — it is the runner's persistent identity in Gitea's database.
+
+if [ ! -f "${CONFIG}" ] || [ -f "${CONFIG_TEMPLATE}" ]; then
+    echo "[gitea-runner] Generating config.yml from template..."
+    envsubst < "${CONFIG_TEMPLATE}" > "${CONFIG}"
+fi
 
 if [ ! -f "${RUNNER_STATE}" ]; then
     echo "[gitea-runner] No .runner found, registering with Gitea..."

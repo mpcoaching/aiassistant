@@ -84,8 +84,8 @@ services:
       - GITEA_RUNNER_LABELS=ubuntu-latest
       - CONFIG_FILE=/data/config.yml
     # act_runner lifecycle:
-    # entrypoint.sh registers with Gitea if /data/.runner is missing,
-    # then execs the daemon which polls for jobs.
+    # entrypoint.sh generates config.yml from config.template.yaml via envsubst,
+    # registers with Gitea if /data/.runner is missing, then execs the daemon.
     # If registration token rotates, delete /data/.runner before restart.
     entrypoint: ["/bin/sh", "/app/entrypoint.sh"]
     depends_on:
@@ -104,7 +104,7 @@ services:
       - platform-network
     volumes:
       - ./configs/gitea-runner/entrypoint.sh:/app/entrypoint.sh:ro
-      - ./configs/gitea-runner/config.yaml:/data/config.yml:ro
+      - ./configs/gitea-runner/config.template.yaml:/data/config.template.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - ./configs/gitea-runner/data:/data
 
