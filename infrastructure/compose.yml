@@ -78,17 +78,14 @@ services:
     image: gitea/act_runner:latest
     container_name: infra_gitea_runner
     environment:
-      # Connection & Registration (Handled natively on first boot)
       - GITEA_INSTANCE_URL=${GITEA_INSTANCE_URL}
       - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_REGISTRATION_TOKEN}
       - GITEA_RUNNER_NAME=${GITEA_RUNNER_NAME}
       - GITEA_RUNNER_LABELS=${GITEA_RUNNER_LABELS}
-      # Tell the runner to load our minimal custom config file
-      - CONFIG_FILE=/data/config.yaml
+      - CONFIG_FILE=/config.yaml # Changed path to the root of the container
     depends_on:
       gitea:
         condition: service_healthy
-    # Uses the built-in binary to check daemon health
     healthcheck:
       test: ["CMD", "act_runner", "ping"]
       interval: 15s
@@ -98,7 +95,11 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      # Map the data folder explicitly for runtime state files (.runner)
       - ./infrastructure/configs/gitea-runner/data:/data
+      # Map the config file explicitly to the root so act_runner can always find it
+      - ./infrastructure/configs/gitea-runner/data/config.yaml:/config.yaml:ro
+
 
 
   # ----- Private registry (immutable <git-sha> images) -----
