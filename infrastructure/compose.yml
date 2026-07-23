@@ -83,13 +83,11 @@ services:
       - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_REGISTRATION_TOKEN}
       - GITEA_RUNNER_LABELS=ubuntu-latest
       - CONFIG_FILE=/data/config.yml
-    # act_runner reads /data/config.yml at startup.
-    # On first start (or if .runner is missing) it registers with Gitea using
-    # GITEA_RUNNER_REGISTRATION_TOKEN and writes state to /data/.runner.
-    # On subsequent starts it reuses the existing registration.
-    # If registration token rotates or the runner needs to re-register, remove
-    # /data/.runner before restarting the container.
-    command: ["daemon", "--config", "/data/config.yml"]
+    # act_runner lifecycle:
+    # entrypoint.sh registers with Gitea if /data/.runner is missing,
+    # then execs the daemon which polls for jobs.
+    # If registration token rotates, delete /data/.runner before restart.
+    entrypoint: ["/bin/sh", "/app/entrypoint.sh"]
     depends_on:
       gitea:
         condition: service_healthy
@@ -105,6 +103,7 @@ services:
       - infrastructure-network
       - platform-network
     volumes:
+      - ./configs/gitea-runner/entrypoint.sh:/app/entrypoint.sh:ro
       - ./configs/gitea-runner/config.yaml:/data/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - ./configs/gitea-runner/data:/data
