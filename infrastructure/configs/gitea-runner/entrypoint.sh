@@ -20,7 +20,7 @@ CONFIG_TEMPLATE="/data/config.template.yaml"
 if [ ! -f "${CONFIG}" ] || [ -f "${CONFIG_TEMPLATE}" ]; then
     echo "[gitea-runner] Generating config.yml from template..."
     cp "${CONFIG_TEMPLATE}" "${CONFIG}"
-    for var in $(compgen -A export); do
+    for var in GITEA_INSTANCE_URL GITEA_RUNNER_REGISTRATION_TOKEN GITEA_RUNNER_NAME GITEA_RUNNER_LABELS; do
         val="${!var}"
         sed -i "s|\${${var}}|${val}|g" "${CONFIG}"
     done
