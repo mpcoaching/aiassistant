@@ -87,7 +87,7 @@ services:
     # entrypoint.sh generates config.yml from config.template.yaml via envsubst,
     # registers with Gitea if /data/.runner is missing, then execs the daemon.
     # If registration token rotates, delete /data/.runner before restart.
-    entrypoint: ["/bin/sh", "/app/entrypoint.sh"]
+    entrypoint: ["/bin/bash", "/app/entrypoint.sh"]
     depends_on:
       gitea:
         condition: service_healthy

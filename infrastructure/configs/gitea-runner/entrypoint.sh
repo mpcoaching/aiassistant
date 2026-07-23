@@ -22,12 +22,12 @@ register_runner() {
     local wait=5
 
     echo "$LOG_TAG No .runner found, registering with Gitea..."
-    
+
     until curl -fsS "${GITEA_INSTANCE_URL}/api/v1/version" >/dev/null 2>&1; do
         echo "$LOG_TAG Waiting for Gitea at ${GITEA_INSTANCE_URL}..."
         sleep 3
     done
-    
+
     while [ $attempt -le $max_attempts ]; do
         echo "$LOG_TAG Registration attempt $attempt/$max_attempts..."
         if act_runner register \
@@ -43,7 +43,7 @@ register_runner() {
         sleep $wait
         wait=$((wait * 2))
     done
-    
+
     echo "$LOG_TAG Registration failed after $max_attempts attempts"
     return 1
 }
@@ -60,14 +60,14 @@ gitea_runner_lifecycle() {
 
     if [ ! -f "${RUNNER_STATE}" ]; then
         if ! register_runner; then
-        echo "$LOG_TAG Fatal: could not register runner with Gitea" >&2
-        return 1
-    fi
+            echo "$LOG_TAG Fatal: could not register runner with Gitea" >&2
+            exit 1
+        fi
     fi
 
     start_daemon
 }
 
 if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
-    gitea_runner_lifecycle || exit 1
+    gitea_runner_lifecycle
 fi
