@@ -1,0 +1,49 @@
+name: CI Diagnostic
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: System Information
+        run: |
+          echo "=== SYSTEM ==="
+          uname -a
+          echo
+
+          echo "=== USER ==="
+          whoami
+          echo
+
+      - name: Tooling
+        run: |
+          echo "=== PYTHON ==="
+          python --version || true
+
+          echo
+          echo "=== DOCKER ==="
+          docker version || true
+
+          echo
+          echo "=== GIT ==="
+          git --version
+
+      - name: Environment Check
+        run: |
+          echo "=== ENVIRONMENT ==="
+
+          echo "GITHUB_PAT length:"
+          echo "${#GITHUB_PAT}"
+
+          echo
+          echo "Runner:"
+          env | grep RUNNER || true
+
+      - name: Cache Check
+        run: |
+          echo "=== CACHE ==="
+          ls -la /cache || true
