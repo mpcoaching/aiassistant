@@ -13,6 +13,6 @@ cache:
   port: 8088
 
 container:
-  image: gitea/runner-images:ubuntu-latest
+  image: aiassistant-ci:latest
   force_pull: false
   network: infrastructure-network
