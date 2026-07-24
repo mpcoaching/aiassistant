@@ -9,7 +9,7 @@ runner:
 cache:
   enabled: true
   dir: /cache
-  host: 192.168.1.238
+  host: infra_gitea_runner
   port: 8088
 
 container:
