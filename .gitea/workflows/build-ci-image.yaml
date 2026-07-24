@@ -1,0 +1,54 @@
+name: Build CI Worker Image
+
+on:
+  workflow_dispatch:
+
+  push:
+    paths:
+      - infrastructure/images/ci-runner/**
+
+jobs:
+
+  build-ci-image:
+
+    name: Build CI Worker
+
+    runs-on: ubuntu-latest
+
+    container:
+      image: aiassistant-ci:0.1.0
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: CI Context
+        run: |
+          echo "================================"
+          echo "BUILDING CI WORKER IMAGE"
+          echo "================================"
+
+          git rev-parse HEAD
+          date
+
+      - name: Build Image
+        run: |
+          docker build \
+            -t aiassistant-ci:test \
+            infrastructure/images/ci-runner
+
+      - name: Test Image
+        run: |
+          docker run --rm aiassistant-ci:test sh -c "
+            python --version &&
+            uv --version &&
+            jq --version &&
+            yq --version
+          "
+
+      - name: Complete
+        run: |
+          echo "================================"
+          echo "CI WORKER IMAGE OK"
+          echo "================================"
