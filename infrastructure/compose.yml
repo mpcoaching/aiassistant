@@ -85,6 +85,8 @@ services:
       - CONFIG_FILE=/data/config.yaml # Changed back to /data
       - GITEA_RUNNER_CONTAINER_NETWORK=infrastructure-network
       - GITEA_RUNNER_ENV_MIRROR_PAT=${GITHUB_PAT}
+    env_file:
+      - .env
     depends_on:
       gitea:
         condition: service_healthy
