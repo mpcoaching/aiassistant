@@ -76,17 +76,16 @@ jobs:
         run: |
           export GIT_TERMINAL_PROMPT=0
           
-          # 1. Read the injected variable natively using standard Linux syntax
-          if [ -z "${GITEA_RUNNER_ENV_MIRROR_PAT}" ]; then
-            echo "❌ ERROR: Injected server variable GITEA_RUNNER_ENV_MIRROR_PAT is empty!"
+          # Read GITHUB_PAT directly from the mounted main .env file injection
+          if [ -z "${GITHUB_PAT}" ]; then
+            echo "❌ ERROR: GITHUB_PAT is empty inside the main .env file!"
             exit 1
           fi
           
-          # 2. Assign it to a local execution variable
-          TOKEN="${GITEA_RUNNER_ENV_MIRROR_PAT}"
+          TOKEN="${GITHUB_PAT}"
           
-          # 3. Apply the full, complete repository layout path
           git remote add github https://x-token-auth:${TOKEN}@://github.com || \
           git remote set-url github https://x-token-auth:${TOKEN}@://github.com
           
           git push github HEAD:main --force
+
