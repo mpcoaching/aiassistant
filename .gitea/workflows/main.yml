@@ -74,15 +74,14 @@ jobs:
           fetch-depth: 0
       - name: Configure Git Auth and Push
         env:
-          # Try reading the injected variable directly out of the runner environment
-          GITHUB_TOKEN: ${{ secrets.GITEA_RUNNER_ENV_MIRROR_PAT }}
+          # Use env instead of secrets to capture the container injection
+          GITHUB_TOKEN: ${{ env.GITEA_RUNNER_ENV_MIRROR_PAT }}
         run: |
           export GIT_TERMINAL_PROMPT=0
           
-          # Safety check: Stop immediately if the token is completely missing
+          # Real verification: Stop the workflow explicitly if it is missing
           if [ -z "${GITHUB_TOKEN}" ]; then
-            echo "❌ ERROR: GITHUB_TOKEN environment variable is completely empty!"
-            echo "The variable is not reaching the workflow. Check your compose.yml setup."
+            echo "❌ ERROR: The GITHUB_TOKEN environment variable is blank!"
             exit 1
           fi
           
