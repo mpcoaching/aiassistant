@@ -15,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # Adjust to your matching Python version
+          python-version: '3.11' # Adjust to your matching Python version
 
       - name: Cache Python Virtual Env
         id: cache-venv
