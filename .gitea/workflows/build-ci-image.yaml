@@ -44,6 +44,26 @@ jobs:
             yq --version
           "
 
+      - name: Login to Local Registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | \
+          docker login registry.local.test \
+            --username "${{ secrets.REGISTRY_USERNAME }}" \
+            --password-stdin
+
+
+      - name: Tag CI Worker Image
+        run: |
+          docker tag \
+            aiassistant-ci:test \
+            registry.local.test/aiassistant/ci-runner:0.1.0
+
+
+      - name: Push CI Worker Image
+        run: |
+          docker push \
+            registry.local.test/aiassistant/ci-runner:0.1.0
+
 
       - name: Complete
         run: |
