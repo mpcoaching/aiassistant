@@ -77,35 +77,29 @@ services:
   gitea-runner:
     image: gitea/act_runner:latest
     container_name: infra_gitea_runner
+
     environment:
-      - GITEA_INSTANCE_URL=http://gitea:3000
-      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_REGISTRATION_TOKEN}
-      - GITEA_RUNNER_NAME=${GITEA_RUNNER_NAME}
-      - GITEA_RUNNER_LABELS=${GITEA_RUNNER_LABELS}
-      - CONFIG_FILE=/data/config.yaml # Changed back to /data
-      - GITEA_RUNNER_CONTAINER_NETWORK=infrastructure-network
-      - HOST_INJECTED_PAT=${GITHUB_PAT}
+      GITEA_INSTANCE_URL: http://gitea:3000
+      GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_RUNNER_REGISTRATION_TOKEN}
+      GITEA_RUNNER_NAME: ${GITEA_RUNNER_NAME}
+      GITEA_RUNNER_LABELS: ${GITEA_RUNNER_LABELS}
+      CONFIG_FILE: /data/config.yaml
+      GITEA_RUNNER_CONTAINER_NETWORK: infrastructure-network
+
     depends_on:
       gitea:
         condition: service_healthy
-    links:
-      - gitea:gitea
-    healthcheck:
-      test: ["CMD", "act_runner", "ping"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+
     restart: unless-stopped
+
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./configs/gitea-runner/data:/data # This maps the whole directory
-      - ../.env:/data/.env
+      - ./configs/gitea-runner/data:/data
+      - ./configs/gitea-runner/cache:/cache
+
     networks:
       - infrastructure-network
       - platform-network
-    ports:
-      - "8088:8088" # Maps the cache port to the host system
 
   
 

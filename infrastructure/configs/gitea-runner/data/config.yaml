@@ -1,30 +1,18 @@
 log:
-  level: "info"
+  level: info
 
 runner:
   capacity: 2
-  timeout: "3h"
-  insecure: true        # Kept true if your Gitea instance uses self-signed certs
+  timeout: 3h
+  insecure: true
 
 cache:
-  # 1. Turn the cache server on
   enabled: true
-
-  # 2. Leave blank to default to your runner container's home storage folder
-  dir: ""
-
-  # 3. CRUCIAL: Enter the actual Host machine's LAN IP address (do not use 0.0.0.0 or localhost)
-  # This tells the inner workflow containers exactly how to route out to the runner host.
-  host: "192.168.1.238" 
-
-  # 4. Pick an open port on your host machine
+  dir: /cache
+  host: 192.168.1.238
   port: 8088
 
-envs:
-    GITHUB_PAT: ${HOST_INJECTED_PAT}
-
 container:
-  image: "gitea/runner-images:ubuntu-latest"  # Replaces raw node:20
-  force_pull: true                            # Ensures you always get the latest ecosystem updates
-  network: "infrastructure-network"
-  env_file: "/data/.env"
+  image: gitea/runner-images:ubuntu-latest
+  force_pull: false
+  network: infrastructure-network
