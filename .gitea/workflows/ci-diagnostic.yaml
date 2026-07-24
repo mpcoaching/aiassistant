@@ -10,6 +10,22 @@ jobs:
 
     steps:
 
+      - name: CI Worker Identity
+        run: |
+          echo "================================"
+          echo "CI WORKER"
+          echo "================================"
+
+          cat /etc/os-release
+
+          echo
+          echo "Tools"
+
+          python --version
+          uv --version
+          jq --version
+          yq --version
+      
       - name: CI Context
         run: |
           echo "======================================"
