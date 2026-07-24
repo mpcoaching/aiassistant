@@ -9,6 +9,9 @@ runner:
 cache:
   enabled: true
 
+envs:
+    GITHUB_PAT: ${HOST_INJECTED_PAT}
+
 container:
   image: "gitea/runner-images:ubuntu-latest"  # Replaces raw node:20
   force_pull: true                            # Ensures you always get the latest ecosystem updates
