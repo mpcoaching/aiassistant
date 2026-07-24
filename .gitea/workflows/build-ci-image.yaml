@@ -7,38 +7,35 @@ on:
     paths:
       - infrastructure/images/ci-runner/**
 
+
 jobs:
 
-  build-ci-image:
+  build:
 
     name: Build CI Worker
 
     runs-on: ubuntu-latest
-
-    container:
-      image: aiassistant-ci:0.1.0
 
     steps:
 
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: CI Context
+
+      - name: Docker Info
         run: |
-          echo "================================"
-          echo "BUILDING CI WORKER IMAGE"
-          echo "================================"
+          docker version
+          docker info
 
-          git rev-parse HEAD
-          date
 
-      - name: Build Image
+      - name: Build CI Worker Image
         run: |
           docker build \
             -t aiassistant-ci:test \
             infrastructure/images/ci-runner
 
-      - name: Test Image
+
+      - name: Test CI Worker Image
         run: |
           docker run --rm aiassistant-ci:test sh -c "
             python --version &&
@@ -47,8 +44,7 @@ jobs:
             yq --version
           "
 
+
       - name: Complete
         run: |
-          echo "================================"
-          echo "CI WORKER IMAGE OK"
-          echo "================================"
+          echo "CI worker image build successful"
