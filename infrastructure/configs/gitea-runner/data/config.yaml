@@ -7,7 +7,18 @@ runner:
   insecure: true        # Kept true if your Gitea instance uses self-signed certs
 
 cache:
+  # 1. Turn the cache server on
   enabled: true
+
+  # 2. Leave blank to default to your runner container's home storage folder
+  dir: ""
+
+  # 3. CRUCIAL: Enter the actual Host machine's LAN IP address (do not use 0.0.0.0 or localhost)
+  # This tells the inner workflow containers exactly how to route out to the runner host.
+  host: "192.168.1.238" 
+
+  # 4. Pick an open port on your host machine
+  port: 8088
 
 envs:
     GITHUB_PAT: ${HOST_INJECTED_PAT}

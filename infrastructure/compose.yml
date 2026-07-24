@@ -101,11 +101,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./configs/gitea-runner/data:/data # This maps the whole directory
       - ../.env:/data/.env
+      - runner-image-cache:/var/lib/docker
     networks:
       - infrastructure-network
       - platform-network
+    ports:
+      - "8088:8088" # Maps the cache port to the host system
 
-
+  
 
 
 

@@ -8,12 +8,35 @@ on:
 
 jobs:
   unit-tests:
-    # Removed the 'needs' blocker so this runs first
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery test all unit
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # Adjust to your matching Python version
+
+      - name: Cache Python Virtual Env
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('delivery/requirements.txt') }}
+
+      - name: Install Dependencies
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r delivery/requirements.txt
+          pip install -e delivery/
+
+      - name: Run Unit Tests
+        run: |
+          . .venv/bin/activate
+          delivery test all unit
 
   build-and-push:
     needs: unit-tests
@@ -21,27 +44,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python Environment
-        run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Cache Python Virtual Env
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('delivery/requirements.txt') }}
+        
+      - name: Install Dependencies
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r delivery/requirements.txt
+          pip install -e delivery/
         
       - name: Create Custom Buildx Configuration (As Code)
         run: |
-          # Generate a local buildx configuration profile dynamically
           mkdir -p .buildx
           cat <<EOF > .buildx/buildx-config.toml
           [registry."registry.local.test"]
             insecure = true
           EOF
 
-          # Create and switch to a custom builder instance utilizing this config
           docker buildx create --name ia-builder --config .buildx/buildx-config.toml --use
           docker buildx inspect --bootstrap
 
       - name: Build Changes
-        run: . .venv/bin/activate && delivery build all --changed
+        run: |
+          . .venv/bin/activate
+          delivery build all --changed
         
       - name: Publish to Local Registry
-        run: . .venv/bin/activate && delivery publish all
+        run: |
+          . .venv/bin/activate
+          delivery publish all
         
       - name: Clean Up Builder Instance
         if: always()
@@ -53,16 +96,64 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery deploy dev all
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Cache Python Virtual Env
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('delivery/requirements.txt') }}
+
+      - name: Install Dependencies
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r delivery/requirements.txt
+          pip install -e delivery/
+
+      - name: Deploy
+        run: |
+          . .venv/bin/activate
+          delivery deploy dev all
 
   validate:
     needs: deploy-dev
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -m venv .venv && . .venv/bin/activate && pip install -r delivery/requirements.txt && pip install -e delivery/
-      - run: . .venv/bin/activate && delivery validate dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Cache Python Virtual Env
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('delivery/requirements.txt') }}
+
+      - name: Install Dependencies
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r delivery/requirements.txt
+          pip install -e delivery/
+
+      - name: Validate Deployment
+        run: |
+          . .venv/bin/activate
+          delivery validate dev
 
   push-to-github:
     needs: validate
@@ -73,29 +164,23 @@ jobs:
         with:
           fetch-depth: 0
           
-      # New explicitly contained step to extract and inject the token inline
       - name: Extract Token and Mirror to GitHub
         run: |
           export GIT_TERMINAL_PROMPT=0
           
-          # 1. Parse the main .env file directly from the repo directory to find GITHUB_PAT
           if [ -f ".env" ]; then
-            # Read the variable line, strip out returns, and assign to a local shell string
             LOCAL_TOKEN=$(grep -E "^GITHUB_PAT=" .env | cut -d'=' -f2- | tr -d '\r\n"')
           else
             echo "❌ ERROR: Could not find your main .env file in the repository root!"
             exit 1
           fi
           
-          # 2. Check if the parsed token value returned completely blank
           if [ -z "${LOCAL_TOKEN}" ]; then
             echo "❌ ERROR: GITHUB_PAT was not found or is empty inside your main .env file!"
             exit 1
           fi
           
-          # 3. Configure the destination URLs dynamically using the found value
           git remote add github https://x-token-auth:${LOCAL_TOKEN}@://github.com || \
           git remote set-url github https://x-token-auth:${LOCAL_TOKEN}@://github.com
           
-          # 4. Push changes straight out to GitHub main
           git push github HEAD:main --force
