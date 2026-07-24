@@ -8,9 +8,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     curl \
     jq \
-    yq \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh

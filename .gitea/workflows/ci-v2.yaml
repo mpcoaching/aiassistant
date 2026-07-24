@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: aiassistant-ci:latest
+      image: aiassistant-ci:0.1.0
 
     steps:
 
