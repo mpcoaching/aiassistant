@@ -16,27 +16,35 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    container:
+      image: aiassistant-ci:latest
+
     steps:
 
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: CI Context
+      - name: CI Worker Identity
         run: |
           echo "================================"
-          echo "CI v2"
+          echo "CI WORKER"
           echo "================================"
 
-          echo "Repository: $GITHUB_REPOSITORY"
-          echo "Commit: $GITHUB_SHA"
-          echo "Started: $(date)"
+          echo "Hostname:"
+          hostname
 
-      - name: Environment
-        run: |
+          echo
+          echo "OS:"
+          cat /etc/os-release
+
+          echo
+          echo "Tools:"
+
           python --version
           uv --version
-          docker --version
+          jq --version
+          yq --version
 
       - name: Validate
         run: |
-          echo "TODO: replace with delivery validation"
+          echo "Validation placeholder"
