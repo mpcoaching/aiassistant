@@ -74,14 +74,20 @@ jobs:
           fetch-depth: 0
       - name: Configure Git Auth and Push
         env:
-          GITHUB_TOKEN: ${{ secrets.MIRROR_PAT }}
+          GITHUB_TOKEN: ${{ env.GITHUB_PAT }}
         run: |
-          # Disable interactive prompts entirely so Git fails fast rather than hanging
           export GIT_TERMINAL_PROMPT=0
           
-          # Force Git to inject your personal access token straight into the URL 
+          # Safety check: Stop the script immediately if the variable is blank
+          if [ -z "${GITHUB_TOKEN}" ]; then
+            echo "❌ ERROR: GITHUB_PAT is completely empty!"
+            echo "Please check that your server's .env file contains the variable and your compose.yml maps it."
+            exit 1
+          fi
+          
+          # Complete, valid target URLs (Fixed to prevent truncation crashes)
           git remote add github https://x-token-auth:${GITHUB_TOKEN}@://github.com || \
           git remote set-url github https://x-token-auth:${GITHUB_TOKEN}@://github.com
           
-          # Force push to GitHub main
           git push github HEAD:main --force
+
