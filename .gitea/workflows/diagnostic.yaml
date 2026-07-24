@@ -43,7 +43,18 @@ jobs:
           echo "Runner:"
           env | grep RUNNER || true
 
-      - name: Cache Check
+      - name: Test Actions Cache
+        uses: actions/cache@v4
+        with:
+          path: test-cache
+          key: diagnostic-cache-v1
+
+      - name: Verify Cache
         run: |
-          echo "=== CACHE ==="
-          ls -la /cache || true
+          echo "=== CACHE TEST ==="
+
+          mkdir -p test-cache
+
+          echo "cache test $(date)" > test-cache/test.txt
+
+          cat test-cache/test.txt
