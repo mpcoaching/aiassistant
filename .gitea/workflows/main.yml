@@ -73,20 +73,20 @@ jobs:
         with:
           fetch-depth: 0
       - name: Configure Git Auth and Push
-        env:
-          # Use env instead of secrets to capture the container injection
-          GITHUB_TOKEN: ${{ env.GITEA_RUNNER_ENV_MIRROR_PAT }}
         run: |
           export GIT_TERMINAL_PROMPT=0
           
-          # Real verification: Stop the workflow explicitly if it is missing
-          if [ -z "${GITHUB_TOKEN}" ]; then
-            echo "❌ ERROR: The GITHUB_TOKEN environment variable is blank!"
+          # 1. Read the injected variable natively using standard Linux syntax
+          if [ -z "${GITEA_RUNNER_ENV_MIRROR_PAT}" ]; then
+            echo "❌ ERROR: Injected server variable GITEA_RUNNER_ENV_MIRROR_PAT is empty!"
             exit 1
           fi
           
-          # FIXED URLS: Restored the complete domain, organization, and repo path
-          git remote add github https://x-token-auth:${GITHUB_TOKEN}@://github.com || \
-          git remote set-url github https://x-token-auth:${GITHUB_TOKEN}@://github.com
+          # 2. Assign it to a local execution variable
+          TOKEN="${GITEA_RUNNER_ENV_MIRROR_PAT}"
+          
+          # 3. Apply the full, complete repository layout path
+          git remote add github https://x-token-auth:${TOKEN}@://github.com || \
+          git remote set-url github https://x-token-auth:${TOKEN}@://github.com
           
           git push github HEAD:main --force
