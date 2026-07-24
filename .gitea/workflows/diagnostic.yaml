@@ -5,56 +5,142 @@ on:
 
 jobs:
   diagnose:
+    name: Diagnose Runner
     runs-on: ubuntu-latest
 
     steps:
 
+      - name: CI Context
+        run: |
+          echo "======================================"
+          echo "CI RUN CONTEXT"
+          echo "======================================"
+
+          echo "Repository : $GITHUB_REPOSITORY"
+          echo "Commit     : $GITHUB_SHA"
+          echo "Ref        : $GITHUB_REF"
+          echo "Runner OS  : $RUNNER_OS"
+          echo "Runner Arch: $RUNNER_ARCH"
+          echo "Runner Name: $RUNNER_NAME"
+          echo "Started    : $(date)"
+
       - name: System Information
         run: |
-          echo "=== SYSTEM ==="
+          echo
+          echo "======================================"
+          echo "SYSTEM"
+          echo "======================================"
+
           uname -a
-          echo
 
-          echo "=== USER ==="
-          whoami
           echo
+          echo "Disk:"
+          df -h
 
-      - name: Tooling
+          echo
+          echo "Memory:"
+          free -h || true
+
+
+      - name: Tool Inventory
         run: |
-          echo "=== PYTHON ==="
+          echo
+          echo "======================================"
+          echo "TOOLS"
+          echo "======================================"
+
+          echo "--- Python ---"
           python --version || true
 
           echo
-          echo "=== DOCKER ==="
-          docker version || true
+          echo "--- Pip ---"
+          pip --version || true
 
           echo
-          echo "=== GIT ==="
+          echo "--- UV ---"
+          uv --version || true
+
+          echo
+          echo "--- Node ---"
+          node --version || true
+
+          echo
+          echo "--- Docker ---"
+          docker --version || true
+
+          echo
+          echo "--- Buildx ---"
+          docker buildx version || true
+
+          echo
+          echo "--- Git ---"
           git --version
 
-      - name: Environment Check
-        run: |
-          echo "=== ENVIRONMENT ==="
 
-          echo "GITHUB_PAT length:"
-          echo "${#GITHUB_PAT}"
+      - name: Environment Inspection
+        run: |
+          echo
+          echo "======================================"
+          echo "ENVIRONMENT"
+          echo "======================================"
+
+          echo "Action:"
+          echo "$GITHUB_ACTIONS"
 
           echo
-          echo "Runner:"
+          echo "Runner variables:"
           env | grep RUNNER || true
 
-      - name: Test Actions Cache
+          echo
+          echo "Workspace:"
+          pwd
+          ls -la
+
+
+      - name: Cache Test
+        id: cache-test
         uses: actions/cache@v4
         with:
-          path: test-cache
+          path: diagnostic-cache
           key: diagnostic-cache-v1
 
-      - name: Verify Cache
+
+      - name: Cache Verification
         run: |
-          echo "=== CACHE TEST ==="
+          echo
+          echo "======================================"
+          echo "CACHE"
+          echo "======================================"
 
-          mkdir -p test-cache
+          if [ "${{ steps.cache-test.outputs.cache-hit }}" = "true" ]; then
+            echo "✓ Cache restored"
+          else
+            echo "⚠ Cache miss - creating initial cache"
+          fi
 
-          echo "cache test $(date)" > test-cache/test.txt
+          mkdir -p diagnostic-cache
 
-          cat test-cache/test.txt
+          date > diagnostic-cache/timestamp.txt
+
+          cat diagnostic-cache/timestamp.txt
+
+
+      - name: Docker Capability Test
+        run: |
+          echo
+          echo "======================================"
+          echo "DOCKER"
+          echo "======================================"
+
+          docker info || true
+
+
+      - name: Completion Summary
+        if: always()
+        run: |
+          echo
+          echo "======================================"
+          echo "DIAGNOSTIC COMPLETE"
+          echo "======================================"
+
+          echo "Finished: $(date)"

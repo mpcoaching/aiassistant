@@ -1,0 +1,7 @@
+services:
+
+  ci-runner-image:
+    image: aiassistant-ci:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
