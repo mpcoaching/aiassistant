@@ -129,7 +129,7 @@ services:
       - registry_data:/data
       - ./configs/registry/htpasswd:/auth/htpasswd:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --spider --tries=1 --header=\"Authorization: Basic $$(echo -n \"$$REGISTRY_USER:$$REGISTRY_PASSWORD\" | base64)\" http://localhost:5000/v2/ || exit 1"]
+      test: ["CMD-SHELL", "wget --quiet --spider --tries=1 http://localhost:5000/v2/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
