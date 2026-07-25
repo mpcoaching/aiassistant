@@ -44,6 +44,11 @@ jobs:
             yq --version
           "
 
+      - name: Environment Diagnostic
+        run: |
+          echo "REGISTRY_USER=${REGISTRY_USER}"
+          echo "REGISTRY_PASSWORD length=${#REGISTRY_PASSWORD}"
+
       - name: Login to Local Registry
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | \
