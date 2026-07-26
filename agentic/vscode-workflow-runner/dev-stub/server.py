@@ -3,7 +3,7 @@ Workflow Engine DEV-STUB (local only — never deploy to production).
 
 Implements the contract in `../contract/workflow-engine.yaml` so the VS Code
 plugin can be developed and tested before the real Workflow Engine service
-exists. It reuses the existing workflow-runner (`agentic/src/workflow-runner`)
+exists. It reuses the existing workflow_runner (`agentic/src/workflow_runner`)
 to execute workflows synchronously and replays results as SSE.
 
 The real production execution path runs server-side in the sandboxed Agent
@@ -23,7 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[3]
-_RUNNER = _REPO / "agentic" / "src" / "workflow-runner"
+_RUNNER = _REPO / "agentic" / "src" / "workflow_runner"
 sys.path.insert(0, str(_RUNNER))
 
 # Prefer the runner's own virtualenv packages (pydantic, pyyaml).

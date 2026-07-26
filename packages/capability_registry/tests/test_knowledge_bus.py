@@ -19,22 +19,16 @@ The bus is exercised with a fake connection so no RabbitMQ is required.
 """
 
 import json
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-import pytest
 
 import bus
 from bus import CAPABILITY_EXCHANGE, KNOWLEDGE_EXCHANGE, EventBus
 from knowledge import KnowledgeChunk, KnowledgeStore, route_by_tags
 
-
 # ---- bus topology declaration (C5) ----------------------------------------
 
 def test_bus_declares_capability_and_knowledge_topology() -> None:
-    _bus = EventBus(url="amqp://guest:guest@localhost:5672/")
+    _bus = EventBus(url="amqp://guest:guest@localhost:5672/", fallback_dir="/tmp/test-events")
     assert CAPABILITY_EXCHANGE == "capability.mode"
     assert KNOWLEDGE_EXCHANGE == "knowledge.mode"
     # topology dict now includes capability + knowledge queues
@@ -45,7 +39,7 @@ def test_bus_declares_capability_and_knowledge_topology() -> None:
 
 def test_bus_declare_topology_registers_new_exchanges(tmp_path: Path) -> None:
     # Use a fake connection that records exchange/queue declarations.
-    bus = EventBus(url="amqp://guest:guest@localhost:5672/")
+    bus = EventBus(url="amqp://guest:guest@localhost:5672/", fallback_dir="/tmp/test-events")
 
     class _FakeCh:
         def __init__(self):

@@ -8,11 +8,8 @@ that produces a ``StrategyDecision`` — the hand-off to the Workflow Engine
 
 from __future__ import annotations
 
-from typing import Optional
-
-from pydantic import BaseModel, Field
-
 from intent import Intent, recognise
+from pydantic import BaseModel, Field
 from strategy import ReasoningStrategy, StrategyProposal, select_strategy
 
 
@@ -21,7 +18,7 @@ class StrategyDecision(BaseModel):
     chosen_strategy: ReasoningStrategy
     pattern_pipeline: list[str] = Field(default_factory=list)
     participant_roles: list[str] = Field(default_factory=list)
-    proposed_session_id: Optional[str] = None
+    proposed_session_id: str | None = None
     rationale: str = ""
 
 

@@ -1,14 +1,14 @@
 """
 Stable abstraction boundary for Pattern Runtimes (Phase 6 / RUNTIME-MAPPING.md).
 
-No framework concepts leak across this boundary. LangGraph, workflow-runner,
+No framework concepts leak across this boundary. LangGraph, workflow_runner,
 and any future runtime implement this interface.
 """
 
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class RuntimeCapability(str, Enum):
@@ -34,9 +34,9 @@ class PathwayCallRequest:
     def __init__(
         self,
         session_id: str,
-        pattern_step: Dict[str, Any],
-        context: Dict[str, Any],
-        participants: List[Dict[str, Any]],
+        pattern_step: dict[str, Any],
+        context: dict[str, Any],
+        participants: list[dict[str, Any]],
         prompt: str,
         max_turns: int = 10,
         timeout_seconds: int = 300,
@@ -56,10 +56,10 @@ class PathwayResponse:
     def __init__(
         self,
         status: PathwayStatus,
-        outputs: Dict[str, Any] = None,
-        artifacts: List[str] = None,
-        telemetry: Dict[str, Any] = None,
-        human_input_request: Optional[Dict[str, Any]] = None,
+        outputs: dict[str, Any] | None = None,
+        artifacts: list[str] | None = None,
+        telemetry: dict[str, Any] | None = None,
+        human_input_request: dict[str, Any] | None = None,
     ) -> None:
         self.status = status
         self.outputs = outputs or {}
@@ -76,7 +76,7 @@ class PathwayRuntime:
         raise NotImplementedError
 
     @property
-    def capabilities(self) -> List[RuntimeCapability]:
+    def capabilities(self) -> list[RuntimeCapability]:
         raise NotImplementedError
 
     def supports(self, capability: RuntimeCapability) -> bool:
@@ -85,5 +85,5 @@ class PathwayRuntime:
     def invoke(self, request: PathwayCallRequest) -> PathwayResponse:
         raise NotImplementedError
 
-    def resume(self, session_id: str, human_response: Dict[str, Any]) -> PathwayResponse:
+    def resume(self, session_id: str, human_response: dict[str, Any]) -> PathwayResponse:
         raise NotImplementedError

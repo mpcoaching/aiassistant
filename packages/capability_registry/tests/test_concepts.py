@@ -13,18 +13,16 @@ Behaviour requirements (from SA-CONTRACTS-PHASE1.md C1, C6):
 - strict persistence: write failure must raise, not be swallowed
 """
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-
 from concepts import (
     ConceptKind,
+    ConceptStore,
     EnterpriseConcept,
     MaturationHistory,
     Provenance,
-    ConceptStore,
 )
 
 

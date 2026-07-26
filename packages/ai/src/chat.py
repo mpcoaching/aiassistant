@@ -12,18 +12,19 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-
-from pydantic import BaseModel, Field
+from typing import Any
 
 from assistant import AssistantReasoningService, StrategyDecision
 from capabilities import CapabilityRegistry, ConceptStore
 from concepts import ConceptKind, EnterpriseConcept
-from enterprise_context import ContextRecord
 from intent import Intent, IntentOrigin
-from pathway_runtime import PathwayCallRequest, PathwayRuntime, PathwayResponse, PathwayStatus
-from session import Session, SessionStatus, create_session_from_decision
-from strategy import ReasoningStrategy
+from pathway_runtime import (
+    PathwayCallRequest,
+    PathwayRuntime,
+    PathwayStatus,
+)
+from pydantic import BaseModel, Field
+from session import Session, create_session_from_decision
 
 logger = logging.getLogger("ai.chat")
 
@@ -36,19 +37,19 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    session_id: Optional[str] = None
-    user_id: Optional[str] = None
-    context: Dict[str, Any] = Field(default_factory=dict)
+    session_id: str | None = None
+    user_id: str | None = None
+    context: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatResponse(BaseModel):
     message: str
     session_id: str
     status: str
-    reasoning: Optional[str] = None
-    previous_solution: Optional[Dict[str, Any]] = None
-    human_input_request: Optional[Dict[str, Any]] = None
-    telemetry: Dict[str, Any] = Field(default_factory=dict)
+    reasoning: str | None = None
+    previous_solution: dict[str, Any] | None = None
+    human_input_request: dict[str, Any] | None = None
+    telemetry: dict[str, Any] = Field(default_factory=dict)
 
 
 class AssistantChatService:
@@ -56,16 +57,16 @@ class AssistantChatService:
 
     def __init__(
         self,
-        reasoning_service: Optional[AssistantReasoningService] = None,
-        concept_store: Optional[ConceptStore] = None,
-        capability_registry: Optional[CapabilityRegistry] = None,
-        runtime: Optional[PathwayRuntime] = None,
+        reasoning_service: AssistantReasoningService | None = None,
+        concept_store: ConceptStore | None = None,
+        capability_registry: CapabilityRegistry | None = None,
+        runtime: PathwayRuntime | None = None,
     ) -> None:
         self._reasoning = reasoning_service or AssistantReasoningService()
         self._store = concept_store or ConceptStore()
         self._registry = capability_registry or CapabilityRegistry(self._store)
         self._runtime = runtime
-        self._sessions: Dict[str, Session] = {}
+        self._sessions: dict[str, Session] = {}
 
     def chat(self, request: ChatRequest) -> ChatResponse:
         """Process a chat message and return a response."""
@@ -141,7 +142,7 @@ class AssistantChatService:
             telemetry={"runtime": "none", "reason": "no_runtime_configured"},
         )
 
-    def resume_with_human_input(self, session_id: str, human_response: Dict[str, Any]) -> ChatResponse:
+    def resume_with_human_input(self, session_id: str, human_response: dict[str, Any]) -> ChatResponse:
         """Resume a paused session with human input."""
         if self._runtime:
             response = self._runtime.resume(session_id, human_response)
@@ -160,7 +161,7 @@ class AssistantChatService:
             telemetry={"runtime": "none"},
         )
 
-    def _find_previous_solution(self, decision: StrategyDecision) -> Optional[Dict[str, Any]]:
+    def _find_previous_solution(self, decision: StrategyDecision) -> dict[str, Any] | None:
         """Check the concept store for a previous similar solution."""
         strategy_tag = f"strategy:{decision.chosen_strategy.value}"
         concepts = self._store.list_by_tag(strategy_tag)
@@ -179,7 +180,7 @@ class AssistantChatService:
             }
         return None
 
-    def _record_solution(self, decision: StrategyDecision, outputs: Dict[str, Any]) -> None:
+    def _record_solution(self, decision: StrategyDecision, outputs: dict[str, Any]) -> None:
         """Record a successful solution in the concept store for future reuse."""
         from datetime import datetime, timezone
         concept = EnterpriseConcept(

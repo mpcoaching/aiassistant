@@ -12,9 +12,6 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, Optional
-
-from pydantic import BaseModel, Field
 
 from enterprise_context import (
     ActivityPurpose,
@@ -24,6 +21,7 @@ from enterprise_context import (
     InformationContext,
     ProblemContext,
 )
+from pydantic import BaseModel, Field
 
 
 class IntentOrigin(str, Enum):
@@ -37,7 +35,7 @@ class Intent(BaseModel):
     id: str
     origin: IntentOrigin
     received_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    declared_context: Optional[dict] = None
+    declared_context: dict | None = None
     raw: dict = Field(default_factory=dict)
 
 

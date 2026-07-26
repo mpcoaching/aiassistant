@@ -1,0 +1,31 @@
+{
+  "workflow_id": "0fed36cf",
+  "workflow_name": "design.create",
+  "workflow_path": "/home/martinp/Documents/projects/aiassistant/.kilo/worktrees/brazen-mouth/agentic/docs/workflows/design.create.yaml",
+  "status": "failed",
+  "current_step_index": 0,
+  "steps": [
+    {
+      "type": "skill",
+      "name": "design.interface-spec",
+      "uses": "design.interface-spec",
+      "with_": null
+    },
+    {
+      "type": "skill",
+      "name": "design.ui-ux",
+      "uses": "design.ui-ux",
+      "with_": null
+    },
+    {
+      "type": "skill",
+      "name": "design.data-model",
+      "uses": "design.data-model",
+      "with_": null
+    }
+  ],
+  "step_results": [],
+  "context": {},
+  "error": "RuntimeClient not configured",
+  "log_path": "/home/martinp/Documents/projects/aiassistant/.kilo/worktrees/brazen-mouth/agentic/docs/workflows/.wf/0fed36cf.log"
+}

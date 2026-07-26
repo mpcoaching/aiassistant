@@ -17,14 +17,12 @@ Persistence is provided by ``ConceptStore`` (Postgres + strict file fallback).
 
 from __future__ import annotations
 
+import builtins
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
-from typing import Dict, List, Optional
-
-from pydantic import BaseModel, Field
 
 from concepts import ConceptKind, ConceptStore, EnterpriseConcept, MaturationHistory
+from pydantic import BaseModel, Field
 
 
 class CapabilityKind(str, Enum):
@@ -53,10 +51,10 @@ class AiSpec(BaseModel):
     """Present when execution_mode = ai_mediated."""
 
     purpose: str = ""
-    inputs: List[Parameter] = Field(default_factory=list)
-    outputs: List[Parameter] = Field(default_factory=list)
-    constraints: List[str] = Field(default_factory=list)
-    prompt_template_ref: Optional[str] = None
+    inputs: list[Parameter] = Field(default_factory=list)
+    outputs: list[Parameter] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
+    prompt_template_ref: str | None = None
 
 
 class CompiledRef(BaseModel):
@@ -68,9 +66,9 @@ class CompiledRef(BaseModel):
 
 
 class CapabilityInterface(BaseModel):
-    inputs: List[Parameter] = Field(default_factory=list)
-    outputs: List[Parameter] = Field(default_factory=list)
-    errors: List[str] = Field(default_factory=list)
+    inputs: list[Parameter] = Field(default_factory=list)
+    outputs: list[Parameter] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
 
 
 class Capability(EnterpriseConcept):
@@ -79,8 +77,8 @@ class Capability(EnterpriseConcept):
     kind: ConceptKind = Field(default=ConceptKind.CAPABILITY)
     capability_kind: CapabilityKind = CapabilityKind.TOOL
     execution_mode: ExecutionMode = ExecutionMode.AI_MEDIATED
-    ai_spec: Optional[AiSpec] = None
-    compiled_ref: Optional[CompiledRef] = None
+    ai_spec: AiSpec | None = None
+    compiled_ref: CompiledRef | None = None
     transport: Transport = Transport.TIER3_BUS
     interface: CapabilityInterface = Field(default_factory=CapabilityInterface)
     owns_durable_state: bool = False
@@ -90,7 +88,7 @@ class Capability(EnterpriseConcept):
 class CapabilityRegistry:
     """Single registry for all Capabilities (tools, skills, Services)."""
 
-    def __init__(self, store: Optional[ConceptStore] = None) -> None:
+    def __init__(self, store: ConceptStore | None = None) -> None:
         self._store = store or ConceptStore()
 
     # ---- authoring ----
@@ -141,14 +139,14 @@ class CapabilityRegistry:
 
     # ---- accessors ----
 
-    def get(self, capability_id: str) -> Optional[Capability]:
+    def get(self, capability_id: str) -> Capability | None:
         concept = self._store.get(capability_id)
         return concept if isinstance(concept, Capability) else None
 
-    def list(self) -> List[Capability]:
+    def list(self) -> builtins.list[Capability]:
         return [c for c in self._store.list_by_kind(ConceptKind.CAPABILITY) if isinstance(c, Capability)]
 
-    def resolve(self, name: str, capability_kind: CapabilityKind) -> Optional[Capability]:
+    def resolve(self, name: str, capability_kind: CapabilityKind) -> Capability | None:
         for cap in self.list():
             if cap.name == name and cap.capability_kind == capability_kind:
                 return cap
@@ -159,7 +157,7 @@ class CapabilityRegistry:
     def record_invocation(self, capability_id: str, outcome: str = "success") -> None:
         self._store.record_invocation(capability_id, outcome)
 
-    def promote(self, capability_id: str, compiled_ref_path: Optional[str] = None) -> Capability:
+    def promote(self, capability_id: str, compiled_ref_path: str | None = None) -> Capability:
         cap = self.get(capability_id)
         if cap is None:
             raise KeyError(f"Capability not found: {capability_id}")

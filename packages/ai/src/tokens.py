@@ -10,10 +10,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
-
 
 # ---- models ----------------------------------------------------------------
 
@@ -39,7 +37,7 @@ class CostAccrual(BaseModel):
 
 
 # v1 rate table (USD per 1K tokens)
-_RATE_TABLE: Dict[str, tuple[float, float]] = {
+_RATE_TABLE: dict[str, tuple[float, float]] = {
     "gpt-4": (0.03, 0.06),
     "gpt-4-turbo": (0.01, 0.03),
     "gpt-3.5-turbo": (0.0015, 0.002),
@@ -51,10 +49,10 @@ _RATE_TABLE: Dict[str, tuple[float, float]] = {
 class TokenEconomics:
     """Accrues token usage and computes cost."""
 
-    def __init__(self, data_dir: Optional[str] = None) -> None:
+    def __init__(self, data_dir: str | None = None) -> None:
         self._data_dir = Path(data_dir or ".")
-        self._usages: List[TokenUsage] = []
-        self._accruals: List[CostAccrual] = []
+        self._usages: list[TokenUsage] = []
+        self._accruals: list[CostAccrual] = []
         self._load()
 
     def accrue(

@@ -12,22 +12,19 @@ Behaviour (SA-CONTRACTS-PHASE1.md C2, C7):
 - The three business Services register as Capabilities (owns_durable_state=true).
 """
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-
 from capabilities import (
     AiSpec,
     Capability,
     CapabilityInterface,
     CapabilityKind,
-    ExecutionMode,
-    Parameter,
     CapabilityRegistry,
+    Parameter,
 )
-from concepts import ConceptKind, ConceptStore, EnterpriseConcept
+from concepts import ConceptStore
 
 
 def _ai_spec() -> AiSpec:

@@ -12,11 +12,10 @@ substrate. Supports:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
-from langgraph.graph import END, StateGraph
 from langgraph.checkpoint.memory import MemorySaver
-
+from langgraph.graph import END, StateGraph
 from pathway_runtime import (
     PathwayCallRequest,
     PathwayResponse,
@@ -29,11 +28,11 @@ logger = logging.getLogger("langgraph.runtime")
 
 
 class GraphState(TypedDict, total=False):
-    messages: List[Dict[str, str]]
-    context: Dict[str, Any]
-    participants: List[Dict[str, Any]]
-    step_outputs: Dict[str, Any]
-    human_response: Optional[Dict[str, Any]]
+    messages: list[dict[str, str]]
+    context: dict[str, Any]
+    participants: list[dict[str, Any]]
+    step_outputs: dict[str, Any]
+    human_response: dict[str, Any] | None
     awaiting_human_input: bool
     human_question: str
 
@@ -43,14 +42,14 @@ class LangGraphRuntime(PathwayRuntime):
 
     def __init__(self) -> None:
         self._checkpointer = MemorySaver()
-        self._graphs: Dict[str, Any] = {}
+        self._graphs: dict[str, Any] = {}
 
     @property
     def id(self) -> str:
         return "langgraph"
 
     @property
-    def capabilities(self) -> List[RuntimeCapability]:
+    def capabilities(self) -> list[RuntimeCapability]:
         return [
             RuntimeCapability.STATEFUL,
             RuntimeCapability.CONCURRENT_PARTICIPANTS,
@@ -107,7 +106,7 @@ class LangGraphRuntime(PathwayRuntime):
                 telemetry={"runtime": "langgraph", "error": str(exc)},
             )
 
-    def resume(self, session_id: str, human_response: Dict[str, Any]) -> PathwayResponse:
+    def resume(self, session_id: str, human_response: dict[str, Any]) -> PathwayResponse:
         """Resume a paused session with human input."""
         thread_id = session_id
 
@@ -141,7 +140,7 @@ class LangGraphRuntime(PathwayRuntime):
                 telemetry={"runtime": "langgraph", "error": str(exc)},
             )
 
-    def _build_graph(self, pattern_step: Dict[str, Any]) -> Any:
+    def _build_graph(self, pattern_step: dict[str, Any]) -> Any:
         """Build a LangGraph StateGraph from a PatternStep definition."""
         graph = StateGraph(GraphState)
 
@@ -153,7 +152,7 @@ class LangGraphRuntime(PathwayRuntime):
             gate_condition = step.get("gate_condition")
 
             def make_node(role=role, tools=tools, step_id=step_id, gate_condition=gate_condition):
-                def node_fn(state: Dict[str, Any]) -> Dict[str, Any]:
+                def node_fn(state: dict[str, Any]) -> dict[str, Any]:
                     logger.info("LangGraph node: role=%s step=%s", role, step_id)
 
                     if gate_condition == "human_approval":
@@ -190,7 +189,7 @@ class LangGraphRuntime(PathwayRuntime):
             next_step = ordered_steps[i + 1].get("step_id", f"step-{i+1}") if i + 1 < len(ordered_steps) else END
 
             if step.get("gate_condition") == "human_approval":
-                def should_continue(state: Dict[str, Any]) -> str:
+                def should_continue(state: dict[str, Any]) -> str:
                     if state.get("awaiting_human_input"):
                         return "waiting"
                     return "continue"

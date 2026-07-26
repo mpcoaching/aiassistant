@@ -17,16 +17,16 @@ and swap-free.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, List, Optional
 
 from pydantic import BaseModel, Field
 
 
 class KnowledgeChunk(BaseModel):
     chunk_id: str
-    semantic_tags: List[str]
+    semantic_tags: list[str]
     payload_ref: str
     source: str  # session | capability | external
     source_ref: str
@@ -41,7 +41,7 @@ class KnowledgeChunkDiscovered(BaseModel):
     discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-def route_by_tags(tags: List[str]) -> str:
+def route_by_tags(tags: list[str]) -> str:
     """Map semantic tags to the target store (anchor §9.2)."""
     concept_tags = {"solved_approach", "adr", "playbook", "policy"}
     qdrant_tags = {"embedding", "similarity"}
@@ -59,7 +59,7 @@ def route_by_tags(tags: List[str]) -> str:
 class KnowledgeStore:
     """Ingests KnowledgeChunkDiscovered events and routes by semantic tag."""
 
-    def __init__(self, data_dir: Optional[str] = None) -> None:
+    def __init__(self, data_dir: str | None = None) -> None:
         self._data_dir = Path(data_dir or ".")
         self._concept_writer: Callable[[KnowledgeChunk], None] = lambda c: None
         self._qdrant_writer: Callable[[KnowledgeChunk], None] = lambda c: None
@@ -86,7 +86,7 @@ class KnowledgeStore:
         self._index_file(chunk)
         return target
 
-    def index(self, chunks: List[KnowledgeChunk]) -> None:
+    def index(self, chunks: list[KnowledgeChunk]) -> None:
         for chunk in chunks:
             self.ingest(chunk)
 
@@ -98,8 +98,8 @@ class KnowledgeStore:
         except OSError:
             pass
 
-    def search(self, query: str, tags: Optional[List[str]] = None, access_level: Optional[str] = None) -> List[KnowledgeChunk]:
-        results: List[KnowledgeChunk] = []
+    def search(self, query: str, tags: list[str] | None = None, access_level: str | None = None) -> list[KnowledgeChunk]:
+        results: list[KnowledgeChunk] = []
         index_path = self._data_dir / "knowledge_index.jsonl"
         if not index_path.exists():
             return results

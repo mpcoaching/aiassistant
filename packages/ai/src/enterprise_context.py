@@ -8,7 +8,6 @@ from the anchor doc. No framework concepts leak here (Principle 10).
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -86,7 +85,7 @@ class DecisionContext(BaseModel):
     confidence_required: ConfidenceRequired = ConfidenceRequired.MEDIUM
     authority_model: AuthorityModel = AuthorityModel.SINGLE_AUTHORITY
     reversibility: Reversibility = Reversibility.REVERSIBLE
-    mandatory_policy_checks: List[str] = Field(default_factory=list)
+    mandatory_policy_checks: list[str] = Field(default_factory=list)
     human_approval_required: bool = False
     timebox_seconds: int = 0
     cost_vs_quality: CostVsQuality = CostVsQuality.BALANCED

@@ -4,12 +4,10 @@ TDD tests for Phase 2 — Intent intake, Strategy Selection, and decide() assemb
 Contracts: SA-CONTRACTS-PHASES-2-5.md C3, C4, C9.
 """
 
-import pytest
 
-from intent import Intent, IntentOrigin, recognise, ProblemFrame
-from strategy import ReasoningStrategy, StrategyProposal, select_strategy
 from assistant import AssistantReasoningService, StrategyDecision
-
+from intent import Intent, IntentOrigin, ProblemFrame, recognise
+from strategy import ReasoningStrategy, select_strategy
 
 # ---- Intent / recognise (C3) ----------------------------------------------
 
@@ -119,12 +117,12 @@ def test_decide_includes_participant_roles() -> None:
 
 def _make_context(**overrides):
     from enterprise_context import ContextRecord
-    defaults = dict(
-        problem_context="routine_operation",
-        environment_context="ai_assisted",
-        information_context="internal_only",
-        activity_purpose="execute",
-        decision_context={"confidence_required": "medium", "authority_model": "single_authority", "reversibility": "reversible", "mandatory_policy_checks": [], "human_approval_required": False, "timebox_seconds": 0, "cost_vs_quality": "balanced"},
-    )
+    defaults = {
+        "problem_context": "routine_operation",
+        "environment_context": "ai_assisted",
+        "information_context": "internal_only",
+        "activity_purpose": "execute",
+        "decision_context": {"confidence_required": "medium", "authority_model": "single_authority", "reversibility": "reversible", "mandatory_policy_checks": [], "human_approval_required": False, "timebox_seconds": 0, "cost_vs_quality": "balanced"},
+    }
     defaults.update(overrides)
     return ContextRecord(**defaults)

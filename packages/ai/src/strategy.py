@@ -9,15 +9,11 @@ table with a learned selector without changing the interface.
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional
-
-from pydantic import BaseModel, Field
 
 from enterprise_context import (
-    ActivityPurpose,
     ContextRecord,
-    ProblemContext,
 )
+from pydantic import BaseModel, Field
 
 
 class ReasoningStrategy(str, Enum):

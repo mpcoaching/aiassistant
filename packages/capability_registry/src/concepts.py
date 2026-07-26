@@ -17,12 +17,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -46,8 +45,8 @@ class RecognitionLevel(str, Enum):
 class Provenance(BaseModel):
     """How this concept came to exist."""
 
-    source_session_id: Optional[str] = None
-    recognition_level: Optional[RecognitionLevel] = None
+    source_session_id: str | None = None
+    recognition_level: RecognitionLevel | None = None
 
 
 class MaturationHistory(BaseModel):
@@ -55,8 +54,8 @@ class MaturationHistory(BaseModel):
 
     invocation_count: int = 0
     correction_count: int = 0
-    last_invoked_at: Optional[datetime] = None
-    promoted_at: Optional[datetime] = None
+    last_invoked_at: datetime | None = None
+    promoted_at: datetime | None = None
     promotion_candidacy: bool = False
 
 
@@ -74,18 +73,18 @@ class EnterpriseConcept(BaseModel):
     owner: str = "core"
     created_by: str = "system"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    tags: List[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     provenance: Provenance = Field(default_factory=Provenance)
-    payload: Dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class ConceptStore:
     """Postgres-with-file-fallback store for EnterpriseConcept rows."""
 
-    def __init__(self, data_dir: Optional[str] = None) -> None:
+    def __init__(self, data_dir: str | None = None) -> None:
         self._lock = threading.Lock()
-        self._rows: Dict[str, EnterpriseConcept] = {}
-        self._file_path = Path(data_dir or os.getenv("CONCEPT_STORE_DIR", ".")) / "concepts.json"
+        self._rows: dict[str, EnterpriseConcept] = {}
+        self._file_path = Path(data_dir or "./concepts_data") / "concepts.json"
         self._load_file()
 
     # ---- public API (C1 / C6) ----
@@ -95,15 +94,15 @@ class ConceptStore:
             self._rows[concept.id] = concept
             self._persist_file_strict()
 
-    def get(self, concept_id: str) -> Optional[EnterpriseConcept]:
+    def get(self, concept_id: str) -> EnterpriseConcept | None:
         with self._lock:
             return self._rows.get(concept_id)
 
-    def list_by_kind(self, kind: ConceptKind) -> List[EnterpriseConcept]:
+    def list_by_kind(self, kind: ConceptKind) -> list[EnterpriseConcept]:
         with self._lock:
             return [c for c in self._rows.values() if c.kind == kind]
 
-    def list_by_tag(self, tag: str) -> List[EnterpriseConcept]:
+    def list_by_tag(self, tag: str) -> list[EnterpriseConcept]:
         with self._lock:
             return [c for c in self._rows.values() if tag in c.tags]
 
@@ -122,36 +121,6 @@ class ConceptStore:
             self._persist_file_strict()
 
     # ---- persistence (mirrors db.py: pg primary, file fallback) ----
-
-    def _pg_upsert(self, concept: EnterpriseConcept) -> None:
-        # Routed through the Postgres stored procedure `upsert_enterprise_concept`.
-        # Declared here so the call site is single and the SQL lives in migrations.
-        import psycopg2  # type: ignore[import-untyped]
-
-        from db import DATABASE_URL
-
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT upsert_enterprise_concept(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                    (
-                        concept.id,
-                        concept.kind.value,
-                        concept.name,
-                        concept.version_major,
-                        concept.version_minor,
-                        concept.version_patch,
-                        concept.status,
-                        concept.description,
-                        concept.owner,
-                        concept.created_by,
-                        concept.created_at.isoformat(),
-                        json.dumps(concept.tags),
-                        json.dumps(concept.provenance.model_dump()),
-                        json.dumps(concept.payload),
-                    ),
-                )
-            conn.commit()
 
     def _load_file(self) -> None:
         if not self._file_path.exists():
