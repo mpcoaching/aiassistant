@@ -8,23 +8,12 @@ directly — the Configuration Manager selects and orchestrates them.
 
 from __future__ import annotations
 
-from typing import Any, Dict
-
-
-class ProviderUnavailableError(Exception):
-    """Raised when a configuration source is unavailable."""
-
-
-class ConfigurationResolutionFailed(Exception):
-    """Raised when configuration validation fails or required fields are missing."""
-
-    def __init__(self, model_name: str, errors: list[str]) -> None:
-        self.model_name = model_name
-        self.errors = errors
-        super().__init__(
-            f"ConfigurationResolutionFailed: could not resolve {model_name}. "
-            + "; ".join(errors)
-        )
+from configuration.providers.exceptions import (
+    ConfigurationResolutionFailed,
+    ProviderUnavailableError,
+    RegistryValidationResult,
+)
+from configuration.providers.registry import RegistryProvider
 
 
 class ConfigurationProvider:
@@ -49,4 +38,6 @@ __all__ = [
     "ConfigurationProvider",
     "ConfigurationResolutionFailed",
     "ProviderUnavailableError",
+    "RegistryProvider",
+    "RegistryValidationResult",
 ]

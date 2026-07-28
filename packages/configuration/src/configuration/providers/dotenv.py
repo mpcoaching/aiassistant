@@ -10,7 +10,8 @@ import os
 
 from dotenv import dotenv_values
 
-from configuration.providers import ConfigurationProvider, ProviderUnavailableError
+from configuration.providers import ConfigurationProvider
+from configuration.providers.exceptions import ProviderUnavailableError
 
 
 class DotEnvProvider(ConfigurationProvider):
