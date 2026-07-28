@@ -7,9 +7,80 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from configuration.contracts.base import Contract, Lifecycle
 from configuration.contracts.v1.database import DatabaseConfiguration
 from configuration.contracts.v1.langgraph_runtime import LangGraphRuntimeConfiguration
 from configuration.contracts.v1.message_bus import MessageBusConfiguration
+
+
+class TestLifecycle:
+    def test_creates_lifecycle(self):
+        lc = Lifecycle(platform="platform", capability="database", execution="runtime")
+        assert lc.platform == "platform"
+        assert lc.capability == "database"
+        assert lc.execution == "runtime"
+
+    def test_lifecycle_is_frozen(self):
+        lc = Lifecycle(platform="platform", capability="database", execution="runtime")
+        with pytest.raises(Exception):
+            lc.platform = "other"
+
+
+class TestContractMetadata:
+    def test_database_type_id(self):
+        assert DatabaseConfiguration.type_id() == "database"
+
+    def test_database_purpose(self):
+        assert DatabaseConfiguration.purpose() == "Database connection configuration"
+
+    def test_database_owner(self):
+        assert DatabaseConfiguration.owner() == "platform"
+
+    def test_database_lifecycle(self):
+        lc = DatabaseConfiguration.lifecycle()
+        assert lc.platform == "platform"
+        assert lc.capability == "database"
+        assert lc.execution == "runtime"
+
+    def test_database_documentation(self):
+        assert DatabaseConfiguration.documentation() == "Configuration for connecting to the PostgreSQL database"
+
+    def test_database_validation_strategy_returns_none_by_default(self):
+        assert DatabaseConfiguration.validation_strategy() is None
+
+    def test_message_bus_type_id(self):
+        assert MessageBusConfiguration.type_id() == "message-bus"
+
+    def test_message_bus_purpose(self):
+        assert MessageBusConfiguration.purpose() == "Message bus connection configuration"
+
+    def test_message_bus_owner(self):
+        assert MessageBusConfiguration.owner() == "platform"
+
+    def test_message_bus_lifecycle(self):
+        lc = MessageBusConfiguration.lifecycle()
+        assert lc.platform == "platform"
+        assert lc.capability == "message-bus"
+        assert lc.execution == "runtime"
+
+    def test_langgraph_type_id(self):
+        assert LangGraphRuntimeConfiguration.type_id() == "langgraph-runtime"
+
+    def test_langgraph_purpose(self):
+        assert LangGraphRuntimeConfiguration.purpose() == "LangGraph runtime connection configuration"
+
+    def test_langgraph_owner(self):
+        assert LangGraphRuntimeConfiguration.owner() == "platform"
+
+    def test_langgraph_lifecycle(self):
+        lc = LangGraphRuntimeConfiguration.lifecycle()
+        assert lc.platform == "platform"
+        assert lc.capability == "langgraph"
+        assert lc.execution == "runtime"
+
+    def test_contract_is_abstract(self):
+        with pytest.raises(TypeError):
+            Contract()
 
 
 class TestDatabaseConfiguration:

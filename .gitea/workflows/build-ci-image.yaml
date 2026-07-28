@@ -16,6 +16,10 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    env:
+      REGISTRY_USER: ${{ env.REGISTRY_USER }}
+      REGISTRY_PASSWORD: ${{ env.REGISTRY_PASSWORD }}
+
     steps:
 
       - name: Checkout
@@ -26,6 +30,17 @@ jobs:
         run: |
           docker version
           docker info
+
+      - name: Validate Registry Credentials
+        run: |
+          python3 -c '
+            from configuration.providers.registry import RegistryProvider
+            provider = RegistryProvider(env_file=".env")
+            result = provider.validate()
+            if not result.success:
+              print("Registry validation failed: " + result.error)
+              exit(1)
+            print("Registry validation successful")
 
 
       - name: Build CI Worker Image
@@ -44,18 +59,40 @@ jobs:
             yq --version
           "
 
-      - name: Environment Diagnostic
+      - name: Login to Local Registry
         run: |
-          echo "REGISTRY_USER=${REGISTRY_USER}"
-          echo "REGISTRY_PASSWORD length=${#REGISTRY_PASSWORD}"
+          echo "$REGISTRY_PASSWORD" | \
+          docker login registry.local.test \
+            --username "$REGISTRY_USER" \
+            --password-stdin
 
       - name: Login to Local Registry
         run: |
-          echo "${{ secrets.REGISTRY_PASSWORD }}" | \
-          docker login registry.local.test \
-            --username "${{ secrets.REGISTRY_USERNAME }}" \
-            --password-stdin
+          python3 -c '
+          from configuration.contracts.v1.registry import RegistryConfiguration
+          from configuration.manager import ConfigurationManager
+          from configuration.providers.dotenv import DotEnvProvider
+          import os
+          
+          # Use only environment variables - DO NOT read from .env files
+          # Check that required env vars are set
+          if "REGISTRY_USER" not in os.environ or "REGISTRY_PASSWORD" not in os.environ:
+            print("ERROR: REGISTRY_USER and REGISTRY_PASSWORD must be set")
+            exit(1)
+          
+          # Use a non-existent path to ensure we ONLY read from environment variables
+          manager = ConfigurationManager(DotEnvProvider(env_file="/dev/null/nonexistent.env"))
+          config = manager.resolve(RegistryConfiguration)
+          
+          # Output environment variables for subsequent steps
+          print(f"export REGISTRY_USER={config.username}")
+          print(f"export REGISTRY_PASSWORD={config.password}")
+          print(f"export REGISTRY_ENDPOINT={config.endpoint}")
+          '> $GITHUB_ENV
 
+          docker login config.endpoint \
+            --username config.username \
+            --password config.password
 
       - name: Tag CI Worker Image
         run: |
@@ -63,12 +100,10 @@ jobs:
             aiassistant-ci:test \
             registry.local.test/aiassistant/ci-runner:0.1.0
 
-
       - name: Push CI Worker Image
         run: |
           docker push \
             registry.local.test/aiassistant/ci-runner:0.1.0
-
 
       - name: Complete
         run: |
