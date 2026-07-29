@@ -6,19 +6,20 @@ on:
   push:
     paths:
       - infrastructure/images/ci-runner/**
+      - packages/configuration/**
 
 
 jobs:
 
   build:
 
-    name: Build CI Worker
+    name: Build CI Worker and Configuration Manager
 
     runs-on: ubuntu-latest
 
     env:
-      REGISTRY_USER: ${{ env.REGISTRY_USER }}
-      REGISTRY_PASSWORD: ${{ env.REGISTRY_PASSWORD }}
+      REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
 
     steps:
 
@@ -31,16 +32,21 @@ jobs:
           docker version
           docker info
 
-      - name: Validate Registry Credentials
+
+      - name: Validate Required Secrets
         run: |
-          python3 -c '
-            from configuration.providers.registry import RegistryProvider
-            provider = RegistryProvider(env_file=".env")
-            result = provider.validate()
-            if not result.success:
-              print("Registry validation failed: " + result.error)
-              exit(1)
-            print("Registry validation successful")
+          if [ -z "$REGISTRY_USER" ] || [ -z "$REGISTRY_PASSWORD" ]; then
+            echo "ERROR: REGISTRY_USER and REGISTRY_PASSWORD secrets must be set"
+            exit 1
+          fi
+          echo "Registry credentials validated from secrets"
+
+
+      - name: Build Configuration Manager Image
+        run: |
+          docker build \
+            -t platform/configuration-manager:test \
+            packages/configuration
 
 
       - name: Build CI Worker Image
@@ -59,6 +65,15 @@ jobs:
             yq --version
           "
 
+
+      - name: Test Configuration Manager Image
+        run: |
+          docker run --rm platform/configuration-manager:test sh -c "
+            python --version &&
+            pip --version
+          "
+
+
       - name: Login to Local Registry
         run: |
           echo "$REGISTRY_PASSWORD" | \
@@ -66,33 +81,6 @@ jobs:
             --username "$REGISTRY_USER" \
             --password-stdin
 
-      - name: Login to Local Registry
-        run: |
-          python3 -c '
-          from configuration.contracts.v1.registry import RegistryConfiguration
-          from configuration.manager import ConfigurationManager
-          from configuration.providers.dotenv import DotEnvProvider
-          import os
-          
-          # Use only environment variables - DO NOT read from .env files
-          # Check that required env vars are set
-          if "REGISTRY_USER" not in os.environ or "REGISTRY_PASSWORD" not in os.environ:
-            print("ERROR: REGISTRY_USER and REGISTRY_PASSWORD must be set")
-            exit(1)
-          
-          # Use a non-existent path to ensure we ONLY read from environment variables
-          manager = ConfigurationManager(DotEnvProvider(env_file="/dev/null/nonexistent.env"))
-          config = manager.resolve(RegistryConfiguration)
-          
-          # Output environment variables for subsequent steps
-          print(f"export REGISTRY_USER={config.username}")
-          print(f"export REGISTRY_PASSWORD={config.password}")
-          print(f"export REGISTRY_ENDPOINT={config.endpoint}")
-          '> $GITHUB_ENV
-
-          docker login config.endpoint \
-            --username config.username \
-            --password config.password
 
       - name: Tag CI Worker Image
         run: |
@@ -100,11 +88,26 @@ jobs:
             aiassistant-ci:test \
             registry.local.test/aiassistant/ci-runner:0.1.0
 
+
+      - name: Tag Configuration Manager Image
+        run: |
+          docker tag \
+            platform/configuration-manager:test \
+            registry.local.test/aiassistant/configuration-manager:0.1.0
+
+
       - name: Push CI Worker Image
         run: |
           docker push \
             registry.local.test/aiassistant/ci-runner:0.1.0
 
+
+      - name: Push Configuration Manager Image
+        run: |
+          docker push \
+            registry.local.test/aiassistant/configuration-manager:0.1.0
+
+
       - name: Complete
         run: |
-          echo "CI worker image build successful"
+          echo "CI worker and configuration-manager images built and pushed successfully"

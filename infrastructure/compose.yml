@@ -120,6 +120,9 @@ services:
 
   # ----- Configuration Manager: resolves, validates, caches contracts -----
   configuration-manager:
+    build:
+      context: ../packages/configuration
+      dockerfile: Dockerfile
     image: platform/configuration-manager:latest
     container_name: infra_configuration_manager
     environment:
