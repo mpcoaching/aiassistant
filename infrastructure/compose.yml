@@ -103,9 +103,41 @@ services:
       - infrastructure-network
       - platform-network
 
-  
+  # ----- Redis: shared cache for Configuration Manager -----
+  redis:
+    image: redis:7-alpine
+    container_name: infra_redis
+    networks:
+      - platform-network
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
-
+  # ----- Configuration Manager: resolves, validates, caches contracts -----
+  configuration-manager:
+    image: platform/configuration-manager:latest
+    container_name: infra_configuration_manager
+    environment:
+      REDIS_URL: redis://redis:6379
+      CONTRACTS_PATH: /etc/platform/contracts
+      SOURCES_CONFIG_PATH: /etc/platform/sources.yaml
+    networks:
+      - platform-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   # ----- Private registry (immutable <git-sha> images) -----
   # Serves plain HTTP internally; TLS is terminated by nginx-proxy for
@@ -157,3 +189,5 @@ networks:
 volumes:
   gitea_data:
   registry_data:
+  redis_data:
+  configuration_data:

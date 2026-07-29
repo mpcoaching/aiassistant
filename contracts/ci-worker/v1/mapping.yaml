@@ -1,0 +1,5 @@
+mapping:
+  source_control.endpoint:
+    source_key: GITEA_URL
+  source_control.authentication.token:
+    source_key: RUNNER_TOKEN

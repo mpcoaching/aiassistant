@@ -1,0 +1,14 @@
+sources:
+  providers:
+    - type: env
+      enabled: true
+    - type: json
+      enabled: true
+      path: /etc/platform/config.json
+    - type: local
+      enabled: true
+      path: /etc/platform/config.d
+  precedence:
+    - env
+    - json
+    - local

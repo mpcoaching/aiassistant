@@ -1,0 +1,17 @@
+name: ci-worker
+version: v1
+
+requirements:
+  source_control:
+    endpoint:
+      required: true
+    authentication:
+      required: true
+  runner:
+    labels:
+      required: true
+
+validators:
+  - required-fields
+  - endpoint-connectivity
+  - authentication

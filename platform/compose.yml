@@ -278,6 +278,20 @@ services:
       - live-network
     restart: unless-stopped
 
+  # ---------- CI Worker (Capability) ----------
+  ci-worker:
+    image: aiassistant-ci:0.1.0
+    container_name: platform_ci_worker
+    environment:
+      CONFIG_MANAGER_URL: http://configuration-manager:8080
+      CAPABILITY: ci-worker
+    depends_on:
+      configuration-manager:
+        condition: service_healthy
+    networks:
+      - platform-network
+    restart: unless-stopped
+
   # ---------- Optional (disabled by default) ----------
   minio:
     image: minio/minio
@@ -342,3 +356,4 @@ volumes:
   openobserve_storage:
   minio_data:
   n8n_data:
+  ci_worker_data:
