@@ -8,7 +8,7 @@ status:
 dns-setup:
 	@echo "Configuring Docker DNS for builds..."
 	sudo mkdir -p /etc/docker
-	sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+	sudo tee /etc/docker/daemon.json > /dev/null <<'EOF'
 {
   "dns": ["1.1.1.1", "8.8.8.8"],
   "dns-search": ["."]
@@ -29,7 +29,6 @@ restart-platform:
 
 restart-infrastructure:
 	docker compose -f infrastructure/compose.yml --env-file .env restart
-
 
 infra-rebuild:
 	$(MAKE) dns-setup
