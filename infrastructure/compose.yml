@@ -30,12 +30,10 @@ services:
       timeout: 5s
       retries: 5
 
-  # ----- DNS: internal only — resolves *.local.test for Docker network containers -----
-  # Not exposed on the host. Docker's built-in DNS (127.0.0.11) handles all
-  # inter-container service discovery. CoreDNS is only for *.local.test FQDN
-  # resolution from within the infrastructure-network. Docker operations (pull,
-  # build) must never depend on CoreDNS — they use system DNS.
-  dns:
+  # ----- DNS: CoreDNS — resolves *.local.test for Docker network containers AND external clients -----
+  # Exposed on host port 53 so Fedora/laptop can query it for *.local.test resolution.
+  # Forwards non-*.local.test queries to public DNS (1.1.1.1).
+  core_dns:
     image: coredns/coredns:1.11.1
     container_name: infra_dns
     command: -conf /Corefile
@@ -44,6 +42,7 @@ services:
       - "53:53/udp"
     volumes:
       - ./configs/coredns/Corefile:/Corefile:ro
+      - ./configs/coredns/local-test-zones.json:/etc/coredns/local-test-zones.json:ro
     networks:
       - infrastructure-network
     restart: unless-stopped

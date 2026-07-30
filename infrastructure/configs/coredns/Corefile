@@ -1,4 +1,4 @@
-.:53 {
+:53 {
     log
     errors
 
@@ -28,6 +28,10 @@
         192.168.1.238 langgraph.live.local.test
 
         fallthrough
+    }
+
+    local.test {
+        file "local-test-zones.json"
     }
 
     forward . 1.1.1.1 8.8.8.8
