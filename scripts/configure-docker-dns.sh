@@ -34,5 +34,4 @@ else
     exit 1
 fi
 
-echo "Docker daemon DNS configured to use systemd-resolved (127.0.0. Shares: 127.0.0.53)"
-EOF
+echo "Docker daemon DNS configured to use systemd-resolved (127.0.0.53)"
