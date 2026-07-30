@@ -27,7 +27,7 @@ sudo cp /etc/resolv.conf /etc/resolv.conf.backup
 
 # Set DNS to query your server's CoreDNS for .local.test, fallback to Cloudflare
 sudo tee /etc/resolv.conf > /dev/null <<EOF
-nameserver <SERVER_IP>
+nameserver 192.168.1.238
 nameserver 1.1.1.1
 options edns0 trust-ad
 search .
