@@ -20,8 +20,8 @@ restart-infrastructure:
 
 
 infra-rebuild:
-	docker compose -f infrastructure/compose.yml build configuration-manager
-	docker compose -f infrastructure/compose.yml --env-file .env up -d
+	git pull
+	docker compose -f infrastructure/compose.yml --env-file .env up -d --build
 
 infra-up:
 	docker compose -f infrastructure/compose.yml --env-file .env up -d

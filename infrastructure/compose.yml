@@ -30,18 +30,17 @@ services:
       timeout: 5s
       retries: 5
 
-  # ----- DNS: wildcard *.local.test -> host -----
+  # ----- DNS: internal only — resolves *.local.test for Docker network containers -----
+  # Not exposed on the host. Docker's built-in DNS (127.0.0.11) handles all
+  # inter-container service discovery. CoreDNS is only for *.local.test FQDN
+  # resolution from within the infrastructure-network. Docker operations (pull,
+  # build) must never depend on CoreDNS — they use system DNS.
   dns:
     image: coredns/coredns:1.11.1
     container_name: infra_dns
-    ports:
-      - "53:53/udp"
-      - "53:53/tcp"
     command: -conf /Corefile
     volumes:
       - ./configs/coredns/Corefile:/Corefile:ro
-    cap_add:
-      - NET_ADMIN
     networks:
       - infrastructure-network
     restart: unless-stopped
