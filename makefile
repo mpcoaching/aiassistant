@@ -50,4 +50,3 @@ infra-down:
 
 platform-down:
 	docker compose -f platform/compose.yml --env-file .env down
-
