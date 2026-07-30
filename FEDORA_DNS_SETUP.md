@@ -5,82 +5,98 @@ This guide configures your Fedora system to:
 2. Fall back to public DNS (1.1.1.1) for all other domains
 
 ## Prerequisites
-- Your server is running and accessible via its IP address
-- CoreDNS is exposed on port 53 on the server (already configured in this repo)
-- The server's CoreDNS is set up to resolve `*.local.test` (via local-test-zones.json)
+- Your **server** has systemd-resolved **disabled** and CoreDNS running on port 53
+- The server's IP is `192.168.1.238`
+- CoreDNS resolves `*.local.test` to your server's IP
 
-## Steps
-
-### 1. Find Your Server's IP Address
-On the server, run:
-```bash
-hostname -I  # or ip a
-```
-Note the IP address (e.g., `192.168.1.100` or `203.0.113.5`).
-
-### 2. Configure Fedora DNS
-Run these commands on your Fedora machine:
+## Server Setup (Run ONCE on Ubuntu Server)
 
 ```bash
-# Backup current resolv.conf
-sudo cp /etc/resolv.conf /etc/resolv.conf.backup
+# 1. Stop and disable systemd-resolved (frees port 53 for CoreDNS)
+sudo systemctl stop systemd-resolved
+sudo systemctl disable systemd-resolved
 
-# Set DNS to query your server's CoreDNS for .local.test, fallback to Cloudflare
+# 2. Remove stub resolv.conf
+sudo rm /etc/resolv.conf
+
+# 3. Point server DNS to CoreDNS
 sudo tee /etc/resolv.conf > /dev/null <<EOF
-nameserver 192.168.1.238
-nameserver 1.1.1.1
+nameserver 127.0.0.1
 options edns0 trust-ad
 search .
 EOF
 
-# Make it immutable (optional but recommended to prevent DHCP overwrites)
-# sudo chattr +i /etc/resolv.conf
+# 4. Rebuild infrastructure
+cd ~/projects/aiassistant
+make infra-rebuild
 ```
 
-Replace `<SERVER_IP>` with your server's actual IP address.
+## Fedora Client Setup (Run on your laptop)
 
-### 3. Test the Configuration
 ```bash
-# Should resolve to your server's IP (e.g., 192.168.1.238)
-dig gitea.local.test @localhost
+# Install dnsmasq for split-horizon DNS
+sudo dnf install -y dnsmasq
 
-# Should resolve normally (not your server's IP)
-dig google.com @localhost
+# Configure dnsmasq: forward *.local.test to server's CoreDNS (port 53)
+sudo tee /etc/dnsmasq.d/local-test.conf > /dev/null <<EOF
+# Forward all *.local.test queries to server's CoreDNS
+server=/local.test/192.168.1.238
 
-# Test reverse
-dig +short myip.opendns.com @resolver1.opendns.com
+# Use public DNS for everything else
+server=1.1.1.1
+server=8.8.8.8
+
+# Listen on localhost only
+listen-address=127.0.0.1
+port=53
+EOF
+
+# Stop systemd-resolved on Fedora too
+sudo systemctl stop systemd-resolved
+sudo systemctl disable systemd-resolved
+
+# Start dnsmasq
+sudo systemctl enable dnsmasq
+sudo systemctl start dnsmasq
+
+# Point resolv.conf to local dnsmasq
+sudo cp /etc/resolv.conf /etc/resolv.conf.backup
+sudo tee /etc/resolv.conf > /dev/null <<EOF
+nameserver 127.0.0.1
+options edns0 trust-ad
+search .
+EOF
 ```
 
-### 4. Verify CoreDNS is Working on Server
-On your server, check:
-```bash
-# Test internal resolution
-dig gitea.local.test @127.0.0.1 -p 53
+## Test the Configuration
 
-# Test external resolution
-dig google.com @127.0.0.1 -p 53
+```bash
+# Should resolve to 192.168.1.238
+dig gitea.local.test @127.0.0.1
+
+# Should resolve via public DNS (not 192.168.1.238)
+dig google.com @127.0.0.1
+
+# Verify dnsmasq is forwarding correctly
+dig *.local.test @127.0.0.1
 ```
 
 ## How It Works
-- All DNS queries go to your server's CoreDNS (port 53) first
-- CoreDNS checks `local-test-zones.json` for `*.local.test` matches
-- If found, returns the server's IP (192.168.1.238)
-- If not found (or for non-.local.test domains), forwards to 1.1.1.1
-- Your Fedora sees 1.1.1.1 as secondary, but CoreDNS handles forwarding
+1. **Fedora** sends all DNS to local dnsmasq (127.0.0.1:53)
+2. **dnsmasq** checks if query is `*.local.test`
+3. If yes → forwards to server's CoreDNS (192.168.1.238:53)
+4. If no → forwards to public DNS (1.1.1.1)
+5. **Server's CoreDNS** handles `*.local.test` internally, forwards others to 1.1.1.1
 
 ## Troubleshooting
-If resolution fails:
-1. Check server firewall: `sudo firewall-cmd --list-ports` (should include 53/tcp,53/udp)
-2. Verify CoreDNS is running: `docker ps | grep core_dns`
-3. Test from server: `dig @127.0.0.1 -p 53 gitea.local.test`
-4. Check Fedora resolv.conf: `cat /etc/resolv.conf`
+- Check dnsmasq: `sudo systemctl status dnsmasq`
+- Check CoreDNS on server: `docker ps | grep core_dns`
+- Test server DNS: `dig @192.168.1.238 gitea.local.test`
 
 ## To Revert
 ```bash
+sudo systemctl stop dnsmasq
+sudo systemctl disable dnsmasq
 sudo cp /etc/resolv.conf.backup /etc/resolv.conf
-# or
-sudo dhclient -r  # if using DHCP
+sudo systemctl enable --now systemd-resolved
 ```
-
----
-*This setup maintains split-horizon DNS: internal .local.domain via your infrastructure, external via public resolvers.*
