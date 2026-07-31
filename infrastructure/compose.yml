@@ -40,9 +40,9 @@ services:
     ports:
       - "53:53/tcp"
       - "53:53/udp"
-    volumes:
-      - ./configs/coredns/Corefile:/Corefile:ro
-      - ./configs/coredns/local-test-zones.json:/etc/coredns/local-test-zones.json:ro
+volumes:
+      - ./configs/coredns/Corefile:/etc/coredns/Corefile:ro
+      - ./configs/coredns/local.test.zone:/etc/coredns/local.test.zone:ro
     networks:
       - infrastructure-network
     restart: unless-stopped

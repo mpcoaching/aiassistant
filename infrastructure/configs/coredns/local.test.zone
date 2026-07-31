@@ -1,0 +1,36 @@
+$TTL 60
+@       IN SOA  localhost. root.localhost. (
+                2026073101      ; serial
+                1h              ; refresh
+                15m             ; retry
+                1w              ; expire
+                30m             ; minimum
+        )
+        IN NS   localhost.
+        IN A    127.0.0.1
+
+; Explicit service entries
+gitea.local.test            IN A  192.168.1.238
+registry.local.test         IN A  192.168.1.238
+lf.local.test               IN A  192.168.1.238
+oo.local.test               IN A  192.168.1.238
+otel.local.test             IN A  192.168.1.238
+qdrant.local.test           IN A  192.168.1.238
+control-center.local.test   IN A  192.168.1.238
+dev.local.test              IN A  192.168.1.238
+workflow-engine.local.test  IN A  192.168.1.238
+gateway.local.test          IN A  192.168.1.238
+portkey.local.test          IN A  192.168.1.238
+n8n.local.test              IN A  192.168.1.238
+langfuse.local.test         IN A  192.168.1.238
+langgraph.local.test        IN A  192.168.1.238
+openobserve.local.test      IN A  192.168.1.238
+agent.dev.local.test        IN A  192.168.1.238
+api.dev.local.test          IN A  192.168.1.238
+langgraph.dev.local.test    IN A  192.168.1.238
+agent.live.local.test       IN A  192.168.1.238
+api.live.local.test         IN A  192.168.1.238
+langgraph.live.local.test   IN A  192.168.1.238
+
+; Wildcard catch-all for any remaining *.local.test
+*.local.test                IN A  192.168.1.238
