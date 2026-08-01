@@ -1,14 +1,13 @@
-# Public DNS - forward all non-local.test queries
-. {
+:53 {
     log
     errors
+
+    # Handle *.local.test queries
+    local.test {
+        file /etc/coredns/local.test.zone
+    }
+
+    # Forward everything else (except *.local.test)
     forward . 1.1.1.1 8.8.8.8
     cache 30
-}
-
-# Local DNS - authoritative for local.test
-local.test {
-    log
-    errors
-    file /etc/coredns/local.test.zone
 }
