@@ -1,13 +1,13 @@
 $TTL 60
-@       IN SOA  localhost. root.localhost. (
+@       IN SOA  local.test. root.local.test. (
                 2026073101      ; serial
                 1h              ; refresh
                 15m             ; retry
                 1w              ; expire
                 30m             ; minimum
         )
-        IN NS   localhost.
-        IN A    127.0.0.1
+        IN NS   local.test.
+        IN A    192.168.1.238
 
 ; Explicit service entries
 gitea.local.test            IN A  192.168.1.238
@@ -34,3 +34,4 @@ langgraph.live.local.test   IN A  192.168.1.238
 
 ; Wildcard catch-all for any remaining *.local.test
 *.local.test                IN A  192.168.1.238
+EOF
