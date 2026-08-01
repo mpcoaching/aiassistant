@@ -46,6 +46,7 @@ jobs:
       - name: Build CI Worker Image
         run: |
           docker build \
+            --no-cache \
             -t aiassistant-ci:test \
             infrastructure/images/ci-runner
 
