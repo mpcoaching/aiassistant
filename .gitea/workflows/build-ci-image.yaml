@@ -50,27 +50,26 @@ jobs:
 
       - name: Resolve Registry Configuration
         run: |
-          python3 -c '
+          docker run --rm -i \
+            -e REGISTRY_USER \
+            -e REGISTRY_PASSWORD \
+            aiassistant-ci:test python3 - << 'PYEOF' > $GITHUB_ENV
           from configuration.contracts.v1.registry import RegistryConfiguration
           from configuration.manager import ConfigurationManager
           from configuration.providers.dotenv import DotEnvProvider
           import os
           
-          # Use only environment variables - DO NOT read from .env files
-          # Check that required env vars are set
           if "REGISTRY_USER" not in os.environ or "REGISTRY_PASSWORD" not in os.environ:
             print("ERROR: REGISTRY_USER and REGISTRY_PASSWORD must be set")
             exit(1)
           
-          # Use a non-existent path to ensure we ONLY read from environment variables
           manager = ConfigurationManager(DotEnvProvider(env_file="/dev/null/nonexistent.env"))
           config = manager.resolve(RegistryConfiguration)
           
-          # Output environment variables for subsequent steps
           print(f"export REGISTRY_USER={config.username}")
           print(f"export REGISTRY_PASSWORD={config.password}")
           print(f"export REGISTRY_ENDPOINT={config.endpoint}")
-          '> $GITHUB_ENV
+          PYEOF
 
       - name: Login to Local Registry
         run: |
