@@ -1,13 +1,14 @@
-:53 {
+# local.test zone - authoritative
+local.test:53 {
     log
     errors
+    file /etc/coredns/local.test.zone
+}
 
-    # Handle *.local.test queries
-    local.test {
-        file /etc/coredns/local.test.zone
-    }
-
-    # Forward everything else (except *.local.test)
+# Root zone (.:53) - forward everything else
+. {
+    log
+    errors
     forward . 1.1.1.1 8.8.8.8
     cache 30
 }
