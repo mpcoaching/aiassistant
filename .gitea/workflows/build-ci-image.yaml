@@ -67,6 +67,7 @@ jobs:
           from configuration.contracts.v1.registry import RegistryConfiguration
           from configuration.manager import ConfigurationManager
           from configuration.providers.env_file import DotEnvProvider
+          from configuration.providers.registry import RegistryProvider
           
           if "REGISTRY_USER" not in os.environ or "REGISTRY_PASSWORD" not in os.environ:
             print("ERROR: REGISTRY_USER and REGISTRY_PASSWORD must be set", file=sys.stderr)
@@ -74,6 +75,13 @@ jobs:
           
           manager = ConfigurationManager(DotEnvProvider(env_file=".env"))
           config = manager.resolve(RegistryConfiguration)
+          
+          provider = RegistryProvider(env_file=".env")
+          result = provider.validate()
+          
+          if not result.success:
+            print(f"ERROR: Registry validation failed: {result.error}", file=sys.stderr)
+            sys.exit(1)
           
           print(f"export REGISTRY_USER={config.username}")
           print(f"export REGISTRY_PASSWORD={config.password}")
