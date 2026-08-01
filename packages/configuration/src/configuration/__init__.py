@@ -20,7 +20,7 @@ from configuration.providers import (
     RegistryProvider,
     RegistryValidationResult,
 )
-from configuration.providers.dotenv import DotEnvProvider
+from configuration.providers.env_file import DotEnvProvider
 
 __all__ = [
     "ConfigurationManager",

@@ -67,7 +67,7 @@ jobs:
           python3 - << 'PYEOF' > $GITHUB_ENV
           from configuration.contracts.v1.registry import RegistryConfiguration
           from configuration.manager import ConfigurationManager
-          from configuration.providers.dotenv import DotEnvProvider
+          from configuration.providers.env_file import DotEnvProvider
           import os
           
           if "REGISTRY_USER" not in os.environ or "REGISTRY_PASSWORD" not in os.environ:
