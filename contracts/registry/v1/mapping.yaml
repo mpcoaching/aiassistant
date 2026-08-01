@@ -1,0 +1,7 @@
+mapping:
+  REGISTRY_USER:
+    source_key: REGISTRY_USER
+  REGISTRY_PASSWORD:
+    source_key: REGISTRY_PASSWORD
+  REGISTRY_ENDPOINT:
+    source_key: REGISTRY_ENDPOINT

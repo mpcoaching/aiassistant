@@ -1,0 +1,16 @@
+name: registry
+version: v1
+
+requirements:
+  REGISTRY_USER:
+    required: true
+  REGISTRY_PASSWORD:
+    required: true
+  REGISTRY_ENDPOINT:
+    required: true
+    default: https://registry.local.test
+
+validators:
+  - required-fields
+  - endpoint-connectivity
+  - authentication

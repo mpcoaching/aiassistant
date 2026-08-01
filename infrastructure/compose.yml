@@ -129,6 +129,11 @@ services:
       REDIS_URL: redis://redis:6379
       CONTRACTS_PATH: /etc/platform/contracts
       SOURCES_CONFIG_PATH: /etc/platform/sources.yaml
+      REGISTRY_USER: ${REGISTRY_USER}
+      REGISTRY_PASSWORD: ${REGISTRY_PASSWORD}
+    volumes:
+      - ../contracts:/etc/platform/contracts
+      - registry_data:/data
     networks:
       - platform-network
     depends_on:

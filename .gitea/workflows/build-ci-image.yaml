@@ -23,17 +23,6 @@ jobs:
         uses: actions/checkout@v4
 
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-
-      - name: Install Configuration Package
-        run: |
-          pip install -e packages/configuration
-
-
       - name: Docker Info
         run: |
           docker version
@@ -58,34 +47,18 @@ jobs:
           "
 
       - name: Resolve Registry Configuration
-        env:
-          PYTHONPATH: packages/configuration/src
         run: |
-          python3 - << 'PYEOF' > $GITHUB_ENV
-          import sys
-          from configuration.contracts.v1.registry import RegistryConfiguration
-          from configuration.manager import ConfigurationManager
-          from configuration.providers.env_file import DotEnvProvider
-          from configuration.providers.registry import RegistryProvider
-          
-          try:
-            manager = ConfigurationManager(DotEnvProvider(env_file=".env"))
-            config = manager.resolve(RegistryConfiguration)
-          except Exception as exc:
-            print(f"ERROR: Configuration validation failed: {exc}", file=sys.stderr)
-            sys.exit(1)
-          
-          provider = RegistryProvider(env_file=".env")
-          result = provider.validate()
-          
-          if not result.success:
-            print(f"ERROR: Registry validation failed: {result.error}", file=sys.stderr)
-            sys.exit(1)
-          
-          print(f"export REGISTRY_USER={config.username}")
-          print(f"export REGISTRY_PASSWORD={config.password}")
-          print(f"export REGISTRY_ENDPOINT=registry.local.test")
-          PYEOF
+          RESPONSE=$(curl -sf http://infrastructure_configuration_manager:8080/contracts/registry) || {
+            echo "ERROR: Could not reach configuration manager service"
+            exit 1
+          }
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          if [ "$STATUS" != "validated" ]; then
+            echo "Registry contract validation failed"
+            echo "$RESPONSE" | jq '.errors // .detail // .'
+            exit 1
+          fi
+          echo "$RESPONSE" | jq -r '.configuration | to_entries[] | "export \(.key)=\(.value)"' >> $GITHUB_ENV
 
       - name: Login to Local Registry
         run: |
