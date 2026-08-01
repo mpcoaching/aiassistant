@@ -26,6 +26,17 @@ jobs:
         uses: actions/checkout@v4
 
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+
+      - name: Install Configuration Package
+        run: |
+          pip install -e packages/configuration
+
+
       - name: Docker Info
         run: |
           docker version
@@ -35,9 +46,8 @@ jobs:
       - name: Build CI Worker Image
         run: |
           docker build \
-            -f infrastructure/images/ci-runner/Dockerfile \
             -t aiassistant-ci:test \
-            .
+            infrastructure/images/ci-runner
 
 
       - name: Test CI Worker Image
@@ -51,10 +61,7 @@ jobs:
 
       - name: Resolve Registry Configuration
         run: |
-          docker run --rm -i \
-            -e REGISTRY_USER \
-            -e REGISTRY_PASSWORD \
-            aiassistant-ci:test python3 - << 'PYEOF' > $GITHUB_ENV
+          python3 - << 'PYEOF' > $GITHUB_ENV
           from configuration.contracts.v1.registry import RegistryConfiguration
           from configuration.manager import ConfigurationManager
           from configuration.providers.dotenv import DotEnvProvider

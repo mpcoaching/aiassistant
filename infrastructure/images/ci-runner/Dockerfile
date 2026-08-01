@@ -24,16 +24,10 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
 
-# Copy configuration package and install it
-COPY packages/configuration /tmp/packages/configuration
-RUN pip install /tmp/packages/configuration
-
-
 # Verify tools
 RUN python --version \
     && pip --version \
     && uv --version \
     && git --version \
     && jq --version \
-    && yq --version \
-    && python -c "from configuration.providers.registry import RegistryProvider; print('Configuration package OK')"
+    && yq --version
