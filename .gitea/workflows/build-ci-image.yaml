@@ -16,9 +16,6 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    env:
-      REGISTRY_USER: ${{ env.REGISTRY_USER }}
-      REGISTRY_PASSWORD: ${{ env.REGISTRY_PASSWORD }}
 
     steps:
 
@@ -74,7 +71,7 @@ jobs:
             print("ERROR: REGISTRY_USER and REGISTRY_PASSWORD must be set")
             exit(1)
           
-          manager = ConfigurationManager(DotEnvProvider(env_file="/dev/null/nonexistent.env"))
+          manager = ConfigurationManager(DotEnvProvider(env_file=".env"))
           config = manager.resolve(RegistryConfiguration)
           
           print(f"export REGISTRY_USER={config.username}")
