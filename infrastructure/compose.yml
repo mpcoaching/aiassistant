@@ -136,6 +136,7 @@ services:
       - registry_data:/data
     networks:
       - platform-network
+      - infrastructure-network
     depends_on:
       redis:
         condition: service_healthy
