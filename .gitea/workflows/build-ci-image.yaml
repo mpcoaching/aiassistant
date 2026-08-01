@@ -79,12 +79,12 @@ jobs:
           
           print(f"export REGISTRY_USER={config.username}")
           print(f"export REGISTRY_PASSWORD={config.password}")
-          print(f"export REGISTRY_ENDPOINT={config.endpoint}")
+          print(f"export REGISTRY_ENDPOINT=registry.local.test")
           PYEOF
 
       - name: Login to Local Registry
         run: |
-          docker login $REGISTRY_ENDPOINT \
+          docker login registry.local.test \
             --username "$REGISTRY_USER" \
             --password "$REGISTRY_PASSWORD"
 
