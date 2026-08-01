@@ -42,7 +42,6 @@ services:
       - "53:53/udp"
     volumes:
       - ./configs/coredns/Corefile:/etc/coredns/Corefile:ro
-      - ./configs/coredns/local.test.zone:/etc/coredns/local.test.zone:ro
     networks:
       - infrastructure-network
     restart: unless-stopped
