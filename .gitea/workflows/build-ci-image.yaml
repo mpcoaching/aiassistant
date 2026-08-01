@@ -62,14 +62,15 @@ jobs:
           PYTHONPATH: packages/configuration/src
         run: |
           python3 - << 'PYEOF' > $GITHUB_ENV
+          import sys
+          import os
           from configuration.contracts.v1.registry import RegistryConfiguration
           from configuration.manager import ConfigurationManager
           from configuration.providers.env_file import DotEnvProvider
-          import os
           
           if "REGISTRY_USER" not in os.environ or "REGISTRY_PASSWORD" not in os.environ:
-            print("ERROR: REGISTRY_USER and REGISTRY_PASSWORD must be set")
-            exit(1)
+            print("ERROR: REGISTRY_USER and REGISTRY_PASSWORD must be set", file=sys.stderr)
+            sys.exit(1)
           
           manager = ConfigurationManager(DotEnvProvider(env_file=".env"))
           config = manager.resolve(RegistryConfiguration)
