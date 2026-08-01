@@ -63,18 +63,17 @@ jobs:
         run: |
           python3 - << 'PYEOF' > $GITHUB_ENV
           import sys
-          import os
           from configuration.contracts.v1.registry import RegistryConfiguration
           from configuration.manager import ConfigurationManager
           from configuration.providers.env_file import DotEnvProvider
           from configuration.providers.registry import RegistryProvider
           
-          if "REGISTRY_USER" not in os.environ or "REGISTRY_PASSWORD" not in os.environ:
-            print("ERROR: REGISTRY_USER and REGISTRY_PASSWORD must be set", file=sys.stderr)
+          try:
+            manager = ConfigurationManager(DotEnvProvider(env_file=".env"))
+            config = manager.resolve(RegistryConfiguration)
+          except Exception as exc:
+            print(f"ERROR: Configuration validation failed: {exc}", file=sys.stderr)
             sys.exit(1)
-          
-          manager = ConfigurationManager(DotEnvProvider(env_file=".env"))
-          config = manager.resolve(RegistryConfiguration)
           
           provider = RegistryProvider(env_file=".env")
           result = provider.validate()
