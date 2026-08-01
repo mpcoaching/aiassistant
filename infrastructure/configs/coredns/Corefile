@@ -1,14 +1,30 @@
-# local.test zone - authoritative
-local.test:53 {
+:53 {
     log
     errors
-    file /etc/coredns/local.test.zone
-}
-
-# Root zone (.:53) - forward everything else
-. {
-    log
-    errors
+    hosts {
+        192.168.1.238 gitea.local.test
+        192.168.1.238 registry.local.test
+        192.168.1.238 oo.local.test
+        192.168.1.238 otel.local.test
+        192.168.1.238 qdrant.local.test
+        192.168.1.238 control-center.local.test
+        192.168.1.238 dev.local.test
+        192.168.1.238 workflow-engine.local.test
+        192.168.1.238 gateway.local.test
+        192.168.1.238 portkey.local.test
+        192.168.1.238 n8n.local.test
+        192.168.1.238 lf.local.test
+        192.168.1.238 langfuse.local.test
+        192.168.1.238 langgraph.local.test
+        192.168.1.238 openobserve.local.test
+        192.168.1.238 agent.dev.local.test
+        192.168.1.238 api.dev.local.test
+        192.168.1.238 langgraph.dev.local.test
+        192.168.1.238 agent.live.local.test
+        192.168.1.238 api.live.local.test
+        192.168.1.238 langgraph.live.local.test
+        fallthrough
+    }
     forward . 1.1.1.1 8.8.8.8
     cache 30
 }
