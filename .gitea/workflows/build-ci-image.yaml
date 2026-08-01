@@ -61,6 +61,8 @@ jobs:
           "
 
       - name: Resolve Registry Configuration
+        env:
+          PYTHONPATH: packages/configuration/src
         run: |
           python3 - << 'PYEOF' > $GITHUB_ENV
           from configuration.contracts.v1.registry import RegistryConfiguration
