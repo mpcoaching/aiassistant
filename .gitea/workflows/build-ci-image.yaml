@@ -48,7 +48,7 @@ jobs:
 
       - name: Resolve Registry Configuration
         run: |
-          RESPONSE=$(curl -sf http://infrastructure_configuration_manager:8080/contracts/registry) || {
+          RESPONSE=$(curl -sf http://infra_configuration_manager:8080/contracts/registry) || {
             echo "ERROR: Could not reach configuration manager service"
             exit 1
           }
