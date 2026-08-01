@@ -34,4 +34,3 @@ langgraph.live.local.test   IN A  192.168.1.238
 
 ; Wildcard catch-all for any remaining *.local.test
 *.local.test                IN A  192.168.1.238
-EOF
