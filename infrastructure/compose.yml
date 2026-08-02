@@ -137,6 +137,8 @@ services:
     networks:
       - platform-network
       - infrastructure-network
+    extra_hosts:
+      - "registry.local.test:host-gateway"
     depends_on:
       redis:
         condition: service_healthy
