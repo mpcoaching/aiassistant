@@ -58,7 +58,7 @@ jobs:
             echo "$RESPONSE" | jq '.errors // .detail // .'
             exit 1
           fi
-          echo "$RESPONSE" | jq -r '.configuration | to_entries[] | "export \(.key)=\(.value)"' >> $GITHUB_ENV
+          echo "$RESPONSE" | jq -r '.configuration | to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
 
       - name: Login to Local Registry
         run: |
