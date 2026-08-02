@@ -6,6 +6,10 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+COPY local.test.crt /usr/local/share/ca-certificates/local.test.crt
+COPY rootCA.pem /usr/local/share/ca-certificates/rootCA.crt
+RUN update-ca-certificates
+
 WORKDIR /app
 
 COPY pyproject.toml /app/pyproject.toml

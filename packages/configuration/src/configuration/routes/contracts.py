@@ -9,6 +9,7 @@ from configuration.mapping.adapter import MappingAdapter
 from configuration.sources import init_providers, load_sources_config
 from configuration.validation.contract_validator import StructuralValidator
 from configuration.validation.registry import ValidatorRegistry
+from configuration.validation.registry_validator import RegistryValidator
 from configuration.validation.runtime_validator import RuntimeValidator
 
 router = APIRouter()
@@ -33,6 +34,8 @@ def get_registry() -> ValidatorRegistry:
         _registry.register("required-fields", StructuralValidator())
         _registry.register("endpoint-connectivity", RuntimeValidator())
         _registry.register("authentication", RuntimeValidator())
+        _registry.register("registry-connectivity", RegistryValidator())
+        _registry.register("registry-authentication", RegistryValidator())
     return _registry
 
 
@@ -86,6 +89,11 @@ def get_contract(capability: str) -> dict:
     mapping_rules = mapping_data.get("mapping", {})
     adapter = MappingAdapter(mapping_rules)
     resolved = adapter.map(raw_values)
+
+    requirements = contract_def.get("requirements", {})
+    for key, spec in requirements.items():
+        if isinstance(spec, dict) and "default" in spec and key not in resolved:
+            resolved[key] = spec["default"]
 
     registry = get_registry()
     validation_result = registry.validate_contract(

@@ -34,3 +34,6 @@ class DotEnvProvider(ConfigurationProvider):
         values.update(env_overrides)
 
         return {k: v for k, v in values.items() if v is not None}
+
+
+EnvFileProvider = DotEnvProvider

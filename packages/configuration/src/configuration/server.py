@@ -10,8 +10,8 @@ from configuration.routes.health import router as health_router
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Configuration Manager", version="0.1.0")
-    app.include_router(contracts_router, prefix="/contracts")
-    app.include_router(health_router, prefix="/health")
+    app.include_router(contracts_router)
+    app.include_router(health_router)
     return app
 
 

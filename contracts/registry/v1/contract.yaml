@@ -12,5 +12,5 @@ requirements:
 
 validators:
   - required-fields
-  - endpoint-connectivity
-  - authentication
+  - registry-connectivity
+  - registry-authentication
