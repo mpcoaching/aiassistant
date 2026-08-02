@@ -8,7 +8,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     jq \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
 
 
 # Install Mike Farah yq
@@ -30,4 +32,6 @@ RUN python --version \
     && uv --version \
     && git --version \
     && jq --version \
-    && yq --version
+    && yq --version \
+    && node --version \
+    && npm --version
