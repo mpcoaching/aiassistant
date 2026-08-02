@@ -2,49 +2,241 @@ name: CI v2
 
 on:
   push:
-    branches:
-      - main
-
+    branches: [main]
   workflow_dispatch:
 
 
 jobs:
 
-  validate:
+  ci-pipeline:
 
-    name: Validate
+    name: CI Pipeline
 
     runs-on: ubuntu-latest
 
     container:
-      image: aiassistant-ci:0.1.0
+      image: registry.local.test/aiassistant/ci-runner:latest
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+
 
     steps:
 
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: CI Worker Identity
+
+      - name: Docker Info
         run: |
-          echo "================================"
-          echo "CI WORKER"
-          echo "================================"
+          docker version
+          docker info
 
-          echo "Hostname:"
-          hostname
 
-          echo
-          echo "OS:"
-          cat /etc/os-release
-
-          echo
-          echo "Tools:"
-
-          python --version
-          uv --version
-          jq --version
-          yq --version
-
-      - name: Validate
+      - name: Resolve Registry Configuration
         run: |
-          echo "Validation placeholder"
+          RESPONSE=$(curl -sf http://infra_configuration_manager:8080/contracts/registry) || {
+            echo "ERROR: Could not reach configuration manager service"
+            exit 1
+          }
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          if [ "$STATUS" != "validated" ]; then
+            echo "Registry contract validation failed"
+            echo "$RESPONSE" | jq '.errors // .detail // .'
+            exit 1
+          fi
+          echo "$RESPONSE" | jq -r '.configuration | to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
+
+
+      - name: Login to Local Registry
+        run: |
+          docker login registry.local.test \
+            --username "$REGISTRY_USER" \
+            --password "$REGISTRY_PASSWORD"
+
+
+      - name: Install Delivery CLI
+        run: |
+          echo "Installing delivery CLI..."
+          uv pip install -e delivery/
+
+
+      - name: Install Python Dependencies
+        run: |
+          echo "Installing Python dependencies..."
+          for pkg in packages/*/; do
+            if [ -f "$pkg/pyproject.toml" ]; then
+              echo "Installing $pkg"
+              uv pip install -e "$pkg" 2>&1 || true
+            fi
+          done
+
+
+      - name: Install Node Dependencies
+        run: |
+          echo "Installing Node.js dependencies..."
+          for pkg in packages/*/; do
+            if [ -f "$pkg/package.json" ]; then
+              echo "Installing $pkg"
+              cd "$pkg"
+              npm ci 2>&1 || exit 1
+              cd -
+            fi
+          done
+
+
+      - name: Lint
+        run: |
+          echo "Running linters..."
+          
+          echo "--- Python ruff ---"
+          ruff check packages/ --output-format=github || true
+          
+          echo "--- TypeScript/JavaScript ---"
+          for pkg in packages/*/; do
+            if [ -f "$pkg/package.json" ]; then
+              echo "Checking $pkg"
+              cd "$pkg"
+              npm run build --if-present 2>&1 || true
+              cd -
+            fi
+          done
+
+
+      - name: Unit Tests
+        run: |
+          echo "Running unit tests with coverage..."
+          
+          echo "--- Python unit tests ---"
+          for pkg in packages/*/; do
+            if [ -f "$pkg/pyproject.toml" ]; then
+              echo "Testing $pkg"
+              cd "$pkg"
+              python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=term 2>&1 || exit 1
+              cd -
+            fi
+          done
+          
+          echo "--- TypeScript/JavaScript unit tests ---"
+          for pkg in packages/*/; do
+            if [ -f "$pkg/package.json" ]; then
+              echo "Testing $pkg"
+              cd "$pkg"
+              npm run test --if-present 2>&1 || exit 1
+              cd -
+            fi
+          done
+
+
+      - name: Integration Tests
+        run: |
+          echo "Running integration tests..."
+          for pkg in packages/*/; do
+            if [ -d "$pkg/tests/integration" ]; then
+              echo "Integration testing $pkg"
+              cd "$pkg"
+              python -m pytest tests/integration/ -v 2>&1 || exit 1
+              cd -
+            fi
+          done
+
+
+      - name: Build Application Images
+        run: |
+          echo "Building application images..."
+          
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          export IMAGE_TAG
+          
+          for pkg in packages/*/; do
+            if [ -f "$pkg/Dockerfile" ]; then
+              imgname=$(basename "$pkg")
+              echo "Building $imgname:$IMAGE_TAG"
+              docker build -t "registry.local.test/aiassistant/$imgname:$IMAGE_TAG" "$pkg"
+            fi
+          done
+          
+          if [ -f "packages/control-center-ui/package.json" ]; then
+            echo "Building control-center-ui..."
+            cd packages/control-center-ui
+            npm run build 2>&1 || exit 1
+            cd -
+          fi
+
+
+      - name: Push to Dev Registry
+        run: |
+          echo "Pushing images to dev registry..."
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          
+          for pkg in packages/*/; do
+            if [ -f "$pkg/Dockerfile" ]; then
+              imgname=$(basename "$pkg")
+              docker push "registry.local.test/aiassistant/$imgname:$IMAGE_TAG"
+              docker tag "registry.local.test/aiassistant/$imgname:$IMAGE_TAG" "registry.local.test/aiassistant/$imgname:dev-latest"
+              docker push "registry.local.test/aiassistant/$imgname:dev-latest"
+            fi
+          done
+
+
+      - name: Deploy Dev Stack
+        run: |
+          echo "Deploying dev stack..."
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          
+          export REGISTRY_URL=registry.local.test
+          export IMAGE_TAG
+          
+          docker compose -f environments/dev/compose.yml --env-file .env up -d
+
+
+      - name: Validate Deployment
+        run: |
+          echo "Validating deployment..."
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          
+          export REGISTRY_URL=registry.local.test
+          export IMAGE_TAG
+          
+          delivery validate dev
+
+
+      - name: E2E Tests
+        run: |
+          echo "Running Playwright e2e tests..."
+          
+          cd packages/control-center-ui
+          
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+          
+          cd -
+
+
+      - name: Coverage Report
+        if: always()
+        run: |
+          echo "Aggregating coverage reports..."
+          
+          mkdir -p coverage
+          
+          for pkg in packages/*/; do
+            if [ -d "$pkg" ]; then
+              cd "$pkg"
+              python -m pytest tests/ --cov=src --cov-report=xml --cov-report=term 2>/dev/null || true
+              if [ -f coverage.xml ]; then
+                cp coverage.xml ../coverage/$(basename "$pkg")-coverage.xml
+              fi
+              cd -
+            fi
+          done
+          
+          echo "Coverage reports available in coverage/"
+
+
+      - name: Complete
+        if: success()
+        run: |
+          echo "CI pipeline completed successfully"
+          echo "Images tagged: $(git rev-parse --short HEAD)"
+          echo "Dev stack deployed and e2e tests passed"

@@ -70,12 +70,13 @@ jobs:
         run: |
           docker tag \
             aiassistant-ci:test \
-            registry.local.test/aiassistant/ci-runner:0.1.0
+            registry.local.test/aiassistant/ci-runner:latest
+
 
       - name: Push CI Worker Image
         run: |
           docker push \
-            registry.local.test/aiassistant/ci-runner:0.1.0
+            registry.local.test/aiassistant/ci-runner:latest
 
       - name: Complete
         run: |
