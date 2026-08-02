@@ -70,6 +70,9 @@ jobs:
         run: |
           docker tag \
             aiassistant-ci:test \
+            aiassistant-ci:latest
+          docker tag \
+            aiassistant-ci:test \
             registry.local.test/aiassistant/ci-runner:latest
 
 

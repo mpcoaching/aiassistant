@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: registry.local.test/aiassistant/ci-runner:latest
+      image: aiassistant-ci:latest
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
 
