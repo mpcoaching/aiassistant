@@ -55,9 +55,7 @@ jobs:
       - name: Install Delivery CLI
         run: |
           echo "Installing delivery CLI..."
-          python3 -m venv /opt/venv
-          /opt/venv/bin/pip install -e delivery/
-          echo "/opt/venv/bin" >> $GITHUB_ENV
+          uv pip install --system -e delivery/
 
 
       - name: Install Python Dependencies
@@ -66,7 +64,7 @@ jobs:
           for pkg in packages/*/; do
             if [ -f "$pkg/pyproject.toml" ]; then
               echo "Installing $pkg"
-              /opt/venv/bin/pip install -e "$pkg" 2>&1 || true
+              uv pip install --system -e "$pkg" 2>&1 || true
             fi
           done
 
@@ -89,7 +87,7 @@ jobs:
           echo "Running linters..."
           
           echo "--- Python ruff ---"
-          /opt/venv/bin/ruff check packages/ --output-format=github || true
+          ruff check packages/ --output-format=github || true
           
           echo "--- TypeScript/JavaScript ---"
           for pkg in packages/*/; do
@@ -111,7 +109,7 @@ jobs:
             if [ -f "$pkg/pyproject.toml" ]; then
               echo "Testing $pkg"
               cd "$pkg"
-              /opt/venv/bin/python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=term 2>&1 || exit 1
+              python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=term 2>&1 || exit 1
               cd -
             fi
           done
@@ -134,7 +132,7 @@ jobs:
             if [ -d "$pkg/tests/integration" ]; then
               echo "Integration testing $pkg"
               cd "$pkg"
-              /opt/venv/bin/python -m pytest tests/integration/ -v 2>&1 || exit 1
+              python -m pytest tests/integration/ -v 2>&1 || exit 1
               cd -
             fi
           done
@@ -223,7 +221,7 @@ jobs:
           for pkg in packages/*/; do
             if [ -d "$pkg" ]; then
               cd "$pkg"
-              /opt/venv/bin/python -m pytest tests/ --cov=src --cov-report=xml --cov-report=term 2>/dev/null || true
+              python -m pytest tests/ --cov=src --cov-report=xml --cov-report=term 2>/dev/null || true
               if [ -f coverage.xml ]; then
                 cp coverage.xml ../coverage/$(basename "$pkg")-coverage.xml
               fi
