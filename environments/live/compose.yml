@@ -20,8 +20,6 @@ services:
   workflow-engine:
     image: ${REGISTRY_URL}/workflow-runner:${IMAGE_TAG}
     container_name: live_workflow_engine
-    env_file:
-      - ../../.env
     expose:
       - 8000
     environment:
@@ -56,8 +54,6 @@ services:
   langgraph:
     image: ${REGISTRY_URL}/langgraph:${IMAGE_TAG}
     container_name: live_langgraph
-    env_file:
-      - ../../.env
     expose:
       - 8000
     environment:
@@ -74,8 +70,6 @@ services:
   n8n:
     image: n8nio/n8n:latest
     profiles: ["disabled"]
-    env_file:
-      - ../../.env
     environment:
       - N8N_HOST=${N8N_HOST}
       - N8N_PORT=${N8N_PORT}

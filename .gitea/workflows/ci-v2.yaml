@@ -88,14 +88,14 @@ jobs:
           echo "Running linters..."
           
           echo "--- Python ruff ---"
-          ruff check packages/ --output-format=github || true
+          ruff check packages/ --output-format=github
           
           echo "--- TypeScript/JavaScript ---"
           for pkg in packages/*/; do
             if [ -f "$pkg/package.json" ]; then
               echo "Checking $pkg"
               cd "$pkg"
-              npm run build --if-present 2>&1 || true
+              npm run build --if-present 2>&1 || exit 1
               cd -
             fi
           done
@@ -190,7 +190,19 @@ jobs:
           export REGISTRY_URL=registry.local.test
           export IMAGE_TAG
           
-          docker compose -f environments/dev/compose.yml --env-file .env up -d
+          RESPONSE=$(curl -sf http://infra_configuration_manager:8080/contracts/deployment) || {
+            echo "ERROR: Could not reach configuration manager service"
+            exit 1
+          }
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          if [ "$STATUS" != "validated" ]; then
+            echo "Deployment contract validation failed"
+            echo "$RESPONSE" | jq '.errors // .detail // .'
+            exit 1
+          fi
+          echo "$RESPONSE" | jq -r '.configuration | to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
+          
+          docker compose -f environments/dev/compose.yml up -d
 
 
       - name: Validate Deployment
@@ -200,6 +212,18 @@ jobs:
           
           export REGISTRY_URL=registry.local.test
           export IMAGE_TAG
+          
+          RESPONSE=$(curl -sf http://infra_configuration_manager:8080/contracts/deployment) || {
+            echo "ERROR: Could not reach configuration manager service"
+            exit 1
+          }
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          if [ "$STATUS" != "validated" ]; then
+            echo "Deployment contract validation failed"
+            echo "$RESPONSE" | jq '.errors // .detail // .'
+            exit 1
+          fi
+          echo "$RESPONSE" | jq -r '.configuration | to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
           
           delivery validate dev
 

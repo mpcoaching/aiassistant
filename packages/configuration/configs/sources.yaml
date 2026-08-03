@@ -2,6 +2,7 @@ sources:
   providers:
     - type: env
       enabled: true
+      path: /etc/platform/.env
     - type: json
       enabled: true
       path: /etc/platform/config.json

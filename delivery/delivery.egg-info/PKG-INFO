@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: delivery
+Version: 0.2.0
+Summary: Package-based delivery engine
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: typer>=0.9.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: docker>=7.0.0

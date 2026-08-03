@@ -133,6 +133,7 @@ services:
       REGISTRY_PASSWORD: ${REGISTRY_PASSWORD}
     volumes:
       - ../contracts:/etc/platform/contracts
+      - ../.env:/etc/platform/.env:ro
       - registry_data:/data
     networks:
       - platform-network

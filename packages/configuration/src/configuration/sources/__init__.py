@@ -22,7 +22,7 @@ def init_providers(config: dict[str, Any] | None = None) -> dict[str, Any]:
         ptype = p.get("type")
         if ptype == "env":
             from configuration.providers.env_file import EnvFileProvider
-            provider_map["env"] = EnvFileProvider()
+            provider_map["env"] = EnvFileProvider(env_file=p.get("path", ".env"))
         elif ptype == "json":
             from configuration.providers.json_file import JsonConfigProvider
             provider_map["json"] = JsonConfigProvider(path=p.get("path", "/etc/platform/config.json"))

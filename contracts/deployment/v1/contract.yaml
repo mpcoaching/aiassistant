@@ -1,0 +1,145 @@
+name: deployment
+version: v1
+
+requirements:
+  REGISTRY_URL:
+    required: true
+  IMAGE_TAG:
+    required: true
+  AGENT_DEV_DB_USER:
+    required: true
+  AGENT_DEV_DB_PASSWORD:
+    required: true
+  AGENT_DEV_DB_NAME:
+    required: true
+  AGENT_LIVE_DB_USER:
+    required: true
+  AGENT_LIVE_DB_PASSWORD:
+    required: true
+  AGENT_LIVE_DB_NAME:
+    required: true
+  LANGGRAPH_DEV_DB_USER:
+    required: true
+  LANGGRAPH_DEV_DB_PASSWORD:
+    required: true
+  LANGGRAPH_DEV_DB_NAME:
+    required: true
+  LANGGRAPH_LIVE_DB_USER:
+    required: true
+  LANGGRAPH_LIVE_DB_PASSWORD:
+    required: true
+  LANGGRAPH_LIVE_DB_NAME:
+    required: true
+  POSTGRES_DB_USER:
+    required: true
+  POSTGRES_DB_PASSWORD:
+    required: true
+  POSTGRES_DB_NAME:
+    required: true
+  QDRANT_KEY:
+    required: true
+  PORTKEY_MASTER_KEY:
+    required: true
+  PORTKEY_ADMIN_TOKEN:
+    required: true
+  GROQ_API_KEY:
+    required: true
+  OPENROUTER_API_KEY:
+    required: true
+  GEMINI_API_KEY:
+    required: true
+  HF_API_KEY:
+    required: true
+  AI_PROVIDER_BASE_URL:
+    required: true
+  CLICKHOUSE_DB_NAME:
+    required: true
+  CLICKHOUSE_DB_USER:
+    required: true
+  CLICKHOUSE_DB_PASSWORD:
+    required: true
+  LANGFUSE_HOSTNAME:
+    required: true
+  LANGFUSE_DATABASE_URL:
+    required: true
+  LANGFUSE_NEXTAUTH_SECRET:
+    required: true
+  LANGFUSE_NEXTAUTH_URL:
+    required: true
+  LANGFUSE_SALT:
+    required: true
+  LANGFUSE_ENCRYPTION_KEY:
+    required: true
+  LANGFUSE_CLICKHOUSE_USER:
+    required: true
+  LANGFUSE_CLICKHOUSE_PASSWORD:
+    required: true
+  LANGFUSE_CLICKHOUSE_URL:
+    required: true
+  LANGFUSE_CLICKHOUSE_MIGRATION_URL:
+    required: true
+  LANGFUSE_REDIS_URL:
+    required: true
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:
+    required: true
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET:
+    required: true
+  LANGFUSE_S3_ENDPOINT:
+    required: true
+  LANGFUSE_STORAGE_TYPE:
+    required: true
+  LANGFUSE_LANGCHAIN_TRACING_V2:
+    required: true
+  LANGFUSE_LANGCHAIN_ENDPOINT:
+    required: true
+  LANGFUSE_LANGCHAIN_API_KEY:
+    required: true
+  ZO_ROOT_USER_EMAIL:
+    required: true
+  ZO_ROOT_USER_PASSWORD:
+    required: true
+  MINIO_ROOT_USER:
+    required: true
+  MINIO_ROOT_PASSWORD:
+    required: true
+  N8N_HOST:
+    required: true
+  N8N_PORT:
+    required: true
+  N8N_WEBHOOK_URL:
+    required: true
+  N8N_EDITOR_BASE_URL:
+    required: true
+  N8N_SECURE_COOKIE:
+    required: true
+  N8N_PROXY_HOPS:
+    required: true
+  N8N_DB_TYPE:
+    required: true
+  N8N_DB_HOST:
+    required: true
+  N8N_DB_PORT:
+    required: true
+  N8N_DB_DATABASE:
+    required: true
+  N8N_DB_USER:
+    required: true
+  N8N_DB_PASSWORD:
+    required: true
+  N8N_OTEL_ENABLED:
+    required: true
+  N8N_OTEL_SERVICE_NAME:
+    required: true
+  N8N_OTEL_EXPORTER_OTLP_ENDPOINT:
+    required: true
+  N8N_LANGCHAIN_TRACING_V2:
+    required: true
+  N8N_LANGCHAIN_API_KEY:
+    required: true
+  N8N_LANGCHAIN_ENDPOINT:
+    required: true
+  N8N_LANGCHAIN_PROJECT:
+    required: true
+
+validators:
+  - required-fields

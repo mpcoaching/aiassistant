@@ -1,0 +1,7 @@
+pyproject.toml
+src/aiassistant_ci_worker.egg-info/PKG-INFO
+src/aiassistant_ci_worker.egg-info/SOURCES.txt
+src/aiassistant_ci_worker.egg-info/dependency_links.txt
+src/aiassistant_ci_worker.egg-info/requires.txt
+src/aiassistant_ci_worker.egg-info/top_level.txt
+src/ci_worker/__init__.py
