@@ -12,16 +12,11 @@ import time
 import urllib.error
 import urllib.request
 from base64 import b64encode
-from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from configuration.providers.exceptions import (
-    ProviderUnavailableError,
     RegistryValidationResult,
 )
-
-if TYPE_CHECKING:
-    from configuration.providers import ConfigurationProvider
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +49,7 @@ class RegistryProvider:
         }
 
         try:
-            auth = f"{username}:{password}".encode("utf-8")
+            auth = f"{username}:{password}".encode()
             token = b64encode(auth).decode("utf-8")
 
             url = f"{endpoint.rstrip('/')}/v2/"
@@ -112,32 +107,32 @@ class RegistryProvider:
                         },
                         error=f"Registry returned {exc.code}",
                     )
-        except urllib.error.URLError as exc:
+        except (urllib.error.URLError, ValueError) as exc:
             elapsed = time.monotonic() - start
-            self._validation_result = RegistryValidationResult(
-                success=False,
-                validator_id="registry-http-auth",
-                validator_version="1.0.0",
-                evidence={
-                    **evidence,
-                    "error": str(exc.reason),
-                    "latency_seconds": round(elapsed, 3),
-                },
-                error=f"Cannot reach registry endpoint: {exc.reason}",
-            )
-        except Exception as exc:
-            elapsed = time.monotonic() - start
-            self._validation_result = RegistryValidationResult(
-                success=False,
-                validator_id="registry-http-auth",
-                validator_version="1.0.0",
-                evidence={
-                    **evidence,
-                    "error": str(exc),
-                    "latency_seconds": round(elapsed, 3),
-                },
-                error=f"Validation error: {exc}",
-            )
+            if isinstance(exc, urllib.error.URLError):
+                self._validation_result = RegistryValidationResult(
+                    success=False,
+                    validator_id="registry-http-auth",
+                    validator_version="1.0.0",
+                    evidence={
+                        **evidence,
+                        "error": str(exc.reason),
+                        "latency_seconds": round(elapsed, 3),
+                    },
+                    error=f"Cannot reach registry endpoint: {exc.reason}",
+                )
+            else:
+                self._validation_result = RegistryValidationResult(
+                    success=False,
+                    validator_id="registry-http-auth",
+                    validator_version="1.0.0",
+                    evidence={
+                        **evidence,
+                        "error": str(exc),
+                        "latency_seconds": round(elapsed, 3),
+                    },
+                    error=f"Validation error: {exc}",
+                )
 
         return self._validation_result
 

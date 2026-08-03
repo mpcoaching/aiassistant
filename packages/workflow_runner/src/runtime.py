@@ -8,11 +8,14 @@ publishes a CapabilityRequest to the Event Bus and returns a simulated reply.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from capabilities import Capability, CapabilityRegistry
 
 from bus import CapabilityReply, CapabilityRequest, EventBus
+
+logger = logging.getLogger("workflow-engine.runtime")
 
 
 class PatternRuntime:
@@ -43,7 +46,7 @@ class PatternRuntime:
                 fn = getattr(mod, entrypoint)
                 result = fn(inputs)
                 return {"status": "completed", "outputs": result, "artifacts": [], "telemetry": {}}
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 return {"status": "failed", "error": str(exc)}
         if cap.execution_mode == "ai_mediated" and cap.ai_spec:
             return {
@@ -67,7 +70,7 @@ class PatternRuntime:
             try:
                 self._bus.publish_capability_request("workflow-engine", request.to_json())
             except Exception:
-                pass
+                logger.debug("Failed to publish capability request", exc_info=True)
         reply = CapabilityReply(
             request_id=request.request_id,
             correlation_id=request.correlation_id,

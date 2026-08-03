@@ -7,12 +7,10 @@ import os
 import tempfile
 from typing import Any
 
-import pytest
-
-from configuration.sources.loader import load_sources_config
-from configuration.sources.precedence import resolve_precedence
 from configuration.providers.env_file import EnvFileProvider
 from configuration.providers.json_file import JsonConfigProvider
+from configuration.sources.loader import load_sources_config
+from configuration.sources.precedence import resolve_precedence
 
 
 def test_load_sources_config_default() -> None:

@@ -42,12 +42,14 @@ if _script_dir not in sys.path:
 from bus import EventBus
 from db import (
     create_workflow_state,
-    delete_schedule,
     fail_workflow,
     load_workflow_state,
     pause_workflow,
     resume_workflow,
     stop_workflow,
+)
+from db import (
+    delete_schedule as _db_delete_schedule,
 )
 from loader import load_workflow, resolve_workflow_path
 from models import Step, WorkflowDefinition
@@ -201,11 +203,11 @@ async def on_shutdown() -> None:
         _scheduler()
         shutdown_scheduler(_scheduler.sched)
     except Exception:
-        pass
+        logger.exception("Error during scheduler shutdown")
     try:
         _bus().shutdown()
     except Exception:
-        pass
+        logger.exception("Error during bus shutdown")
 
 
 # ---- Routes ----
@@ -229,7 +231,7 @@ async def list_workflows() -> list[WorkflowListItem]:
                 desc = wf.description
                 name = wf.name
             except Exception:
-                pass
+                logger.debug("Failed to load workflow %s", f, exc_info=True)
             items.append(WorkflowListItem(name=name, description=desc, path=str(f)))
     return items
 
@@ -251,7 +253,7 @@ async def create_workflow(body: CreateWorkflowRequest) -> WorkflowListItem:
     )
     target = _REPO_ROOT / "agentic" / "docs" / "workflows" / f"{body.name}.yaml"
     target.parent.mkdir(parents=True, exist_ok=True)
-    with open(target, "w") as f:
+    with open(target, "w") as f:  # noqa: ASYNC230
         yaml.safe_dump(workflow.model_dump(mode="json", by_alias=True, exclude_none=True), f, sort_keys=False)
 
     wf = load_workflow(str(target))
@@ -394,14 +396,14 @@ async def delete_schedule(schedule_id: str) -> dict[str, Any]:
     try:
         holder.sched.remove_job(schedule_id)
     except Exception:
-        pass
+        logger.debug("Job %s not found in scheduler", schedule_id, exc_info=True)
     _bus().publish_schedule_removed(schedule_id, {
         "schedule_id": schedule_id,
     })
     try:
-        delete_schedule(schedule_id, database_url=_db_cfg.url if _db_cfg else None)
+        _db_delete_schedule(schedule_id, database_url=_db_cfg.url if _db_cfg else None)
     except Exception:
-        pass
+        logger.debug("Failed to delete schedule %s from database", schedule_id, exc_info=True)
     return {"status": "removed", "schedule_id": schedule_id}
 
 
@@ -716,7 +718,7 @@ def _execute_and_publish(
             on_step_complete=_on_step_complete,
             database_url=_db_cfg.url if _db_cfg else None,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         state = fail_workflow(state, str(exc), database_url=_db_cfg.url if _db_cfg else None)
         failed_step = state.steps[state.current_step_index].name if state.current_step_index < len(state.steps) else None
         bus.publish_workflow_failed(state.workflow_id, {

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from configuration.validation.contract_validator import StructuralValidator
 from configuration.validation.registry import ValidatorRegistry
 

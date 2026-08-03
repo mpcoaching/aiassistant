@@ -11,8 +11,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from logging import Logger
+
+    from bus import EventBus
     from pydantic import BaseModel
-    from capability.protocol import Capability
 
 
 @dataclass(frozen=True)

@@ -115,7 +115,7 @@ def execute_workflow(
                 append_log(state, f"Step '{step.name}' failed: {result.error}", database_url=database_url)
                 break
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         state = fail_workflow(state, f"Unexpected workflow error: {e}", database_url=database_url)
         append_log(state, f"Workflow failed with unexpected error: {e}", database_url=database_url)
 

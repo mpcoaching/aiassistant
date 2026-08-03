@@ -85,7 +85,7 @@ def handle_workflow_step(
     except WorkflowLoadError as e:
         result.status = "failed"
         result.error = f"Failed to load sub-workflow '{step.uses}': {e}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         result.status = "failed"
         result.error = (
             f"Unexpected error executing sub-workflow '{step.uses}': {e}"

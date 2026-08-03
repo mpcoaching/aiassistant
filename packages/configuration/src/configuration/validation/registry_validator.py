@@ -67,7 +67,7 @@ class RegistryValidator:
             return
 
         try:
-            auth = f"{username}:{password}".encode("utf-8")
+            auth = f"{username}:{password}".encode()
             token = base64.b64encode(auth).decode("utf-8")
 
             req = urllib.request.Request(endpoint.rstrip("/") + "/v2/")

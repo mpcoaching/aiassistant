@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
-from pydantic import BaseModel
+from dataclasses import FrozenInstanceError
 
-from capability import Capability, CapabilityContext
+import pytest
+from capability import CapabilityContext
+from pydantic import BaseModel
 
 
 class DummyConfig(BaseModel):
@@ -64,7 +65,7 @@ def test_capability_context_is_immutable() -> None:
         event_bus=DummyEventBus(),
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError, match="cannot assign field"):
         context.configuration = DummyConfig(value="modified")
 
 

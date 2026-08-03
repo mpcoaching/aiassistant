@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 
-import pytest
-
 from configuration.mapping.adapter import MappingAdapter
 from configuration.providers.env_file import EnvFileProvider
-from configuration.sources import init_providers
 from configuration.validation.contract_validator import StructuralValidator
 from configuration.validation.registry import ValidatorRegistry
 

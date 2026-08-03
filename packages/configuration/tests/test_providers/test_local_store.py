@@ -6,8 +6,6 @@ import json
 import os
 import tempfile
 
-import pytest
-
 from configuration.providers.local_store import LocalConfigStoreProvider
 
 

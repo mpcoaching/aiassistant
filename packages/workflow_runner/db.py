@@ -24,9 +24,11 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+import psycopg2  # type: ignore[import-untyped]
 
 from models import Step, StepResult, WorkflowState
 
@@ -34,7 +36,6 @@ logger = logging.getLogger("workflow-engine.db")
 
 
 def _pg_conn(database_url: str):
-    import psycopg2  # type: ignore[import-untyped]
     return psycopg2.connect(database_url)
 
 
@@ -78,7 +79,7 @@ def _append_file_log(state: WorkflowState, message: str) -> None:
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(log_path, "a") as f:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
             f.write(f"[{timestamp}] {message}\n")
     except OSError:
         pass
@@ -104,7 +105,7 @@ def _pg_upsert_instance(state: WorkflowState, database_url: str) -> None:
                     ),
                 )
             conn.commit()
-    except Exception:
+    except psycopg2.Error:
         logger.warning("Failed to upsert workflow instance %s; file fallback covers it", state.workflow_id)
 
 
@@ -127,7 +128,7 @@ def _pg_insert_step_result(step_result: dict[str, Any], workflow_id: str, step_i
                     ),
                 )
             conn.commit()
-    except Exception:
+    except psycopg2.Error:
         logger.warning("Failed to insert step result for %s step %d; falling back to file", workflow_id, step_index)
         _append_file_step_result(workflow_path, workflow_id, step_index, step_result)
 
@@ -141,19 +142,18 @@ def _pg_insert_event(event_id: str, workflow_id: str, event_type: str, payload: 
                     (event_id, workflow_id, event_type, json.dumps(payload)),
                 )
             conn.commit()
-    except Exception:
+    except psycopg2.Error:
         logger.warning("Failed to insert workflow event %s", event_id)
 
 
 def _pg_get_schedules(database_url: str) -> list[dict[str, Any]]:
     try:
-        with _pg_conn(database_url) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT * FROM get_enabled_schedules()")
-                rows = cur.fetchall()
-                keys = ["schedule_id", "workflow_name", "cron", "initial_context", "role_override", "trigger", "enabled", "next_fire_time"]
-                return [dict(zip(keys, r)) for r in rows]
-    except Exception:
+        with _pg_conn(database_url) as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM get_enabled_schedules()")
+            rows = cur.fetchall()
+            keys = ["schedule_id", "workflow_name", "cron", "initial_context", "role_override", "trigger", "enabled", "next_fire_time"]
+            return [dict(zip(keys, r)) for r in rows]
+    except psycopg2.Error:
         logger.warning("Failed to read schedules from Postgres; assuming empty")
         return []
 
@@ -176,7 +176,7 @@ def _pg_upsert_schedule(schedule: dict[str, Any], database_url: str) -> None:
                     ),
                 )
             conn.commit()
-    except Exception:
+    except psycopg2.Error:
         logger.warning("Failed to upsert schedule %s", schedule.get("schedule_id"))
 
 
@@ -186,7 +186,7 @@ def _pg_delete_schedule(schedule_id: str, database_url: str) -> None:
             with conn.cursor() as cur:
                 cur.execute("SELECT delete_schedule(%s)", (schedule_id,))
             conn.commit()
-    except Exception:
+    except psycopg2.Error:
         logger.warning("Failed to delete schedule %s", schedule_id)
 
 
@@ -225,7 +225,7 @@ def _persist_state(state: WorkflowState, database_url: str | None = None) -> Non
     if database_url:
         try:
             _pg_upsert_instance(state, database_url)
-        except Exception:
+        except psycopg2.Error:
             logger.warning("Postgres persist failed for %s; state mirrored to file", state.workflow_id)
 
 
@@ -263,7 +263,7 @@ def load_workflow_state(workflow_id: str, workflow_path: str, database_url: str 
                     )
                     _persist_file(state)
                     return state
-        except Exception:
+        except psycopg2.Error:
             logger.warning("Postgres lookup failed for workflow %s; trying file fallback", workflow_id)
 
     # Fallback to file
@@ -296,7 +296,7 @@ def list_workflow_states(workflow_path: str, database_url: str | None = None) ->
                     })
                 if states:
                     return sorted(states, key=lambda s: s.get("workflow_id", ""))
-        except Exception:
+        except psycopg2.Error:
             logger.warning("Postgres lookup failed for states of %s; trying file fallback", workflow_path)
 
     # File fallback

@@ -12,6 +12,7 @@ from chain import (
     is_chain_workflow,
 )
 from loader import load_workflow
+from models import WorkflowDefinition
 
 
 def _repo_root() -> Path:

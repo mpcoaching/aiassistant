@@ -55,7 +55,7 @@ def handle_skill_step(
     except CompositionError as e:
         result.status = "failed"
         result.error = str(e)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         result.status = "failed"
         result.error = f"Unexpected error executing skill step: {e}"
 
@@ -74,7 +74,7 @@ def _execute_prompt(prompt: str) -> dict[str, Any]:
 
     try:
         return runtime_run(prompt)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {
             "status": "failed",
             "error": str(e),

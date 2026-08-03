@@ -8,6 +8,8 @@ with automatic file fallback for local inspectability.
 
 from __future__ import annotations
 
+from typing import Any
+
 from db import (
     advance_step as _db_advance_step,
 )

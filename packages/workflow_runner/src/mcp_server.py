@@ -17,11 +17,16 @@ protocol details (stdio / SSE / streamable-http transports).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+import yaml
+
+logger = logging.getLogger("workflow-engine.mcp")
 
 from mcp.server.fastmcp import FastMCP
 
@@ -123,6 +128,7 @@ def list_tools() -> str:
             try:
                 data = yaml.safe_load(f.read_text()) or {}
             except Exception:
+                logger.debug("Failed to parse tool YAML %s", f, exc_info=True)
                 data = {}
             items.append({"name": f.stem, "path": str(f), "description": data.get("description", "")})
     return json.dumps(items, indent=2)
@@ -164,7 +170,7 @@ def run_workflow(name: str, initial_context: dict[str, Any] | None = None, role_
             role_override=role_override,
         )
         return json.dumps(result, indent=2, default=str)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return json.dumps({"status": "failed", "error": str(exc)})
 
 
@@ -224,7 +230,7 @@ def create_service(design: dict[str, Any]) -> str:
         )
         _authoring_registry.register(capability)
         return json.dumps({"status": "created", "capability_id": capability.id, "name": capability.name})
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return json.dumps({"status": "failed", "error": str(exc)})
 
 

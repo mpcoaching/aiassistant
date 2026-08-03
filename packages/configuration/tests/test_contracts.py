@@ -22,7 +22,7 @@ class TestLifecycle:
 
     def test_lifecycle_is_frozen(self):
         lc = Lifecycle(platform="platform", capability="database", execution="runtime")
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             lc.platform = "other"
 
 

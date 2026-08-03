@@ -61,6 +61,7 @@ class LangGraphRuntime(PathwayRuntime):
         """Execute a pattern step via LangGraph."""
         graph = self._build_graph(request.pattern_step)
         thread_id = request.session_id
+        self._graphs[thread_id] = graph
 
         try:
             result = graph.invoke(
@@ -109,6 +110,7 @@ class LangGraphRuntime(PathwayRuntime):
     def resume(self, session_id: str, human_response: dict[str, Any]) -> PathwayResponse:
         """Resume a paused session with human input."""
         thread_id = session_id
+        graph = self._graphs.get(thread_id)
 
         try:
             result = graph.invoke(

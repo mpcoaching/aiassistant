@@ -6,7 +6,7 @@ Shared exceptions and result types for providers.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -42,4 +42,4 @@ class RegistryValidationResult:
         self.validator_version = validator_version
         self.evidence = evidence or {}
         self.error = error
-        self.timestamp = datetime.now()
+        self.timestamp = datetime.now(UTC)

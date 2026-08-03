@@ -26,6 +26,9 @@ import pika
 
 logger = logging.getLogger("workflow-engine.bus")
 
+# Retry backoff (seconds) applied before giving up and spooling to disk.
+PUBLISH_BACKOFFS = (1, 2, 4)
+
 
 # ---- Capability invocation envelopes (C5) ---------------------------------
 # Tier 2 (in-process) and Tier 3 (bus-mediated) invocations use the SAME
@@ -166,7 +169,7 @@ class EventBus:
     def _write_fallback(self, routing_key: str, event_type: str, workflow_id: str, envelope: dict[str, Any]) -> None:
         try:
             os.makedirs(self._fallback_dir, exist_ok=True)
-            fname = f"{datetime.now().strftime('%Y%m%dT%H%M%S')}-{event_type}-{uuid.uuid4().hex[:8]}.json"
+            fname = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}-{event_type}-{uuid.uuid4().hex[:8]}.json"
             path = os.path.join(self._fallback_dir, fname)
             with open(path, "w") as f:
                 json.dump({
@@ -187,7 +190,7 @@ class EventBus:
             for fname in sorted(os.listdir(self._fallback_dir)):
                 if not fname.endswith(".json"):
                     continue
-                path = os.path.join(EVENTS_FALLBACK_DIR, fname)
+                path = os.path.join(self._fallback_dir, fname)
                 try:
                     with open(path) as f:
                         rec = json.load(f)
@@ -230,7 +233,7 @@ class EventBus:
                         try:
                             conn.close()
                         except Exception:
-                            pass
+                            logger.debug("Error closing AMQP connection", exc_info=True)
                 except pika.exceptions.AMQPConnectionError:
                     if attempt < len(PUBLISH_BACKOFFS):
                         logger.warning(
@@ -321,7 +324,7 @@ class EventBus:
                     if conn is not None:
                         conn.close()
                 except Exception:
-                    pass
+                    logger.debug("Error closing AMQP connection during consumer teardown", exc_info=True)
 
         t = threading.Thread(target=_run, daemon=True, name=f"bus-{queue}")
         t.start()
@@ -344,10 +347,14 @@ class EventBus:
             try:
                 conn.add_callback_threadsafe(lambda c=ch: c.stop_consuming())
             except Exception:
-                logger.warning("Could not signal consumer on %s to stop; closing connection", queue)
+                logger.warning(
+                    "Could not signal consumer on %s to stop; closing connection",
+                    queue,
+                    exc_info=True,
+                )
                 try:
                     conn.close()
                 except Exception:
-                    pass
+                    logger.debug("Error closing AMQP connection during shutdown", exc_info=True)
         self._consumers = []
         logger.info("EventBus shutdown requested")
