@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { esc } from "../src/api.js";
+import { esc } from "../../src/api.js";
 
 describe("api.esc (HTML escaping)", () => {
   it("escapes angle brackets, quotes and ampersands", () => {

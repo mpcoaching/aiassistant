@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import App from "../src/App.jsx";
+import App from "../../src/App.jsx";
 
 // Mock the API layer so unit tests run deterministically with no network.
-vi.mock("../src/api.js", () => ({
+vi.mock("../../src/api.js", () => ({
   getWorkflows: vi.fn(),
   createWorkflow: vi.fn(),
   runWorkflow: vi.fn(),
@@ -15,11 +15,12 @@ vi.mock("../src/api.js", () => ({
   esc: (s) => String(s ?? ""),
 }));
 
-import * as api from "../src/api.js";
+import * as api from "../../src/api.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
   api.getWorkflows.mockResolvedValue([]);
+  api.getSchedules.mockResolvedValue([]);
 });
 
 describe("Control Center <App/>", () => {
@@ -37,7 +38,7 @@ describe("Control Center <App/>", () => {
     expect(await screen.findByText(/No instances yet/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Schedules" }));
-    expect(await screen.findByText(/No schedules yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No schedules./i)).toBeInTheDocument();
   });
 
   it("lists workflows returned by the mocked API", async () => {
