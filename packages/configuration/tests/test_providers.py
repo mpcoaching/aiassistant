@@ -55,6 +55,9 @@ class TestRegistryProvider:
     def test_reads_registry_vars(self, tmp_path, monkeypatch):
         env_file = tmp_path / ".env"
         env_file.write_text("REGISTRY_USER=testuser\nREGISTRY_PASSWORD=testpass\nREGISTRY_ENDPOINT=https://my.registry.io\nOTHER=ignore\n")
+        monkeypatch.delenv("REGISTRY_USER", raising=False)
+        monkeypatch.delenv("REGISTRY_PASSWORD", raising=False)
+        monkeypatch.delenv("REGISTRY_ENDPOINT", raising=False)
         monkeypatch.setenv("REGISTRY_USER", "env_override")
 
         from configuration.providers.registry import RegistryProvider
@@ -81,6 +84,9 @@ class TestRegistryProvider:
     def test_validate_success(self, mock_urlopen, tmp_path, monkeypatch):
         env_file = tmp_path / ".env"
         env_file.write_text("REGISTRY_USER=user\nREGISTRY_PASSWORD=pass\nREGISTRY_ENDPOINT=https://registry.example.com\n")
+        monkeypatch.delenv("REGISTRY_USER", raising=False)
+        monkeypatch.delenv("REGISTRY_PASSWORD", raising=False)
+        monkeypatch.delenv("REGISTRY_ENDPOINT", raising=False)
 
         mock_resp = MagicMock()
         mock_resp.status = 200

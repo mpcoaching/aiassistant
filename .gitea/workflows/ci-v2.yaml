@@ -107,9 +107,10 @@ jobs:
           
           echo "--- Python unit tests ---"
           for pkg in packages/*/; do
-            if [ -f "$pkg/pyproject.toml" ]; then
+            if [ -d "$pkg/tests" ] && [ -f "$pkg/pyproject.toml" ]; then
               echo "Testing $pkg"
               cd "$pkg"
+              unset REGISTRY_USER REGISTRY_PASSWORD REGISTRY_ENDPOINT
               python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=term 2>&1 || exit 1
               cd -
             fi
@@ -220,8 +221,9 @@ jobs:
           mkdir -p coverage
           
           for pkg in packages/*/; do
-            if [ -d "$pkg" ]; then
+            if [ -d "$pkg/tests" ]; then
               cd "$pkg"
+              unset REGISTRY_USER REGISTRY_PASSWORD REGISTRY_ENDPOINT
               python -m pytest tests/ --cov=src --cov-report=xml --cov-report=term 2>/dev/null || true
               if [ -f coverage.xml ]; then
                 cp coverage.xml ../coverage/$(basename "$pkg")-coverage.xml
