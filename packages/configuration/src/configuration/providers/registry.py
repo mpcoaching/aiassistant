@@ -36,7 +36,7 @@ class RegistryProvider:
         self._validation_result: RegistryValidationResult | None = None
 
     def read(self) -> dict[str, str]:
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
 
         raw = DotEnvProvider(env_file=self._env_file).read()
         return {k: v for k, v in raw.items() if k.startswith("REGISTRY_")}
