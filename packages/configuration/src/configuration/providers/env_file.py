@@ -17,7 +17,7 @@ from configuration.providers.exceptions import ProviderUnavailableError
 class DotEnvProvider(ConfigurationProvider):
     """Provider that reads configuration from .env files and os.environ."""
 
-    name = "dotenv"
+    name = "env"
 
     def __init__(self, env_file: str | None = None) -> None:
         self._env_file = env_file or ".env"
