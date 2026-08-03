@@ -77,7 +77,7 @@ jobs:
             if [ -f "$pkg/package.json" ]; then
               echo "Installing $pkg"
               cd "$pkg"
-              npm ci 2>&1 || exit 1
+              npm install 2>&1 || exit 1
               cd -
             fi
           done
