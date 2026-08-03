@@ -25,7 +25,7 @@ class TestRegistryCIIntegration:
         monkeypatch.delenv("REGISTRY_USER", raising=False)
         monkeypatch.delenv("REGISTRY_PASSWORD", raising=False)
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.manager import ConfigurationManager
         from configuration.contracts.v1.registry import RegistryConfiguration
         from configuration.providers.exceptions import ConfigurationResolutionFailed
@@ -42,7 +42,7 @@ class TestRegistryCIIntegration:
         monkeypatch.setenv("REGISTRY_USER", "test_user")
         monkeypatch.delenv("REGISTRY_PASSWORD", raising=False)
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.manager import ConfigurationManager
         from configuration.contracts.v1.registry import RegistryConfiguration
         from configuration.providers.exceptions import ConfigurationResolutionFailed
@@ -60,7 +60,7 @@ class TestRegistryCIIntegration:
         monkeypatch.setenv("REGISTRY_PASSWORD", "valid_password")
         monkeypatch.setenv("REGISTRY_ENDPOINT", "https://registry.local.test")
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.manager import ConfigurationManager
         from configuration.contracts.v1.registry import RegistryConfiguration
 
@@ -78,7 +78,7 @@ class TestRegistryCIIntegration:
         # Don't set REGISTRY_ENDPOINT - it has a default, so this won't fail
         # Instead test that we get valid credentials back without secrets in str()
         
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.manager import ConfigurationManager
         from configuration.contracts.v1.registry import RegistryConfiguration
 
@@ -105,7 +105,7 @@ class TestRegistryCIIntegration:
         monkeypatch.setenv("REGISTRY_USER", "test_user")
         monkeypatch.setenv("REGISTRY_PASSWORD", "secret_pass_456")
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.providers.registry import RegistryProvider
 
         provider = RegistryProvider(env_file="/dev/null/nonexistent.env")
@@ -128,7 +128,7 @@ class TestRegistryCIIntegration:
         monkeypatch.setenv("REGISTRY_USER", "bad_user")
         monkeypatch.setenv("REGISTRY_PASSWORD", "bad_password")
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.providers.registry import RegistryProvider
         import urllib.error
 
@@ -148,7 +148,7 @@ class TestRegistryCIIntegration:
         monkeypatch.setenv("REGISTRY_USER", "test_user")
         monkeypatch.setenv("REGISTRY_PASSWORD", "test_password")
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.manager import ConfigurationManager
         from configuration.contracts.v1.registry import RegistryConfiguration
 
@@ -163,7 +163,7 @@ class TestRegistryCIIntegration:
         monkeypatch.setenv("REGISTRY_PASSWORD", "test_password")
         monkeypatch.setenv("REGISTRY_ENDPOINT", "https://custom.registry.io")
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.manager import ConfigurationManager
         from configuration.contracts.v1.registry import RegistryConfiguration
 
@@ -181,7 +181,7 @@ class TestConfigurationManagerCIIntegration:
         monkeypatch.setenv("REGISTRY_USER", "env_user")
         monkeypatch.setenv("REGISTRY_PASSWORD", "env_password")
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.manager import ConfigurationManager
         from configuration.contracts.v1.registry import RegistryConfiguration
 
@@ -196,7 +196,7 @@ class TestConfigurationManagerCIIntegration:
         monkeypatch.delenv("REGISTRY_USER", raising=False)
         monkeypatch.delenv("REGISTRY_PASSWORD", raising=False)
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
         from configuration.manager import ConfigurationManager
         from configuration.contracts.v1.registry import RegistryConfiguration
         from configuration.providers.exceptions import ConfigurationResolutionFailed

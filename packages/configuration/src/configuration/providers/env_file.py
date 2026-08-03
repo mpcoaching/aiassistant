@@ -35,5 +35,8 @@ class DotEnvProvider(ConfigurationProvider):
 
         return {k: v for k, v in values.items() if v is not None}
 
+    def source_type(self) -> str:
+        return "env"
+
 
 EnvFileProvider = DotEnvProvider
