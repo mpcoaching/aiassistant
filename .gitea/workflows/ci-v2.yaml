@@ -55,7 +55,7 @@ jobs:
       - name: Install Delivery CLI
         run: |
           echo "Installing delivery CLI..."
-          uv pip install -e delivery/
+          uv pip install --system -e delivery/
 
 
       - name: Install Python Dependencies
@@ -64,7 +64,7 @@ jobs:
           for pkg in packages/*/; do
             if [ -f "$pkg/pyproject.toml" ]; then
               echo "Installing $pkg"
-              uv pip install -e "$pkg" 2>&1 || true
+              uv pip install --system -e "$pkg" 2>&1 || true
             fi
           done
 
