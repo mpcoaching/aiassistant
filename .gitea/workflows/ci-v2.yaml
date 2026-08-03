@@ -61,10 +61,11 @@ jobs:
       - name: Install Python Dependencies
         run: |
           echo "Installing Python dependencies..."
+          uv pip install --system ruff pytest pytest-cov
           for pkg in packages/*/; do
             if [ -f "$pkg/pyproject.toml" ]; then
               echo "Installing $pkg"
-              uv pip install --system -e "$pkg" 2>&1 || true
+              uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || true
             fi
           done
 

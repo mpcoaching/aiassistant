@@ -22,7 +22,7 @@ class TestDotEnvProvider:
         monkeypatch.setenv("FOO", "env_override")
         monkeypatch.delenv("BAZ", raising=False)
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
 
         provider = DotEnvProvider(env_file=str(env_file))
         result = provider.read()
@@ -30,7 +30,7 @@ class TestDotEnvProvider:
         assert result["BAZ"] == "qux"
 
     def test_missing_env_file_falls_back_to_os_environ(self, tmp_path, monkeypatch):
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
 
         monkeypatch.setenv("ONLY_IN_ENV", "from_environ")
         provider = DotEnvProvider(env_file=str(tmp_path / "nonexistent.env"))
@@ -42,7 +42,7 @@ class TestDotEnvProvider:
         env_file.write_text("KEY=value\n")
         monkeypatch.setenv("KEY", "value")
 
-        from configuration.providers.dotenv import DotEnvProvider
+        from configuration.providers.env_file import DotEnvProvider
 
         provider = DotEnvProvider(env_file=str(env_file))
         result = provider.read()
