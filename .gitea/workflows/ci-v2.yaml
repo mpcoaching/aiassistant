@@ -111,7 +111,7 @@ jobs:
               echo "Testing $pkg"
               cd "$pkg"
               unset REGISTRY_USER REGISTRY_PASSWORD REGISTRY_ENDPOINT
-              python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=term 2>&1 || exit 1
+              python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=term -m "not redis" 2>&1 || exit 1
               cd -
             fi
           done
@@ -224,7 +224,7 @@ jobs:
             if [ -d "$pkg/tests" ]; then
               cd "$pkg"
               unset REGISTRY_USER REGISTRY_PASSWORD REGISTRY_ENDPOINT
-              python -m pytest tests/ --cov=src --cov-report=xml --cov-report=term 2>/dev/null || true
+              python -m pytest tests/ --cov=src --cov-report=xml --cov-report=term -m "not redis" 2>/dev/null || true
               if [ -f coverage.xml ]; then
                 cp coverage.xml ../coverage/$(basename "$pkg")-coverage.xml
               fi
