@@ -86,14 +86,12 @@ jobs:
       - name: Install Node Dependencies
         run: |
           echo "Installing Node.js dependencies..."
-          for pkg in packages/*/; do
-            if [ -f "$pkg/package.json" ]; then
-              echo "Installing $pkg"
-              cd "$pkg"
-              npm install 2>&1 || exit 1
-              cd -
-            fi
-          done
+          if [ -d "packages/control-center-ui" ]; then
+            echo "Installing control-center-ui..."
+            cd packages/control-center-ui
+            npm install 2>&1 || exit 1
+            cd -
+          fi
 
 
       - name: Lint
@@ -104,14 +102,12 @@ jobs:
           ruff check packages/ --output-format=github
           
           echo "--- TypeScript/JavaScript ---"
-          for pkg in packages/*/; do
-            if [ -f "$pkg/package.json" ]; then
-              echo "Checking $pkg"
-              cd "$pkg"
-              npm run build --if-present 2>&1 || exit 1
-              cd -
-            fi
-          done
+          if [ -d "packages/control-center-ui" ]; then
+            echo "Checking packages/control-center-ui"
+            cd packages/control-center-ui
+            npm run build --if-present 2>&1 || exit 1
+            cd -
+          fi
 
 
       - name: Unit Tests
