@@ -21,7 +21,7 @@ restart-infrastructure:
 infra-rebuild:
 	docker compose -f infrastructure/compose.yml --env-file .env down
 	git pull
-	sudo rm -rf infrastructure/configs/gitea-runner/cache/*
+	docker run --rm -v $(shell pwd)/infrastructure/configs/gitea-runner/cache:/cache alpine sh -c 'rm -rf /cache/* /cache/.[!.]* /cache/..?* || true'
 	docker compose -f infrastructure/compose.yml --env-file .env up -d --build
 
 infra-up:
