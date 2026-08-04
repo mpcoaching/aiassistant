@@ -4,8 +4,9 @@ Tests for configuration contracts.
 
 from __future__ import annotations
 
-import pytest
 from dataclasses import FrozenInstanceError
+
+import pytest
 from pydantic import ValidationError
 
 from configuration.contracts.base import Contract, Lifecycle
