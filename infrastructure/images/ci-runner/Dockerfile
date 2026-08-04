@@ -1,4 +1,4 @@
-FROM gitea/runner-images:ubuntu-latest
+FROM docker.io/gitea/runner-images:ubuntu-latest
 
 USER root
 
