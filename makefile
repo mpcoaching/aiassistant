@@ -21,6 +21,7 @@ restart-infrastructure:
 infra-rebuild:
 	docker compose -f infrastructure/compose.yml --env-file .env down
 	git pull
+	rm -rf infrastructure/configs/gitea-runner/cache/*
 	docker compose -f infrastructure/compose.yml --env-file .env up -d --build
 
 infra-up:
