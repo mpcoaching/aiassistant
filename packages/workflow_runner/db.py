@@ -152,7 +152,7 @@ def _pg_get_schedules(database_url: str) -> list[dict[str, Any]]:
             cur.execute("SELECT * FROM get_enabled_schedules()")
             rows = cur.fetchall()
             keys = ["schedule_id", "workflow_name", "cron", "initial_context", "role_override", "trigger", "enabled", "next_fire_time"]
-            return [dict(zip(keys, r)) for r in rows]
+            return [dict(zip(keys, r, strict=True)) for r in rows]
     except psycopg2.Error:
         logger.warning("Failed to read schedules from Postgres; assuming empty")
         return []

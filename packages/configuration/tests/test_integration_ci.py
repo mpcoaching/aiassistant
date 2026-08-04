@@ -76,7 +76,7 @@ class TestRegistryCIIntegration:
         monkeypatch.setenv("REGISTRY_PASSWORD", "super_secret_password_123")
         # Don't set REGISTRY_ENDPOINT - it has a default, so this won't fail
         # Instead test that we get valid credentials back without secrets in str()
-        
+
         from configuration.contracts.v1.registry import RegistryConfiguration
         from configuration.manager import ConfigurationManager
         from configuration.providers.env_file import DotEnvProvider
@@ -87,11 +87,11 @@ class TestRegistryCIIntegration:
         # Verify we got the credentials
         assert config.username == "test_user"
         assert config.password == "super_secret_password_123"
-        
+
         # Verify that when we convert to string/dict, we don't accidentally leak secrets
         # in places we shouldn't (like in __repr__ or similar)
         config_dict = config.model_dump()
-        
+
         # The password should be in the dict (that's expected for the model itself)
         assert config_dict["password"] == "super_secret_password_123"
         # But we're testing that our error handling doesn't leak it elsewhere

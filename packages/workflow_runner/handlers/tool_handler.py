@@ -56,7 +56,7 @@ def _parse_command(step: Step, context: dict[str, Any]) -> list[str]:
     try:
         argv = shlex.split(raw)
     except ValueError as e:
-        raise CompositionError(f"Cannot parse tool command: {e}")
+        raise CompositionError(f"Cannot parse tool command: {e}") from e
 
     if not argv:
         raise CompositionError("Empty tool command from tool step")
