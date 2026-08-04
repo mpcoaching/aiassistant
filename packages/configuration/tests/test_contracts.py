@@ -5,6 +5,7 @@ Tests for configuration contracts.
 from __future__ import annotations
 
 import pytest
+from dataclasses import FrozenInstanceError
 from pydantic import ValidationError
 
 from configuration.contracts.base import Contract, Lifecycle
@@ -22,7 +23,7 @@ class TestLifecycle:
 
     def test_lifecycle_is_frozen(self):
         lc = Lifecycle(platform="platform", capability="database", execution="runtime")
-        with pytest.raises(ValidationError):
+        with pytest.raises(FrozenInstanceError):
             lc.platform = "other"
 
 
