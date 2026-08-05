@@ -103,9 +103,6 @@ services:
       - infrastructure-network
       - platform-network
 
-    pull_policy: always
-    force_rebuild: true
-
   # ----- Redis: shared cache for Configuration Manager -----
   redis:
     image: redis:7-alpine

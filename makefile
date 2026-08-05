@@ -21,12 +21,13 @@ restart-infrastructure:
 infra-rebuild:
 	docker compose -f infrastructure/compose.yml --env-file .env down
 	git pull
-	@echo "Clearing Gitea runner cache..."
+	@echo "Fully resetting Gitea runner..."
 	@if docker info >/dev/null 2>&1; then \
-		docker run --rm -v $$(pwd)/infrastructure/configs/gitea-runner/cache:/cache alpine sh -c 'rm -rf /cache/* /cache/.[!.]* /cache/..?*' 2>/dev/null || true; \
+		docker rm -f infra_gitea_runner 2>/dev/null || true; \
+		rm -rf infrastructure/configs/gitea-runner/cache/*; \
 		docker image prune -f 2>/dev/null || true; \
 	else \
-		echo "Docker not available, skipping cache clear"; \
+		echo "Docker not available, skipping runner reset"; \
 	fi
 	docker compose -f infrastructure/compose.yml --env-file .env up -d --build
 

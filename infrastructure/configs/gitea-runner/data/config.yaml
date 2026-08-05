@@ -14,5 +14,4 @@ cache:
 
 container:
   image: aiassistant-ci:latest
-  force_pull: true
   network: infrastructure-network
