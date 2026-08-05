@@ -39,10 +39,12 @@ jobs:
           git log --oneline -3
           
           echo "Verifying test fix is present..."
-          if grep -q "FrozenInstanceError" packages/configuration/tests/test_contracts.py; then
-            echo "✓ Test fix is present"
+          if grep -q "pytest.raises(Exception)" packages/configuration/tests/test_contracts.py; then
+            echo "✓ Test fix is present (expects Exception)"
           else
             echo "✗ Test fix is MISSING - runner has stale code"
+            echo "Actual test content:"
+            grep -A 2 "test_lifecycle_is_frozen" packages/configuration/tests/test_contracts.py
             exit 1
           fi
 
