@@ -28,11 +28,20 @@ jobs:
       - name: Force Fresh Code
         run: |
           echo "Forcing fresh checkout from origin/main..."
+          git config --global --add safe.directory /workspace/ai/aiassistant
           git fetch origin main
           git reset --hard origin/main
           echo "Checked out commit: $(git rev-parse HEAD)"
           echo "origin/main: $(git rev-parse origin/main)"
           git log --oneline -3
+          
+          echo "Verifying test fix is present..."
+          if grep -q "FrozenInstanceError" packages/configuration/tests/test_contracts.py; then
+            echo "✓ Test fix is present"
+          else
+            echo "✗ Test fix is MISSING - runner has stale code"
+            exit 1
+          fi
 
       - name: Docker Info
         run: |
