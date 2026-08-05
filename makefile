@@ -24,6 +24,7 @@ infra-rebuild:
 	@echo "Fully resetting Gitea runner..."
 	@if docker info >/dev/null 2>&1; then \
 		docker rm -f infra_gitea_runner 2>/dev/null || true; \
+		rm -rf infrastructure/configs/gitea-runner/data/*; \
 		rm -rf infrastructure/configs/gitea-runner/cache/*; \
 		docker image prune -f 2>/dev/null || true; \
 	else \
