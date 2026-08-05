@@ -28,9 +28,12 @@ jobs:
       - name: Force Fresh Code
         run: |
           echo "Forcing fresh checkout from origin/main..."
-          git config --global --add safe.directory /workspace/ai/aiassistant
-          git fetch origin main
-          git reset --hard origin/main
+          REPO_DIR="/workspace/ai/aiassistant"
+          cd "$(dirname "$REPO_DIR")"
+          rm -rf "$(basename "$REPO_DIR")"
+          git clone https://github.com/mpcoaching/aiassistant.git "$(basename "$REPO_DIR")"
+          cd "$(basename "$REPO_DIR")"
+          git checkout main
           echo "Checked out commit: $(git rev-parse HEAD)"
           echo "origin/main: $(git rev-parse origin/main)"
           git log --oneline -3
