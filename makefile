@@ -24,6 +24,7 @@ infra-rebuild:
 	@echo "Clearing Gitea runner cache..."
 	@if docker info >/dev/null 2>&1; then \
 		docker run --rm -v $$(pwd)/infrastructure/configs/gitea-runner/cache:/cache alpine sh -c 'rm -rf /cache/* /cache/.[!.]* /cache/..?*' 2>/dev/null || true; \
+		docker image prune -f 2>/dev/null || true; \
 	else \
 		echo "Docker not available, skipping cache clear"; \
 	fi
