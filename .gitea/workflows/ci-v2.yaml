@@ -25,17 +25,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify Fresh Checkout
+      - name: Force Fresh Code
         run: |
-          echo "Current commit: $(git rev-parse HEAD)"
-          echo "Latest origin/main: $(git rev-parse origin/main)"
-          echo "Branch: $(git branch --show-current)"
+          echo "Forcing fresh checkout from origin/main..."
+          git fetch origin main
+          git reset --hard origin/main
+          echo "Checked out commit: $(git rev-parse HEAD)"
+          echo "origin/main: $(git rev-parse origin/main)"
           git log --oneline -3
-          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
-            echo "WARNING: Checkout is not at latest origin/main"
-            git fetch origin main
-            git reset --hard origin/main
-          fi
 
       - name: Docker Info
         run: |
