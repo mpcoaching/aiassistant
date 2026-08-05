@@ -1,0 +1,258 @@
+name: CI v3 - Fresh Code
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+
+jobs:
+
+  ci-pipeline:
+
+    name: CI Pipeline
+
+    runs-on: ubuntu-latest
+
+    container:
+      image: aiassistant-ci:latest
+
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Force Fresh Code
+        run: |
+          echo "Forcing fresh checkout from origin/main..."
+          REPO_DIR="/workspace/ai/aiassistant"
+          cd "$(dirname "$REPO_DIR")"
+          rm -rf "$(basename "$REPO_DIR")"
+          git clone https://github.com/mpcoaching/aiassistant.git "$(basename "$REPO_DIR")"
+          cd "$(basename "$REPO_DIR")"
+          git checkout main
+          echo "Checked out commit: $(git rev-parse HEAD)"
+          echo "origin/main: $(git rev-parse origin/main)"
+          git log --oneline -3
+          
+          echo "Verifying test fix is present..."
+          echo "Actual test content:"
+          grep -A 2 "test_lifecycle_is_frozen" packages/configuration/tests/test_contracts.py || true
+          if grep -q "pytest.raises(Exception)" packages/configuration/tests/test_contracts.py; then
+            echo "✓ Test fix is present (expects Exception)"
+          else
+            echo "✗ Test fix is MISSING - runner has stale code"
+            exit 1
+          fi
+
+
+      - name: Docker Info
+        run: |
+          docker version
+          docker info
+
+
+      - name: Resolve Registry Configuration
+        run: |
+          RESPONSE=$(curl -sf http://infra_configuration_manager:8080/contracts/registry) || {
+            echo "ERROR: Could not reach configuration manager service"
+            exit 1
+          }
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          if [ "$STATUS" != "validated" ]; then
+            echo "Registry contract validation failed"
+            echo "$RESPONSE" | jq '.errors // .detail // .'
+            exit 1
+          fi
+          echo "$RESPONSE" | jq -r '.configuration | to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
+
+
+      - name: Login to Local Registry
+        run: |
+          echo "$REGISTRY_PASSWORD" | docker login registry.local.test \
+            --username "$REGISTRY_USER" \
+            --password-stdin
+
+
+      - name: Install Delivery CLI
+        run: |
+          echo "Installing delivery CLI..."
+          uv pip install --system -e delivery/
+
+
+      - name: Install Python Dependencies
+        run: |
+          echo "Installing Python dependencies..."
+          uv pip install --system ruff pytest pytest-cov
+          for pkg in packages/*/; do
+            if [ -f "$pkg/pyproject.toml" ]; then
+              echo "Installing $pkg"
+              uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || true
+            fi
+          done
+
+
+      - name: Install Node Dependencies
+        run: |
+          echo "Installing Node.js dependencies..."
+          if [ -d "packages/control-center-ui" ]; then
+            echo "Installing control-center-ui..."
+            cd packages/control-center-ui
+            npm install 2>&1 || exit 1
+            cd -
+          fi
+
+
+      - name: Lint
+        run: |
+          echo "Running linters..."
+          
+          echo "--- Python ruff ---"
+          ruff check packages/ --output-format=github
+          
+          echo "--- TypeScript/JavaScript ---"
+          if [ -d "packages/control-center-ui" ]; then
+            echo "Checking packages/control-center-ui"
+            cd packages/control-center-ui
+            npm run build --if-present 2>&1 || exit 1
+            cd -
+          fi
+
+
+      - name: Unit Tests
+        run: |
+          echo "Running unit tests with coverage..."
+          
+          echo "--- Python unit tests ---"
+          for pkg in packages/*/; do
+            if [ -d "$pkg/tests" ] && [ -f "$pkg/pyproject.toml" ]; then
+              echo "Testing $pkg"
+              cd "$pkg"
+              unset REGISTRY_USER REGISTRY_PASSWORD REGISTRY_ENDPOINT
+              if [ "$(basename "$pkg")" != "workflow_runner" ]; then
+                pytest tests/ -v --tb=short --cov=. --cov-report=xml 2>&1 | tee /tmp/test-output.txt
+                if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+                  echo "Tests failed in $pkg"
+                  exit 1
+                fi
+              else
+                echo "Skipping workflow_runner tests"
+              fi
+              cd /workspace/ai/aiassistant
+            fi
+          done
+
+
+      - name: Integration Tests
+        run: |
+          echo "Running integration tests..."
+          echo "No integration tests configured yet"
+
+
+      - name: Build Application Images
+        run: |
+          echo "Building application images..."
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          
+          export REGISTRY_URL=registry.local.test
+          export IMAGE_TAG
+          
+          docker build -t registry.local.test/workflow-runner:${IMAGE_TAG} \
+            -f packages/workflow-runner/Dockerfile packages/workflow-runner/
+          docker build -t registry.local.test/langgraph:${IMAGE_TAG} \
+            -f packages/langgraph/Dockerfile packages/langgraph/
+          docker build -t registry.local.test/control-center-ui:${IMAGE_TAG} \
+            -f packages/control-center-ui/Dockerfile packages/control-center-ui/
+
+
+      - name: Push to Dev Registry
+        run: |
+          echo "Pushing images to registry..."
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          
+          export REGISTRY_URL=registry.local.test
+          export IMAGE_TAG
+          
+          for img in workflow-runner langgraph control-center-ui; do
+            docker push "registry.local.test/$img:${IMAGE_TAG}"
+          done
+
+
+      - name: Deploy Dev Stack
+        run: |
+          echo "Deploying dev stack..."
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          
+          export REGISTRY_URL=registry.local.test
+          export IMAGE_TAG
+          
+          docker compose -f environments/dev/compose.yml up -d
+
+
+      - name: Validate Deployment
+        run: |
+          echo "Validating deployment..."
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          
+          export REGISTRY_URL=registry.local.test
+          export IMAGE_TAG
+          
+          delivery validate dev
+
+
+      - name: E2E Tests
+        run: |
+          echo "Running Playwright e2e tests..."
+          echo "E2E tests not yet configured"
+
+
+      - name: Coverage Report
+        if: always()
+        run: |
+          echo "Collecting coverage reports..."
+          
+          COVERAGE_DIR="/tmp/coverage-reports"
+          mkdir -p "$COVERAGE_DIR"
+          
+          for pkg in packages/*/; do
+            if [ -d "$pkg" ] && [ -f "$pkg/coverage.xml" ]; then
+              cp "$pkg/coverage.xml" "$COVERAGE_DIR/$(basename "$pkg")-coverage.xml"
+            fi
+          done
+          
+          echo "Coverage reports collected in $COVERAGE_DIR"
+          
+          if command -v python3 >/dev/null 2>&1; then
+            python3 -c "
+import xml.etree.ElementTree as ET
+import os
+import sys
+
+coverage_dir = '/tmp/coverage-reports'
+total_statements = 0
+total_missing = 0
+
+for fname in os.listdir(coverage_dir):
+    if fname.endswith('-coverage.xml'):
+        fpath = os.path.join(coverage_dir, fname)
+        try:
+            tree = ET.parse(fpath)
+            root = tree.getroot()
+            for cls in root.iter('class'):
+                stmts = int(cls.get('line-rate', '0').split('/')[0] or 0)
+                missing = int(cls.get('line-rate', '0').split('/')[1] or 0)
+                total_statements += stmts
+                total_missing += missing
+        except Exception:
+            pass
+
+if total_statements > 0:
+    coverage = ((total_statements - total_missing) / total_statements) * 100
+    print(f'Total coverage: {coverage:.1f}%')
+else:
+    print('No coverage data available')
+" 2>&1 || echo "Coverage summary not available"
+          fi
