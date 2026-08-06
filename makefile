@@ -24,8 +24,8 @@ infra-rebuild:
 	@echo "Fully resetting Gitea runner..."
 	@if docker info >/dev/null 2>&1; then \
 		docker rm -f infra_gitea_runner 2>/dev/null || true; \
-		rm -rf infrastructure/configs/gitea-runner/data/*; \
-		rm -rf infrastructure/configs/gitea-runner/cache/*; \
+		docker run --rm -v $$(pwd)/infrastructure/configs/gitea-runner/cache:/cache alpine sh -c 'rm -rf /cache/* /cache/.[!.]* /cache/..?*' 2>/dev/null || true; \
+		docker run --rm -v $$(pwd)/infrastructure/configs/gitea-runner/data:/data alpine sh -c 'rm -rf /data/* /data/.[!.]* /data/..?*' 2>/dev/null || true; \
 		docker image prune -f 2>/dev/null || true; \
 	else \
 		echo "Docker not available, skipping runner reset"; \
