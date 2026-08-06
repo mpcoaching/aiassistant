@@ -98,6 +98,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./configs/gitea-runner/data:/data
       - ./configs/gitea-runner/cache:/cache
+      - ./configs/gitea-runner/entrypoint.sh:/entrypoint.sh:ro
+
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
 
     networks:
       - infrastructure-network
