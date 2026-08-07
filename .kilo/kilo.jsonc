@@ -1,0 +1,90 @@
+{
+  // Links Kilo Code's cloud-served validation rules to your local file
+  "$schema": "https://app.kilo.ai/config.json", 
+
+  "experimental": {
+    "memoryBank": {
+      "enabled": true,
+      "maxTokens": 4096,
+      "storage": "local" // Keeps memory strictly on your Fedora disk
+    }
+  },
+
+  // Your active Model Context Protocol (MCP) block
+  "mcp": {
+    // 1. The Filesystem server allowing full, dynamic project file editing
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceRoot}" // Dynamically locks onto whichever folder you open
+      ],
+      "enabled": true
+    },
+
+    // 2. The Sequential Thinking server to prevent the AI from rushing file edits
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "enabled": true
+    },
+
+    "git": {
+        "command": "npx",
+        "args": [
+            "-y",
+            "@modelcontextprotocol/server-git"
+        ],
+        "enabled": true
+    },
+
+    "ref": {
+        "command": "npx",
+        "args": [
+            "-y",
+            "@modelcontextprotocol/server-ref" 
+        ],
+        "enabled": true
+    },
+
+    "exa-search": {
+        "command": "npx",
+        "args": [
+            "-y",
+            "@modelcontextprotocol/server-exa"
+        ],
+        "env": {
+            "EXA_API_KEY": "bd762b85-fa2f-4a8f-915a-d25d44d49711"
+        },
+        "enabled": true
+    },
+
+    "memory": {
+        "command": "npx",
+        "args": [
+            "-y",
+            "@modelcontextprotocol/server-memory"
+        ],
+        "env": {
+            // Saves the knowledge file inside your project config directory
+            "MEMORY_FILE_PATH": "${workspaceRoot}/.kilo/memory.jsonl"
+        },
+        "enabled": true
+    },
+
+    "markdown-rag": {
+        "command": "npx",
+        "args": [
+            "-y",
+            "markdown-rag-mcp",
+            "${workspaceRoot}/docs" // Explicitly point it to your large documentation folder
+        ],
+        "enabled": true
+    }
+
+  }
+}
