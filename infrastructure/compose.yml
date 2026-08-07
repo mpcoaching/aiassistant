@@ -84,6 +84,7 @@ services:
       GITEA_RUNNER_NAME: ${GITEA_RUNNER_NAME}
       GITEA_RUNNER_LABELS: ${GITEA_RUNNER_LABELS}
       CONFIG: /data/config.yml
+      CONFIG_TEMPLATE: /gitea-runner/config.template.yaml
       GITEA_RUNNER_CONTAINER_NETWORK: infrastructure-network
     ports:
       - "8088:8088"
@@ -96,6 +97,7 @@ services:
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./configs/gitea-runner:/gitea-runner:ro
       - ./configs/gitea-runner/data:/data
       - ./configs/gitea-runner/cache:/cache
       - ./configs/gitea-runner/entrypoint.sh:/entrypoint.sh:ro
