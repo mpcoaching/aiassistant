@@ -1,0 +1,27 @@
+name: knowledge
+version: v1
+
+requirements:
+  KNOWLEDGE_CORPUS_ROOT:
+    required: true
+  KNOWLEDGE_CHUNK_SIZE:
+    required: false
+    default: "500"
+  KNOWLEDGE_CHUNK_OVERLAP:
+    required: false
+    default: "120"
+  KNOWLEDGE_CONTEXT_CHUNKS:
+    required: false
+    default: "6"
+  KNOWLEDGE_BUNDLE_BUDGET_TOKENS:
+    required: false
+    default: "6000"
+  KNOWLEDGE_WATCHER_ENABLED:
+    required: false
+    default: "false"
+  KNOWLEDGE_INDEX_STATE_PATH:
+    required: false
+    default: ".knowledge/state.json"
+
+validators:
+  - required-fields
