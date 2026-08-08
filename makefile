@@ -8,9 +8,13 @@ up:
 	docker compose -f infrastructure/compose.yml --env-file .env up -d
 	docker compose -f platform/compose.yml --env-file .env up -d
 
-down:
-	docker compose -f infrastructure/compose.yml --env-file .env down
+down: platform-down infra-down
+
+platform-down:
 	docker compose -f platform/compose.yml --env-file .env down
+
+infra-down:
+	docker compose -f infrastructure/compose.yml --env-file .env down
 
 restart-platform:
 	docker compose -f platform/compose.yml --env-file .env restart
@@ -34,7 +38,7 @@ infra-rebuild:
 infra-up:
 	docker compose -f infrastructure/compose.yml --env-file .env up -d
 
-platform-up:
+platform-up: infra-up
 	docker compose -f platform/compose.yml --env-file .env up -d
 
 up: infra-up platform-up
