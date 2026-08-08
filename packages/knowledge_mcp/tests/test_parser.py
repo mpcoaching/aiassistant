@@ -110,24 +110,20 @@ class TestSplitSections:
         assert sections[0]["start_line"] == 1
         assert "Content here." in sections[0]["content"]
 
-    def test_multiple_sections(self):
+    def test_heading_only_merged_with_content(self):
         content = """# Architecture
-
-Preamble.
-
 ## Configuration
+### Configuration Manager
 
-Config content.
-
-## Patterns
-
-Pattern content.
+Content under manager.
 """
         sections = split_sections(content)
-        assert len(sections) == 3
-        assert sections[0]["heading"] == "Architecture"
-        assert sections[1]["heading"] == "Configuration"
-        assert sections[2]["heading"] == "Patterns"
+        assert len(sections) == 1
+        assert sections[0]["heading"] == "Configuration Manager"
+        assert sections[0]["start_line"] == 1
+        assert "Content under manager." in sections[0]["content"]
+        assert "Architecture" in sections[0]["content"]
+        assert "Configuration" in sections[0]["content"]
 
     def test_no_headings(self):
         content = "Just some text.\nNo headings.\n"
@@ -149,6 +145,29 @@ Line 4
         assert sections[0]["end_line"] == 2
         assert sections[1]["start_line"] == 3
         assert sections[1]["end_line"] == 4
+
+    def test_heading_followed_by_another_heading(self):
+        content = """# H1
+## H2
+### H3
+Content.
+"""
+        sections = split_sections(content)
+        assert len(sections) == 1
+        assert sections[0]["heading"] == "H3"
+        assert sections[0]["start_line"] == 1
+        assert "Content." in sections[0]["content"]
+
+    def test_last_heading_only_preserved(self):
+        content = """# H1
+Content.
+## H2
+"""
+        sections = split_sections(content)
+        assert len(sections) == 2
+        assert sections[0]["heading"] == "H1"
+        assert sections[1]["heading"] == "H2"
+        assert sections[1]["content"] == "## H2"
 
 
 class TestExtractFrontmatter:
@@ -206,6 +225,16 @@ class TestExtractReferences:
         content = "[Section](#section) and [Doc](doc.md#frag)"
         refs = extract_references(content)
         assert refs == ["doc.md"]
+
+    def test_external_urls(self):
+        content = "[Qdrant](https://qdrant.tech/) and [Architecture](../architecture.md)"
+        refs = extract_references(content)
+        assert refs == ["../architecture.md", "https://qdrant.tech/"]
+
+    def test_multiple_external_urls(self):
+        content = "[A](https://example.com/a) and [B](https://example.com/b)"
+        refs = extract_references(content)
+        assert refs == ["https://example.com/a", "https://example.com/b"]
 
     def test_no_links(self):
         content = "Just text with no links."

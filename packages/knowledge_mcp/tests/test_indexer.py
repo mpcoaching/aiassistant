@@ -123,3 +123,19 @@ class TestOrchestrator:
             rel_path, chunks = results[0]
             assert str(rel_path) == "architecture.md"
             assert len(chunks) == 1
+
+    def test_process_document_produces_relative_paths(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sub = root / "agentic" / "docs"
+            sub.mkdir(parents=True)
+            doc = sub / "pattern.md"
+            doc.write_text("# Pattern\n\nContent.\n")
+
+            orch = KnowledgeOrchestrator(str(root), chunk_size=500, chunk_overlap=120)
+            results = orch.process_document(doc)
+
+            rel_path, chunks = results[0]
+            assert str(rel_path) == "agentic/docs/pattern.md"
+            assert chunks[0].document_path == "agentic/docs/pattern.md"
+            assert not chunks[0].document_path.startswith("/")

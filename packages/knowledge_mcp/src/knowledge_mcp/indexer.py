@@ -151,11 +151,6 @@ def _make_chunk(
     start_line = section.get("start_line", 1)
     end_line = section.get("end_line", 1)
 
-    # Build breadcrumb from section headings
-    # For now, breadcrumb is just the current heading text
-    # The full hierarchy will be built by the orchestrator
-    breadcrumb = _build_section_breadcrumb(section)
-
     chunk_id = f"{document_path}:{chunk_index}"
 
     # Extract references from chunk content
@@ -166,7 +161,7 @@ def _make_chunk(
         document_path=document_path,
         content=content,
         section_heading=heading,
-        breadcrumb=breadcrumb,
+        breadcrumb=None,  # Set by _enhance_breadcrumb
         start_line=start_line,
         end_line=end_line,
         references=references,
@@ -174,17 +169,28 @@ def _make_chunk(
     )
 
 
-def _build_section_breadcrumb(section: dict[str, Any]) -> str | None:
-    """Build a breadcrumb string for a section.
+def _enhance_breadcrumb(
+    chunk: KnowledgeChunk,
+    section: dict[str, Any],
+    headings: list[dict[str, Any]],
+) -> KnowledgeChunk:
+    """Enhance a chunk's breadcrumb with full heading hierarchy.
 
-    For v1, the breadcrumb is just the section heading text.
-    The full hierarchy breadcrumb will be added by the orchestrator
-    once heading hierarchy is tracked across sections.
+    For a chunk under heading "Configuration Manager" at level 3, with parent
+    headings "Platform" (level 1) and "Configuration" (level 2), the breadcrumb
+    becomes "Platform > Configuration > Configuration Manager".
     """
-    heading = section.get("heading")
-    if heading is None:
-        return None
-    return heading
+    section_heading = section.get("heading")
+    if not section_heading:
+        return chunk
+
+    section_level = section.get("level", 99)
+    # Collect all headings with level less than the section level as parents
+    parent_headings = [h["text"] for h in headings if h["level"] < section_level]
+    breadcrumb_parts = parent_headings + [section_heading]
+    breadcrumb = " > ".join(breadcrumb_parts)
+
+    return chunk.model_copy(update={"breadcrumb": breadcrumb})
 
 
 def index_document(
@@ -214,7 +220,6 @@ def index_document(
 
     # Build heading hierarchy for breadcrumb construction
     headings = extract_headings(remaining_content)
-    heading_map = {h["line"]: h for h in headings}
 
     # Chunk each section
     all_chunks: list[KnowledgeChunk] = []
@@ -227,31 +232,6 @@ def index_document(
             all_chunks.append(enhanced)
 
     return all_chunks, metadata
-
-
-def _enhance_breadcrumb(
-    chunk: KnowledgeChunk,
-    section: dict[str, Any],
-    headings: list[dict[str, Any]],
-) -> KnowledgeChunk:
-    """Enhance a chunk's breadcrumb with full heading hierarchy.
-
-    For a chunk under heading "Configuration Manager" at level 3, with parent
-    headings "Platform" (level 1) and "Configuration" (level 2), the breadcrumb
-    becomes "Platform > Configuration > Configuration Manager".
-    """
-    section_heading = section.get("heading")
-    if not section_heading:
-        return chunk
-
-    # Find parent headings
-    section_line = section.get("start_line", 1)
-    parent_headings = [h["text"] for h in headings if h["line"] < section_line and h["level"] < section.get("level", 99)]
-
-    breadcrumb_parts = parent_headings + [section_heading]
-    breadcrumb = " > ".join(breadcrumb_parts)
-
-    return chunk.model_copy(update={"breadcrumb": breadcrumb})
 
 
 def scan_corpus(corpus_root: str, extensions: list[str] | None = None) -> list[Path]:

@@ -81,10 +81,8 @@ Content.
 Content under manager.
 """
         chunks, metadata = index_document(content, "doc.md", chunk_size=500, chunk_overlap=120)
-        assert len(chunks) == 3
-        assert chunks[0].breadcrumb == "Architecture"
-        assert chunks[1].breadcrumb == "Architecture > Configuration"
-        assert chunks[2].breadcrumb == "Architecture > Configuration > Configuration Manager"
+        assert len(chunks) == 1
+        assert chunks[0].breadcrumb == "Architecture > Configuration > Configuration Manager"
 
     def test_no_headings_no_breadcrumb(self):
         content = "Just text.\nNo headings.\n"
@@ -104,13 +102,24 @@ class TestProvenance:
         assert chunks[1].start_line == 2
         assert chunks[1].end_line == 4
 
-    def test_source_path_preserved(self):
+    def test_source_path_corpus_relative(self):
         content = """# Heading
 
 Content.
 """
         chunks, metadata = index_document(content, "docs/architecture/pattern.md", chunk_size=500, chunk_overlap=120)
         assert chunks[0].document_path == "docs/architecture/pattern.md"
+
+    def test_document_path_does_not_start_with_slash(self):
+        content = "# Heading\n\nContent.\n"
+        chunks, metadata = index_document(content, "agentic/docs/architecture/pattern.md", chunk_size=500, chunk_overlap=120)
+        assert not chunks[0].document_path.startswith("/")
+        assert chunks[0].document_path == "agentic/docs/architecture/pattern.md"
+
+    def test_chunk_id_is_corpus_relative(self):
+        content = "# Heading\n\nContent.\n"
+        chunks, _ = index_document(content, "docs/pattern.md", chunk_size=500, chunk_overlap=120)
+        assert chunks[0].chunk_id == "docs/pattern.md:0"
 
     def test_frontmatter_preserved(self):
         content = """---
@@ -167,10 +176,10 @@ class TestEdgeCases:
     def test_headings_only(self):
         content = "# H1\n## H2\n### H3\n"
         chunks, metadata = index_document(content, "doc.md", chunk_size=500, chunk_overlap=120)
-        assert len(chunks) == 3
-        assert chunks[0].section_heading == "H1"
-        assert chunks[1].section_heading == "H2"
-        assert chunks[2].section_heading == "H3"
+        assert len(chunks) == 1
+        assert chunks[0].section_heading == "H3"
+        assert "H1" in chunks[0].content
+        assert "H2" in chunks[0].content
 
     def test_no_headings(self):
         content = "Just text.\nNo headings.\n"
@@ -187,8 +196,8 @@ class TestEdgeCases:
 Content.
 """
         chunks, metadata = index_document(content, "doc.md", chunk_size=500, chunk_overlap=120)
-        assert len(chunks) == 4
-        assert chunks[3].breadcrumb == "H1 > H2 > H3 > H4"
+        assert len(chunks) == 1
+        assert chunks[0].breadcrumb == "H1 > H2 > H3 > H4"
 
     def test_heading_jump(self):
         content = """# H1
@@ -196,8 +205,8 @@ Content.
 Content.
 """
         chunks, metadata = index_document(content, "doc.md", chunk_size=500, chunk_overlap=120)
-        assert len(chunks) == 2
-        assert chunks[1].breadcrumb == "H1 > H3"
+        assert len(chunks) == 1
+        assert chunks[0].breadcrumb == "H1 > H3"
 
     def test_duplicate_heading_names(self):
         content = """# Heading
@@ -207,10 +216,10 @@ Content 1.
 Content 2.
 """
         chunks, metadata = index_document(content, "doc.md", chunk_size=500, chunk_overlap=120)
-        assert len(chunks) == 3
+        assert len(chunks) == 2
+        assert chunks[0].section_heading == "Section"
         assert chunks[1].section_heading == "Section"
-        assert chunks[2].section_heading == "Section"
-        assert chunks[1].start_line < chunks[2].start_line
+        assert chunks[0].start_line < chunks[1].start_line
 
     def test_very_long_paragraph(self):
         paragraph = "Word " * 500
