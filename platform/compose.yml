@@ -285,9 +285,6 @@ services:
     environment:
       CONFIG_MANAGER_URL: http://configuration-manager:8080
       CAPABILITY: ci-worker
-    depends_on:
-      configuration-manager:
-        condition: service_healthy
     networks:
       - platform-network
     restart: unless-stopped
