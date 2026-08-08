@@ -11,6 +11,7 @@ from configuration.contracts.base import Contract, Lifecycle
 from configuration.contracts.v1.database import DatabaseConfiguration
 from configuration.contracts.v1.langgraph_runtime import LangGraphRuntimeConfiguration
 from configuration.contracts.v1.message_bus import MessageBusConfiguration
+from configuration.contracts.v1.qdrant import QdrantConfiguration
 from configuration.contracts.v1.registry import RegistryConfiguration
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "LangGraphRuntimeConfiguration",
     "Lifecycle",
     "MessageBusConfiguration",
+    "QdrantConfiguration",
     "RegistryConfiguration",
 ]

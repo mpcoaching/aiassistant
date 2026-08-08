@@ -11,6 +11,7 @@ from configuration.contracts.base import Contract, Lifecycle
 from configuration.contracts.v1.database import DatabaseConfiguration
 from configuration.contracts.v1.langgraph_runtime import LangGraphRuntimeConfiguration
 from configuration.contracts.v1.message_bus import MessageBusConfiguration
+from configuration.contracts.v1.qdrant import QdrantConfiguration
 
 
 class TestLifecycle:
@@ -158,3 +159,76 @@ class TestLangGraphRuntimeConfiguration:
         cfg = LangGraphRuntimeConfiguration.model_validate({})
         with pytest.raises(ValidationError):
             cfg.url = "new://url"
+
+
+class TestQdrantConfiguration:
+    def test_type_id(self):
+        assert QdrantConfiguration.type_id() == "qdrant"
+
+    def test_purpose(self):
+        assert QdrantConfiguration.purpose() == "Qdrant vector store connection configuration"
+
+    def test_owner(self):
+        assert QdrantConfiguration.owner() == "platform"
+
+    def test_lifecycle(self):
+        lc = QdrantConfiguration.lifecycle()
+        assert lc.platform == "platform"
+        assert lc.capability == "qdrant"
+        assert lc.execution == "runtime"
+
+    def test_documentation(self):
+        assert QdrantConfiguration.documentation() == "Configuration for connecting to the Qdrant vector store"
+
+    def test_resolves_with_api_key_alias(self):
+        cfg = QdrantConfiguration.model_validate({
+            "QDRANT_URL": "https://qdrant.local.test",
+            "QDRANT_API_KEY": "secret-api-key",
+        })
+        assert cfg.url == "https://qdrant.local.test"
+        assert cfg.api_key == "secret-api-key"
+
+    def test_resolves_with_legacy_key_alias(self):
+        cfg = QdrantConfiguration.model_validate({
+            "QDRANT_URL": "https://qdrant.local.test",
+            "QDRANT_KEY": "legacy-secret",
+        })
+        assert cfg.url == "https://qdrant.local.test"
+        assert cfg.api_key == "legacy-secret"
+
+    def test_default_url_when_not_supplied(self):
+        cfg = QdrantConfiguration.model_validate({
+            "QDRANT_API_KEY": "secret",
+        })
+        assert cfg.url == "https://qdrant.local.test"
+        assert cfg.api_key == "secret"
+
+    def test_api_key_alias_choices_prefer_canonical(self):
+        cfg = QdrantConfiguration.model_validate({
+            "QDRANT_URL": "https://qdrant.local.test",
+            "QDRANT_API_KEY": "canonical",
+            "QDRANT_KEY": "legacy",
+        })
+        assert cfg.api_key == "canonical"
+
+    def test_missing_api_key_raises(self):
+        with pytest.raises(ValidationError):
+            QdrantConfiguration.model_validate({
+                "QDRANT_URL": "https://qdrant.local.test",
+            })
+
+    def test_default_url_applied_when_missing(self):
+        cfg = QdrantConfiguration.model_validate({
+            "QDRANT_API_KEY": "secret",
+        })
+        assert cfg.url == "https://qdrant.local.test"
+        assert cfg.api_key == "secret"
+
+    def test_immutable(self):
+        cfg = QdrantConfiguration.model_validate({
+            "QDRANT_URL": "https://qdrant.local.test",
+            "QDRANT_API_KEY": "secret",
+        })
+        with pytest.raises(ValidationError):
+            cfg.url = "http://other"
+

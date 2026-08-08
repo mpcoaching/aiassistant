@@ -1,0 +1,5 @@
+mapping:
+  QDRANT_URL:
+    source_key: QDRANT_URL
+  QDRANT_API_KEY:
+    source_key: QDRANT_KEY

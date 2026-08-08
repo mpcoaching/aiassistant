@@ -1,0 +1,11 @@
+name: qdrant
+version: v1
+
+requirements:
+  QDRANT_URL:
+    required: true
+  QDRANT_API_KEY:
+    required: true
+
+validators:
+  - required-fields
