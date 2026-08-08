@@ -4,9 +4,7 @@ logs:
 status:
 	docker compose ps
 
-up:
-	docker compose -f infrastructure/compose.yml --env-file .env up -d
-	docker compose -f platform/compose.yml --env-file .env up -d
+up: infra-up platform-up
 
 down: platform-down infra-down
 
@@ -36,15 +34,9 @@ infra-rebuild:
 	docker compose -f infrastructure/compose.yml --env-file .env up -d --build
 
 infra-up:
+	docker network create dev-network 2>/dev/null || true
+	docker network create live-network 2>/dev/null || true
 	docker compose -f infrastructure/compose.yml --env-file .env up -d
 
 platform-up: infra-up
 	docker compose -f platform/compose.yml --env-file .env up -d
-
-up: infra-up platform-up
-
-infra-down:
-	docker compose -f infrastructure/compose.yml --env-file .env down
-
-platform-down:
-	docker compose -f platform/compose.yml --env-file .env down
