@@ -20,19 +20,14 @@ jobs:
 
     steps:
 
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Force Fresh Code
         run: |
           echo "Forcing fresh checkout from origin/main..."
           REPO_DIR="/workspace/ai/aiassistant"
-          cd "$(dirname "$REPO_DIR")"
+          mkdir -p "$(dirname "$REPO_DIR")"
           rm -rf "$(basename "$REPO_DIR")"
-          git clone https://github.com/mpcoaching/aiassistant.git "$(basename "$REPO_DIR")"
-          cd "$(basename "$REPO_DIR")"
+          git clone https://github.com/mpcoaching/aiassistant.git "$REPO_DIR"
+          cd "$REPO_DIR"
           git checkout main
           echo "Checked out commit: $(git rev-parse HEAD)"
           echo "origin/main: $(git rev-parse origin/main)"
@@ -160,11 +155,11 @@ jobs:
           export REGISTRY_URL=registry.local.test
           export IMAGE_TAG
           
-          docker build -t registry.local.test/workflow-runner:${IMAGE_TAG} \
-            -f packages/workflow-runner/Dockerfile packages/workflow-runner/
-          docker build -t registry.local.test/langgraph:${IMAGE_TAG} \
+          docker build -t registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG} \
+            -f packages/workflow_runner/Dockerfile packages/workflow_runner/
+          docker build -t registry.local.test/aiassistant/langgraph:${IMAGE_TAG} \
             -f packages/langgraph/Dockerfile packages/langgraph/
-          docker build -t registry.local.test/control-center-ui:${IMAGE_TAG} \
+          docker build -t registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG} \
             -f packages/control-center-ui/Dockerfile packages/control-center-ui/
 
 
@@ -176,7 +171,7 @@ jobs:
           export REGISTRY_URL=registry.local.test
           export IMAGE_TAG
           
-          for img in workflow-runner langgraph control-center-ui; do
+          for img in aiassistant/workflow_runner aiassistant/langgraph aiassistant/control-center-ui; do
             docker push "registry.local.test/$img:${IMAGE_TAG}"
           done
 
@@ -227,32 +222,32 @@ jobs:
           
           if command -v python3 >/dev/null 2>&1; then
             python3 -c "
-import xml.etree.ElementTree as ET
-import os
-import sys
+            import xml.etree.ElementTree as ET
+            import os
+            import sys
 
-coverage_dir = '/tmp/coverage-reports'
-total_statements = 0
-total_missing = 0
+            coverage_dir = '/tmp/coverage-reports'
+            total_statements = 0
+            total_missing = 0
 
-for fname in os.listdir(coverage_dir):
-    if fname.endswith('-coverage.xml'):
-        fpath = os.path.join(coverage_dir, fname)
-        try:
-            tree = ET.parse(fpath)
-            root = tree.getroot()
-            for cls in root.iter('class'):
-                stmts = int(cls.get('line-rate', '0').split('/')[0] or 0)
-                missing = int(cls.get('line-rate', '0').split('/')[1] or 0)
-                total_statements += stmts
-                total_missing += missing
-        except Exception:
-            pass
+            for fname in os.listdir(coverage_dir):
+                if fname.endswith('-coverage.xml'):
+                    fpath = os.path.join(coverage_dir, fname)
+                    try:
+                        tree = ET.parse(fpath)
+                        root = tree.getroot()
+                        for cls in root.iter('class'):
+                            stmts = int(cls.get('line-rate', '0').split('/')[0] or 0)
+                            missing = int(cls.get('line-rate', '0').split('/')[1] or 0)
+                            total_statements += stmts
+                            total_missing += missing
+                    except Exception:
+                        pass
 
-if total_statements > 0:
-    coverage = ((total_statements - total_missing) / total_statements) * 100
-    print(f'Total coverage: {coverage:.1f}%')
-else:
-    print('No coverage data available')
-" 2>&1 || echo "Coverage summary not available"
+            if total_statements > 0:
+                coverage = ((total_statements - total_missing) / total_statements) * 100
+                print(f'Total coverage: {coverage:.1f}%')
+            else:
+                print('No coverage data available')
+            " 2>&1 || echo "Coverage summary not available"
           fi
