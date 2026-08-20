@@ -11,9 +11,6 @@ steps:
     image: registry.local.test/aiassistant/ci-runner:latest
     when:
       event: push
-    cache:
-      - /root/.cache/pip
-      - /root/.cache/uv
     commands:
       - for pkg in packages/*/; do if [ -f "$pkg/pyproject.toml" ]; then echo "Installing $pkg"; uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || pip install --system -e "$pkg"; fi; done
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
@@ -30,9 +27,6 @@ steps:
     image: registry.local.test/aiassistant/ci-runner:latest
     when:
       event: push
-    cache:
-      - /root/.cache/pip
-      - /root/.cache/uv
     commands:
       - for pkg in packages/*/; do if [ -d "$pkg/tests" ] && [ -f "$pkg/pyproject.toml" ]; then echo "Testing $pkg"; cd "$pkg"; if [ "$(basename "$pkg")" = "workflow_runner" ]; then pytest tests/ -v --tb=short --ignore=tests/test_phase23.py 2>&1 | tee /tmp/test-output.txt; else pytest tests/ -v --tb=short 2>&1 | tee /tmp/test-output.txt; fi; cd ../..; fi; done
 
