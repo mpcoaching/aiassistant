@@ -236,6 +236,7 @@ services:
       - WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET}
       - WOODPECKER_LOG_LEVEL=debug
       - WOODPECKER_BACKEND_DOCKER_HOST=unix:///var/run/docker.sock
+      - WOODPECKER_BACKEND_DOCKER_VOLUMES=/var/run/docker.sock:/var/run/docker.sock
     network_mode: host
     networks: []
 
