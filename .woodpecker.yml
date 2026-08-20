@@ -30,9 +30,9 @@ steps:
     image: docker:24.0.9
     environment:
       REGISTRY_USER:
-        from_secret: REGISTRY_USER
+        from_secret: registry_user
       REGISTRY_PASSWORD:
-        from_secret: REGISTRY_PASSWORD
+        from_secret: registry_password
     commands:
       - apk add --no-cache bash yq
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
@@ -52,9 +52,9 @@ steps:
     image: docker:24.0.9
     environment:
       REGISTRY_USER:
-        from_secret: REGISTRY_USER
+        from_secret: registry_user
       REGISTRY_PASSWORD:
-        from_secret: REGISTRY_PASSWORD
+        from_secret: registry_password
     commands:
       - apk add --no-cache bash git yq
       - IMAGE_TAG=$(git rev-parse --short HEAD)
