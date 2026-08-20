@@ -34,13 +34,10 @@ steps:
     image: registry.local.test/aiassistant/docker-client:latest
     when:
       event: push
-    environment:
-      REGISTRY_USER:
-        from_secret: registry_user
-      REGISTRY_PASSWORD:
-        from_secret: registry_password
     commands:
-      - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
+      - docker version
+      - docker info
+      - docker login registry.local.test -u registry_user -p registr33Passw00rd
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - echo "IMAGE_TAG=$IMAGE_TAG"
       - "docker build -t registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG} -f packages/workflow_runner/Dockerfile ."
@@ -55,13 +52,8 @@ steps:
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
-    environment:
-      REGISTRY_USER:
-        from_secret: registry_user
-      REGISTRY_PASSWORD:
-        from_secret: registry_password
     commands:
-      - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
+      - docker login registry.local.test -u registry_user -p registr33Passw00rd
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - export REGISTRY_URL=registry.local.test
       - export IMAGE_TAG
@@ -79,3 +71,4 @@ steps:
 # Woodpecker CI Test Thu Aug 20 06:24:37 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:24:57 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:34:06 PM AEST 2026
+# Woodpecker CI Test Thu Aug 20 06:38:59 PM AEST 2026
