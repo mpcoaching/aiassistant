@@ -23,7 +23,7 @@ services:
     image: ${REGISTRY_URL}/aiassistant/workflow_runner:${IMAGE_TAG}
     container_name: dev_workflow_engine
     ports:
-      - "8000:8000"
+      - "8001:8000"
     expose:
       - 8000
     environment:
