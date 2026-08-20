@@ -30,7 +30,7 @@ steps:
     commands:
       - for pkg in packages/*/; do if [ -d "$pkg/tests" ] && [ -f "$pkg/pyproject.toml" ]; then echo "Testing $pkg"; cd "$pkg"; if [ "$(basename "$pkg")" = "workflow_runner" ]; then pytest tests/ -v --tb=short --ignore=tests/test_phase23.py 2>&1 | tee /tmp/test-output.txt; else pytest tests/ -v --tb=short 2>&1 | tee /tmp/test-output.txt; fi; cd ../..; fi; done
 
-  - name: build-test-push
+  - name: build
     image: registry.local.test/aiassistant/docker-client:latest
     when:
       event: push
@@ -48,9 +48,29 @@ steps:
       - "docker build -t registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG -f packages/workflow_runner/Dockerfile packages/workflow_runner"
       - "docker build -t registry.local.test/aiassistant/langgraph:$IMAGE_TAG -f packages/langgraph/Dockerfile packages/langgraph"
       - "docker build -t registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG -f packages/control-center-ui/Dockerfile packages/control-center-ui"
+
+  - name: test-image
+    image: registry.local.test/aiassistant/docker-client:latest
+    when:
+      event: push
+    commands:
+      - IMAGE_TAG=$(git rev-parse --short HEAD)
       - "bash scripts/test-image.sh registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG"
       - "bash scripts/test-image.sh registry.local.test/aiassistant/langgraph:$IMAGE_TAG"
       - "bash scripts/test-image.sh registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG"
+
+  - name: push
+    image: registry.local.test/aiassistant/docker-client:latest
+    when:
+      event: push
+    environment:
+      REGISTRY_USER:
+        from_secret: registry_user
+      REGISTRY_PASSWORD:
+        from_secret: registry_password
+    commands:
+      - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
+      - IMAGE_TAG=$(git rev-parse --short HEAD)
       - "docker push registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/langgraph:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG"
