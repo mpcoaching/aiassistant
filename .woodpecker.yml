@@ -1,4 +1,10 @@
 ---
+clone:
+  git:
+    image: woodpeckerci/plugin-git:latest
+    settings:
+      server: http://gitea:3000
+
 steps:
   - name: install
     image: python:3.12-slim
