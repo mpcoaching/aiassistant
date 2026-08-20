@@ -55,7 +55,11 @@ services:
       - GITEA__server__ROOT_URL=https://gitea.local.test/
       - GITEA__server__SSH_DOMAIN=gitea.local.test
       - GITEA__service__DISABLE_REGISTRATION=false
+      - GITEA__security__ALLOWED_HOST_LIST=woodpecker.local.test
+      - GITEA__security__SKIP_VERIFY=true
     restart: unless-stopped
+    extra_hosts:
+      - "woodpecker.local.test:192.168.1.238"
     networks:
       infrastructure-network:
         aliases:
@@ -64,9 +68,11 @@ services:
         aliases:
           - gitea
     volumes:
+      - ./configs/nginx/local.test.crt:/tmp/local.test.crt:ro
       - gitea_data:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+    command: sh -c 'cp /tmp/local.test.crt /usr/local/share/ca-certificates/local.test.crt && update-ca-certificates && exec /usr/bin/s6-svscan /etc/s6'
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1"]
       interval: 10s
@@ -184,6 +190,54 @@ services:
       retries: 3
       start_period: 10s
 
+  # ----- Woodpecker CI -----
+  # Parallel CI system. Agent mounts host Docker socket for native builds.
+  # Repository must be marked Trusted in Woodpecker UI for socket access.
+  woodpecker-server:
+    image: woodpeckerci/woodpecker-server:v3
+    container_name: infra_woodpecker_server
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    volumes:
+      - woodpecker-server-data:/var/lib/woodpecker
+    environment:
+      - WOODPECKER_OPEN=true
+      - WOODPECKER_HOST=https://woodpecker.local.test
+      - WOODPECKER_GITEA=true
+      - WOODPECKER_GITEA_URL=https://gitea.local.test
+      - WOODPECKER_GITEA_CLIENT=${WOODPECKER_GITEA_CLIENT}
+      - WOODPECKER_GITEA_SECRET=${WOODPECKER_GITEA_SECRET}
+      - WOODPECKER_GITEA_SKIP_VERIFY=true
+      - WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET}
+      - WOODPECKER_GRPC_SECRET=${WOODPECKER_GRPC_SECRET}
+    dns:
+      - 192.168.1.238
+    networks:
+      - infrastructure-network
+    restart: unless-stopped
+    depends_on:
+      - gitea
+
+  woodpecker-agent:
+    image: woodpeckerci/woodpecker-agent:v3.17.0
+    container_name: infra_woodpecker_agent
+    command: agent
+    restart: unless-stopped
+    depends_on:
+      - woodpecker-server
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - woodpecker-agent-config:/etc/woodpecker
+    environment:
+      - WOODPECKER_SERVER=woodpecker-server:9000
+      - WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET}
+      - WOODPECKER_LOG_LEVEL=debug
+    dns:
+      - 192.168.1.238
+    networks:
+      - infrastructure-network
+
 networks:
   # Single owner of all four networks. Explicit names => globally consistent
   # across the four Compose projects (no project-prefix surprises).
@@ -208,3 +262,5 @@ volumes:
   registry_data:
   redis_data:
   configuration_data:
+  woodpecker-server-data:
+  woodpecker-agent-config:
