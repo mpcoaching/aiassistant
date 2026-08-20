@@ -82,13 +82,27 @@ steps:
         from_secret: registry_user
       REGISTRY_PASSWORD:
         from_secret: registry_password
+      AGENT_DEV_DB_USER:
+        from_secret: agent_dev_db_user
+      AGENT_DEV_DB_PASSWORD:
+        from_secret: agent_dev_db_password
+      AGENT_DEV_DB_NAME:
+        from_secret: agent_dev_db_name
+      LANGGRAPH_DEV_DB_USER:
+        from_secret: langgraph_dev_db_user
+      LANGGRAPH_DEV_DB_PASSWORD:
+        from_secret: langgraph_dev_db_password
+      LANGGRAPH_DEV_DB_NAME:
+        from_secret: langgraph_dev_db_name
     commands:
+      - set -x
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - export REGISTRY_URL=registry.local.test
       - export IMAGE_TAG
       - docker compose -f environments/dev/compose.yml -f environments/dev/ci.yml config > /tmp/compose-filtered.yml
       - yq eval 'del(.services.dev-workflow-engine.volumes[] | select(.source | contains("packages/")))' -i /tmp/compose-filtered.yml
+      - cat /tmp/compose-filtered.yml
       - docker compose -f /tmp/compose-filtered.yml up -d
     when:
       event: [push, manual]

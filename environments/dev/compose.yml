@@ -9,7 +9,7 @@ name: dev
 
 services:
   dev-control-center-ui:
-    image: ${REGISTRY_URL}/control-center-ui:${IMAGE_TAG}
+    image: ${REGISTRY_URL}/aiassistant/control-center-ui:${IMAGE_TAG}
     container_name: dev_control_center_ui
     ports:
       - "5173:80"
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
 
   dev-workflow-engine:
-    image: ${REGISTRY_URL}/workflow-runner:${IMAGE_TAG}
+    image: ${REGISTRY_URL}/aiassistant/workflow_runner:${IMAGE_TAG}
     container_name: dev_workflow_engine
     ports:
       - "8000:8000"
@@ -62,10 +62,10 @@ services:
     restart: unless-stopped
 
   dev-langgraph:
-    image: ${REGISTRY_URL}/langgraph:${IMAGE_TAG}
+    image: ${REGISTRY_URL}/aiassistant/langgraph:${IMAGE_TAG}
     container_name: dev_langgraph
     ports:
-      - "5173:80"
+      - "5174:80"
     expose:
       - 8000
     environment:
