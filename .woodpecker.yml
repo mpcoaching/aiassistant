@@ -28,8 +28,6 @@ steps:
 
   - name: build-test-push
     image: docker:24.0.9
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       REGISTRY_USER:
         from_secret: REGISTRY_USER
@@ -52,8 +50,6 @@ steps:
 
   - name: deploy
     image: docker:24.0.9
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       REGISTRY_USER:
         from_secret: REGISTRY_USER
