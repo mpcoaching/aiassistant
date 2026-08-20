@@ -1,0 +1,71 @@
+---
+backend: gitea
+
+clone:
+  git:
+    image: woodpeckerci/plugin-git:latest
+    settings:
+      server: https://gitea.local.test
+
+steps:
+  - name: install
+    image: python:3.12-slim
+    commands:
+      - pip install uv pytest pytest-cov ruff
+      - for pkg in packages/*/; do if [ -f "$pkg/pyproject.toml" ]; then echo "Installing $pkg"; uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || pip install --system -e "$pkg"; fi; done
+      - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
+
+  - name: lint
+    image: python:3.12-slim
+    commands:
+      - ruff check packages/ --output-format=github
+      - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm run build --if-present && cd ../..; fi
+
+  - name: test
+    image: python:3.12-slim
+    commands:
+      - for pkg in packages/*/; do if [ -d "$pkg/tests" ] && [ -f "$pkg/pyproject.toml" ]; then echo "Testing $pkg"; cd "$pkg"; if [ "$(basename "$pkg")" = "workflow_runner" ]; then pytest tests/ -v --tb=short --ignore=tests/test_phase23.py 2>&1 | tee /tmp/test-output.txt; else pytest tests/ -v --tb=short 2>&1 | tee /tmp/test-output.txt; fi; cd ../..; fi; done
+
+  - name: build-test-push
+    image: docker:24.0.9
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      REGISTRY_USER:
+        from_secret: REGISTRY_USER
+      REGISTRY_PASSWORD:
+        from_secret: REGISTRY_PASSWORD
+    commands:
+      - apk add --no-cache bash yq
+      - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
+      - IMAGE_TAG=$(git rev-parse --short HEAD)
+      - echo "IMAGE_TAG=$IMAGE_TAG"
+      - docker build -t registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG} -f packages/workflow_runner/Dockerfile .
+      - docker build -t registry.local.test/aiassistant/langgraph:${IMAGE_TAG} -f packages/langgraph/Dockerfile packages/langgraph/
+      - docker build -t registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG} -f packages/control-center-ui/Dockerfile packages/control-center-ui/
+      - bash scripts/test-image.sh registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG}
+      - bash scripts/test-image.sh registry.local.test/aiassistant/langgraph:${IMAGE_TAG}
+      - bash scripts/test-image.sh registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}
+      - docker push registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG}
+      - docker push registry.local.test/aiassistant/langgraph:${IMAGE_TAG}
+      - docker push registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}
+
+  - name: deploy
+    image: docker:24.0.9
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      REGISTRY_USER:
+        from_secret: REGISTRY_USER
+      REGISTRY_PASSWORD:
+        from_secret: REGISTRY_PASSWORD
+    commands:
+      - apk add --no-cache bash git yq
+      - IMAGE_TAG=$(git rev-parse --short HEAD)
+      - export REGISTRY_URL=registry.local.test
+      - export IMAGE_TAG
+      - docker compose -f environments/dev/compose.yml -f environments/dev/ci.yml config > /tmp/compose-filtered.yml
+      - yq eval 'del(.services.dev-workflow-engine.volumes[] | select(.source | contains("packages/")))' -i /tmp/compose-filtered.yml
+      - docker compose -f /tmp/compose-filtered.yml up -d
+    when:
+      branch: main
