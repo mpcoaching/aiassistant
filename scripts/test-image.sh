@@ -3,6 +3,7 @@ set -euo pipefail
 
 IMAGE="$1"
 NAME="${IMAGE##*/}"
+NAME="${NAME%%:*}"
 
 echo "Testing image: $IMAGE"
 
