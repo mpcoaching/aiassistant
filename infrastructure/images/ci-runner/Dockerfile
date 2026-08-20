@@ -30,6 +30,14 @@ ENV PATH="/root/.local/bin:${PATH}"
 # Remove Debian's externally-managed restriction so pip can install packages
 RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 
+# Install common Python tools
+RUN pip install --no-cache-dir --break-system-packages uv pytest pytest-cov ruff
+
+
+# Trust local.test registry CA
+COPY packages/configuration/rootCA.pem /usr/local/share/ca-certificates/local-test-ca.crt
+RUN update-ca-certificates
+
 
 # Verify tools
 RUN python --version \
@@ -39,4 +47,6 @@ RUN python --version \
     && jq --version \
     && yq --version \
     && node --version \
-    && npm --version
+    && npm --version \
+    && ruff --version \
+    && pytest --version
