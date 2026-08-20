@@ -57,8 +57,13 @@ steps:
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
+    environment:
+      REGISTRY_USER:
+        from_secret: registry_user
+      REGISTRY_PASSWORD:
+        from_secret: registry_password
     commands:
-      - docker login registry.local.test -u registry_user -p registr33Passw00rd
+      - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - export REGISTRY_URL=registry.local.test
       - export IMAGE_TAG
@@ -68,24 +73,3 @@ steps:
     when:
       event: push
       branch: main
-# Woodpecker CI Test Thu Aug 20 05:43:51 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 05:50:32 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 05:55:37 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 05:58:14 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:00:36 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:24:37 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:24:57 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:34:06 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:38:59 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:43:21 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:48:11 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:51:23 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:53:47 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:56:42 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 06:59:14 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 07:04:24 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 07:10:18 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 07:13:50 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 07:20:22 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 07:23:27 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 07:27:08 PM AEST 2026

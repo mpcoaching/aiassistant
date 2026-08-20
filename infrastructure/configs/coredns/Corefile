@@ -5,6 +5,8 @@ local.test:53 {
     hosts {
         192.168.1.238 gitea.local.test
         192.168.1.238 registry.local.test
+        192.168.1.238 woodpecker.local.test
+        192.168.1.238 woodpecker-grpc.local.test
         192.168.1.238 oo.local.test
         192.168.1.238 otel.local.test
         192.168.1.238 qdrant.local.test
