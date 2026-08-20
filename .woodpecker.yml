@@ -40,6 +40,8 @@ steps:
       REGISTRY_PASSWORD:
         from_secret: registry_password
     commands:
+      - test -n "$REGISTRY_USER" && echo "USER_SET=yes" || echo "USER_SET=no"
+      - test -n "$REGISTRY_PASSWORD" && echo "PASS_SET=yes" || echo "PASS_SET=no"
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - echo "IMAGE_TAG=$IMAGE_TAG"
