@@ -34,6 +34,8 @@ steps:
     image: docker:24.0.9
     when:
       event: push
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       REGISTRY_USER:
         from_secret: registry_user
@@ -56,6 +58,8 @@ steps:
 
   - name: deploy
     image: docker:24.0.9
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       REGISTRY_USER:
         from_secret: registry_user
@@ -72,7 +76,3 @@ steps:
     when:
       event: push
       branch: main
-# Woodpecker CI Test Thu Aug 20 04:15:56 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 04:26:06 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 04:41:17 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 04:45:11 PM AEST 2026
