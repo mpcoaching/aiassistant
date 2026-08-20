@@ -151,7 +151,7 @@ services:
     healthcheck:
       # Portkey gateway exposes GET / (returns "AI Gateway says hey!") with no
       # auth; there is no /health route in this version. Use / as the liveness probe.
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/", "||", "exit", "1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4000/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -288,6 +288,7 @@ services:
     networks:
       - platform-network
     restart: unless-stopped
+    profiles: ["disabled"]
 
   # ---------- Optional (disabled by default) ----------
   minio:

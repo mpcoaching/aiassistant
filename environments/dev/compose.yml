@@ -51,7 +51,6 @@ services:
       - "8000"
       - --reload
     volumes:
-      - ../../infra/wait_for.py:/wait_for.py:ro
       - ../../packages/workflow-runner/src:/aiassistant/packages/workflow-runner/src:ro
       - ../../packages/ai/src:/aiassistant/packages/ai/src:ro
       - ../../packages/bus/src:/aiassistant/packages/bus/src:ro

@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 RUN pip install --no-cache-dir langgraph-api langgraph-runtime-inmem
 
-COPY ./src /app
+COPY packages/langgraph/src /app
+COPY packages/bus/src/pathway_runtime.py /app/pathway_runtime.py
 WORKDIR /app
 
 EXPOSE 8000

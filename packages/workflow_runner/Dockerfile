@@ -11,6 +11,38 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN printf '%s\n' '#!/usr/bin/env python3' \
+    '"""Startup wait-loop helper."""' \
+    'import socket' \
+    'import subprocess' \
+    'import sys' \
+    'import time' \
+    '' \
+    'def wait(host, port):' \
+    '    for _ in range(150):' \
+    '        try:' \
+    '            with socket.create_connection((host, port), 2):' \
+    '                return' \
+    '        except OSError:' \
+    '            time.sleep(2)' \
+    '    sys.exit(1)' \
+    '' \
+    'def main():' \
+    '    args = sys.argv[1:]' \
+    '    if "--" in args:' \
+    '        idx = args.index("--")' \
+    '        hosts, rest = args[:idx], args[idx + 1:]' \
+    '    else:' \
+    '        hosts, rest = args, []' \
+    '    for spec in hosts:' \
+    '        host, _, port = spec.rpartition(":")' \
+    '        wait(host, int(port))' \
+    '    if rest:' \
+    '        sys.exit(subprocess.run(rest).returncode)' \
+    '' \
+    'if __name__ == "__main__":' \
+    '    main()' > /wait_for.py && chmod +x /wait_for.py
+
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
