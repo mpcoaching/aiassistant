@@ -94,6 +94,12 @@ steps:
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - export REGISTRY_URL=registry.local.test
       - export IMAGE_TAG
+      - export AGENT_DEV_DB_USER
+      - export AGENT_DEV_DB_PASSWORD
+      - export AGENT_DEV_DB_NAME
+      - export LANGGRAPH_DEV_DB_USER
+      - export LANGGRAPH_DEV_DB_PASSWORD
+      - export LANGGRAPH_DEV_DB_NAME
       - docker compose -f environments/dev/compose.yml -f environments/dev/ci.yml config > /tmp/compose-filtered.yml
       - yq eval 'del(.services.dev-workflow-engine.volumes[] | select(.source | contains("packages/")))' -i /tmp/compose-filtered.yml
       - cat /tmp/compose-filtered.yml
