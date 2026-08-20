@@ -49,8 +49,13 @@ steps:
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
+    environment:
+      REGISTRY_USER:
+        from_secret: registry_user
+      REGISTRY_PASSWORD:
+        from_secret: registry_password
     commands:
-      - docker login registry.local.test -u registry_user -p registr33Passw00rd
+      - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - export REGISTRY_URL=registry.local.test
       - export IMAGE_TAG

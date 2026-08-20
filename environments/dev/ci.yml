@@ -1,0 +1,24 @@
+# =============================================================================
+# CI override for environments/dev/compose.yml
+# Removes local source code overlays so CI validates the actual registry artifact.
+# Usage:
+#   docker compose -f environments/dev/compose.yml -f environments/dev/ci.yml up -d
+# =============================================================================
+
+services:
+  dev-workflow-engine:
+    volumes:
+      - ../../infra/wait_for.py:/wait_for.py:ro
+    entrypoint:
+      - python3
+      - /wait_for.py
+      - dev-platform-gateway:5432
+      - dev-platform-gateway:5672
+      - dev-langgraph:8000
+      - "--"
+      - uvicorn
+      - api:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
