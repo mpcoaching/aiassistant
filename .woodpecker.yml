@@ -8,7 +8,7 @@ clone:
 
 steps:
   - name: install
-    image: python:3.12-slim
+    image: registry.local.test/aiassistant/ci-runner:latest
     when:
       event: push
     commands:
@@ -17,7 +17,7 @@ steps:
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
 
   - name: lint
-    image: python:3.12-slim
+    image: registry.local.test/aiassistant/ci-runner:latest
     when:
       event: push
     commands:
@@ -25,7 +25,7 @@ steps:
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm run build --if-present && cd ../..; fi
 
   - name: test
-    image: python:3.12-slim
+    image: registry.local.test/aiassistant/ci-runner:latest
     when:
       event: push
     commands:
@@ -73,7 +73,3 @@ steps:
     when:
       event: push
       branch: main
-# Woodpecker CI Test Thu Aug 20 01:14:47 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 01:42:28 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 02:09:24 PM AEST 2026
-# Woodpecker CI Test Thu Aug 20 03:27:28 PM AEST 2026
