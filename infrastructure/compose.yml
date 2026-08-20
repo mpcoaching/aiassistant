@@ -230,13 +230,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - woodpecker-agent-config:/etc/woodpecker
     environment:
-      - WOODPECKER_SERVER=woodpecker-server:9000
+      - WOODPECKER_SERVER=localhost:9000
       - WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET}
       - WOODPECKER_LOG_LEVEL=debug
-    dns:
-      - 192.168.1.238
-    networks:
-      - infrastructure-network
+      - WOODPECKER_BACKEND_DOCKER_NETWORK=host
+      - WOODPECKER_BACKEND_DOCKER_HOST=unix:///var/run/docker.sock
+      - WOODPECKER_BACKEND_DOCKER_VOLUMES=/var/run/docker.sock:/var/run/docker.sock
+    network_mode: host
+    networks: []
 
 networks:
   # Single owner of all four networks. Explicit names => globally consistent
