@@ -35,6 +35,8 @@ steps:
     when:
       event: push
     commands:
+      - pwd
+      - ls -la
       - docker version
       - docker info
       - docker login registry.local.test -u registry_user -p registr33Passw00rd
@@ -68,3 +70,4 @@ steps:
 # Woodpecker CI Test Thu Aug 20 06:51:23 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:53:47 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:56:42 PM AEST 2026
+# Woodpecker CI Test Thu Aug 20 06:59:14 PM AEST 2026
