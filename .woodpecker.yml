@@ -40,15 +40,15 @@ steps:
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - echo "IMAGE_TAG=$IMAGE_TAG"
-      - docker build -t registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG} -f packages/workflow_runner/Dockerfile .
-      - docker build -t registry.local.test/aiassistant/langgraph:${IMAGE_TAG} -f packages/langgraph/Dockerfile packages/langgraph/
-      - docker build -t registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG} -f packages/control-center-ui/Dockerfile packages/control-center-ui/
+      - "docker build -t registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG} -f packages/workflow_runner/Dockerfile ."
+      - "docker build -t registry.local.test/aiassistant/langgraph:${IMAGE_TAG} -f packages/langgraph/Dockerfile packages/langgraph/"
+      - "docker build -t registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG} -f packages/control-center-ui/Dockerfile packages/control-center-ui/"
       - bash scripts/test-image.sh registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG}
       - bash scripts/test-image.sh registry.local.test/aiassistant/langgraph:${IMAGE_TAG}
       - bash scripts/test-image.sh registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}
-      - docker push registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG}
-      - docker push registry.local.test/aiassistant/langgraph:${IMAGE_TAG}
-      - docker push registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}
+      - "docker push registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG}"
+      - "docker push registry.local.test/aiassistant/langgraph:${IMAGE_TAG}"
+      - "docker push registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}"
 
   - name: deploy
     image: docker:24.0.9
