@@ -4,6 +4,7 @@ clone:
     image: woodpeckerci/plugin-git:latest
     settings:
       server: http://gitea:3000
+      skip_verify: true
 
 steps:
   - name: install
