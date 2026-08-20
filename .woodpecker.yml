@@ -42,7 +42,10 @@ steps:
       - docker login registry.local.test -u registry_user -p registr33Passw00rd
       - git rev-parse --short HEAD
       - wget -q -O- https://pypi.org/simple/ | head -5 || echo "PYPI_FAILED"
-      - docker build -t registry.local.test/aiassistant/workflow_runner:test -f packages/workflow_runner/Dockerfile . ; echo "BUILD_EXIT=$?"
+      - echo 'FROM alpine:latest' > /tmp/Dockerfile.test
+      - echo 'RUN echo hello' >> /tmp/Dockerfile.test
+      - cat /tmp/Dockerfile.test
+      - docker build -t test-image -f /tmp/Dockerfile.test . ; echo "BUILD_EXIT=$?"
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
@@ -74,3 +77,4 @@ steps:
 # Woodpecker CI Test Thu Aug 20 06:59:14 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 07:04:24 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 07:10:18 PM AEST 2026
+# Woodpecker CI Test Thu Aug 20 07:13:50 PM AEST 2026
