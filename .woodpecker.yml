@@ -34,21 +34,6 @@ steps:
     image: registry.local.test/aiassistant/docker-client:latest
     when:
       event: push
-    commands:
-      - pwd
-      - ls -la packages/workflow_runner/
-      - docker version
-      - docker info
-      - docker login registry.local.test -u registry_user -p registr33Passw00rd
-      - git rev-parse --short HEAD
-      - wget -q -O- https://pypi.org/simple/ | head -5 || echo "PYPI_FAILED"
-      - echo 'FROM alpine:latest' > /tmp/Dockerfile.test
-      - echo 'RUN echo hello' >> /tmp/Dockerfile.test
-      - cat /tmp/Dockerfile.test
-      - docker build -t test-image -f /tmp/Dockerfile.test . ; echo "BUILD_EXIT=$?"
-
-  - name: deploy
-    image: registry.local.test/aiassistant/docker-client:latest
     environment:
       REGISTRY_USER:
         from_secret: registry_user
@@ -56,6 +41,22 @@ steps:
         from_secret: registry_password
     commands:
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
+      - IMAGE_TAG=$(git rev-parse --short HEAD)
+      - echo "IMAGE_TAG=$IMAGE_TAG"
+      - "docker build -t registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG} -f packages/workflow_runner/Dockerfile ."
+      - "docker build -t registry.local.test/aiassistant/langgraph:${IMAGE_TAG} -f packages/langgraph/Dockerfile packages/langgraph/"
+      - "docker build -t registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG} -f packages/control-center-ui/Dockerfile packages/control-center-ui/"
+      - "bash scripts/test-image.sh registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG}"
+      - "bash scripts/test-image.sh registry.local.test/aiassistant/langgraph:${IMAGE_TAG}"
+      - "bash scripts/test-image.sh registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}"
+      - "docker push registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG}"
+      - "docker push registry.local.test/aiassistant/langgraph:${IMAGE_TAG}"
+      - "docker push registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}"
+
+  - name: deploy
+    image: registry.local.test/aiassistant/docker-client:latest
+    commands:
+      - docker login registry.local.test -u registry_user -p registr33Passw00rd
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - export REGISTRY_URL=registry.local.test
       - export IMAGE_TAG
