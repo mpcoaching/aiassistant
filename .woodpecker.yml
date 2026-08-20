@@ -31,7 +31,7 @@ steps:
       - for pkg in packages/*/; do if [ -d "$pkg/tests" ] && [ -f "$pkg/pyproject.toml" ]; then echo "Testing $pkg"; cd "$pkg"; if [ "$(basename "$pkg")" = "workflow_runner" ]; then pytest tests/ -v --tb=short --ignore=tests/test_phase23.py 2>&1 | tee /tmp/test-output.txt; else pytest tests/ -v --tb=short 2>&1 | tee /tmp/test-output.txt; fi; cd ../..; fi; done
 
   - name: build-test-push
-    image: docker:24.0.9
+    image: registry.local.test/aiassistant/docker-client:latest
     when:
       event: push
     environment:
@@ -40,7 +40,6 @@ steps:
       REGISTRY_PASSWORD:
         from_secret: registry_password
     commands:
-      - apk add --no-cache bash yq
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - echo "IMAGE_TAG=$IMAGE_TAG"
@@ -55,14 +54,14 @@ steps:
       - "docker push registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}"
 
   - name: deploy
-    image: docker:24.0.9
+    image: registry.local.test/aiassistant/docker-client:latest
     environment:
       REGISTRY_USER:
         from_secret: registry_user
       REGISTRY_PASSWORD:
         from_secret: registry_password
     commands:
-      - apk add --no-cache bash git yq
+      - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - export REGISTRY_URL=registry.local.test
       - export IMAGE_TAG
@@ -79,3 +78,4 @@ steps:
 # Woodpecker CI Test Thu Aug 20 06:00:36 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:24:37 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:24:57 PM AEST 2026
+# Woodpecker CI Test Thu Aug 20 06:34:06 PM AEST 2026
