@@ -36,12 +36,12 @@ steps:
       event: push
     commands:
       - pwd
-      - ls -la
+      - ls -la packages/workflow_runner/
       - docker version
       - docker info
       - docker login registry.local.test -u registry_user -p registr33Passw00rd
       - git rev-parse --short HEAD
-      - docker build -t registry.local.test/aiassistant/workflow_runner:test -f packages/workflow_runner/Dockerfile .
+      - docker build -t registry.local.test/aiassistant/workflow_runner:test -f packages/workflow_runner/Dockerfile . ; echo "BUILD_EXIT=$?"
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
@@ -71,3 +71,4 @@ steps:
 # Woodpecker CI Test Thu Aug 20 06:53:47 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:56:42 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:59:14 PM AEST 2026
+# Woodpecker CI Test Thu Aug 20 07:04:24 PM AEST 2026
