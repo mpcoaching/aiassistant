@@ -10,7 +10,7 @@ steps:
   - name: install
     image: registry.local.test/aiassistant/ci-runner:latest
     when:
-      event: push
+      event: [push, manual]
     commands:
       - for pkg in packages/*/; do if [ -f "$pkg/pyproject.toml" ]; then echo "Installing $pkg"; uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || pip install --system -e "$pkg"; fi; done
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
@@ -18,7 +18,7 @@ steps:
   - name: lint
     image: registry.local.test/aiassistant/ci-runner:latest
     when:
-      event: push
+      event: [push, manual]
     commands:
       - ruff check packages/ --output-format=github
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm run build --if-present && cd ../..; fi
@@ -26,14 +26,14 @@ steps:
   - name: test
     image: registry.local.test/aiassistant/ci-runner:latest
     when:
-      event: push
+      event: [push, manual]
     commands:
       - for pkg in packages/*/; do if [ -d "$pkg/tests" ] && [ -f "$pkg/pyproject.toml" ]; then echo "Testing $pkg"; cd "$pkg"; if [ "$(basename "$pkg")" = "workflow_runner" ]; then pytest tests/ -v --tb=short --ignore=tests/test_phase23.py 2>&1 | tee /tmp/test-output.txt; else pytest tests/ -v --tb=short 2>&1 | tee /tmp/test-output.txt; fi; cd ../..; fi; done
 
   - name: build
     image: registry.local.test/aiassistant/docker-client:latest
     when:
-      event: push
+      event: [push, manual]
     environment:
       REGISTRY_USER:
         from_secret: registry_user
@@ -52,7 +52,7 @@ steps:
   - name: test-image
     image: registry.local.test/aiassistant/docker-client:latest
     when:
-      event: push
+      event: [push, manual]
     commands:
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - "bash scripts/test-image.sh registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG"
@@ -62,7 +62,7 @@ steps:
   - name: push
     image: registry.local.test/aiassistant/docker-client:latest
     when:
-      event: push
+      event: [push, manual]
     environment:
       REGISTRY_USER:
         from_secret: registry_user
@@ -91,5 +91,5 @@ steps:
       - yq eval 'del(.services.dev-workflow-engine.volumes[] | select(.source | contains("packages/")))' -i /tmp/compose-filtered.yml
       - docker compose -f /tmp/compose-filtered.yml up -d
     when:
-      event: push
+      event: [push, manual]
       branch: main
