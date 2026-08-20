@@ -16,19 +16,19 @@ trap cleanup EXIT
 
 case "$NAME" in
   workflow_runner*)
-    docker run -d --name "$CONTAINER_NAME" -p 8000:8000 "$IMAGE"
+    docker run -d --name "$CONTAINER_NAME" "$IMAGE"
     sleep 5
-    curl -f http://localhost:8000/health || curl -f http://localhost:8000/ || true
+    docker exec "$CONTAINER_NAME" curl -f http://localhost:8000/health 2>/dev/null || docker exec "$CONTAINER_NAME" curl -f http://localhost:8000/ 2>/dev/null || true
     ;;
   langgraph*)
-    docker run -d --name "$CONTAINER_NAME" -p 8000:8000 "$IMAGE"
+    docker run -d --name "$CONTAINER_NAME" "$IMAGE"
     sleep 5
-    curl -f http://localhost:8000/health || curl -f http://localhost:8000/ || true
+    docker exec "$CONTAINER_NAME" curl -f http://localhost:8000/health 2>/dev/null || docker exec "$CONTAINER_NAME" curl -f http://localhost:8000/ 2>/dev/null || true
     ;;
   control-center-ui*)
-    docker run -d --name "$CONTAINER_NAME" -p 80:80 "$IMAGE"
+    docker run -d --name "$CONTAINER_NAME" "$IMAGE"
     sleep 5
-    curl -f http://localhost/ || true
+    docker exec "$CONTAINER_NAME" curl -f http://localhost/ 2>/dev/null || true
     ;;
   *)
     echo "Unknown image type: $NAME"
