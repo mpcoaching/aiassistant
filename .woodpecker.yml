@@ -89,7 +89,6 @@ steps:
       LANGGRAPH_DEV_DB_PASSWORD: dev_langgraph_password
       LANGGRAPH_DEV_DB_NAME: langgraph_dev
     commands:
-      - set -x
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - export REGISTRY_URL=registry.local.test
@@ -102,10 +101,7 @@ steps:
       - export LANGGRAPH_DEV_DB_NAME
       - docker compose -f environments/dev/compose.yml -f environments/dev/ci.yml config > /tmp/compose-filtered.yml
       - yq eval 'del(.services.dev-workflow-engine.volumes[] | select(.source | contains("packages/")))' -i /tmp/compose-filtered.yml
-      - cat /tmp/compose-filtered.yml
-      - docker compose -f /tmp/compose-filtered.yml up -d 2>&1 | tee /tmp/deploy-output.txt
-      - echo "DEPLOY_EXIT_CODE=$?"
-      - cat /tmp/deploy-output.txt
+      - docker compose -f /tmp/compose-filtered.yml up -d
     when:
       event: [push, manual]
       branch: main
