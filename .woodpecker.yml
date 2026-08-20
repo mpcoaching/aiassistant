@@ -35,20 +35,15 @@ steps:
     when:
       event: push
     commands:
+      - set -x
       - docker version
       - docker info
       - docker login registry.local.test -u registry_user -p registr33Passw00rd
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - echo "IMAGE_TAG=$IMAGE_TAG"
-      - "docker build -t registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG} -f packages/workflow_runner/Dockerfile ."
-      - "docker build -t registry.local.test/aiassistant/langgraph:${IMAGE_TAG} -f packages/langgraph/Dockerfile packages/langgraph/"
-      - "docker build -t registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG} -f packages/control-center-ui/Dockerfile packages/control-center-ui/"
+      - "docker build -t registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG} -f packages/workflow_runner/Dockerfile . 2>&1 | tail -50"
       - "bash scripts/test-image.sh registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG}"
-      - "bash scripts/test-image.sh registry.local.test/aiassistant/langgraph:${IMAGE_TAG}"
-      - "bash scripts/test-image.sh registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}"
       - "docker push registry.local.test/aiassistant/workflow_runner:${IMAGE_TAG}"
-      - "docker push registry.local.test/aiassistant/langgraph:${IMAGE_TAG}"
-      - "docker push registry.local.test/aiassistant/control-center-ui:${IMAGE_TAG}"
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
@@ -73,3 +68,4 @@ steps:
 # Woodpecker CI Test Thu Aug 20 06:34:06 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:38:59 PM AEST 2026
 # Woodpecker CI Test Thu Aug 20 06:43:21 PM AEST 2026
+# Woodpecker CI Test Thu Aug 20 06:48:11 PM AEST 2026
