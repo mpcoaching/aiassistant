@@ -14,7 +14,6 @@ COPY packages/ai /packages/ai
 COPY packages/bus /packages/bus
 COPY packages/langgraph /packages/langgraph
 COPY packages/capability_registry /packages/capability_registry
-RUN pip install --no-cache-dir -e /packages/configuration -e /packages/ai -e /packages/bus -e /packages/langgraph -e /packages/capability_registry
 
 COPY packages/workflow_runner/. /app/
 
@@ -50,7 +49,7 @@ RUN printf '%s\n' '#!/usr/bin/env python3' \
     'if __name__ == "__main__":' \
     '    main()' > /wait_for.py && chmod +x /wait_for.py
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/packages
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
