@@ -9,7 +9,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY packages/configuration /packages/configuration
+COPY packages/ai /packages/ai
+COPY packages/bus /packages/bus
+COPY packages/langgraph /packages/langgraph
+COPY packages/capability_registry /packages/capability_registry
+RUN pip install --no-cache-dir -e /packages/configuration -e /packages/ai -e /packages/bus -e /packages/langgraph -e /packages/capability_registry
+
+COPY packages/workflow_runner/. /app/
 
 RUN printf '%s\n' '#!/usr/bin/env python3' \
     '"""Startup wait-loop helper."""' \

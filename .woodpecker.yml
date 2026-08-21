@@ -66,7 +66,7 @@ steps:
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - echo "IMAGE_TAG=$IMAGE_TAG"
-      - "docker build -t registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG -f packages/workflow_runner/Dockerfile packages/workflow_runner"
+      - "docker build -t registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG -f packages/workflow_runner/Dockerfile ."
       - "docker build -t registry.local.test/aiassistant/langgraph:$IMAGE_TAG -f packages/langgraph/Dockerfile ."
       - "docker build -t registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG -f packages/control-center-ui/Dockerfile packages/control-center-ui"
       - "docker build -t registry.local.test/aiassistant/ci-runner:$IMAGE_TAG -f infrastructure/images/ci-runner/Dockerfile infrastructure/images/ci-runner"
