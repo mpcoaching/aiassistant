@@ -86,7 +86,6 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASE="$REPO_ROOT/packages/configuration/src"
 
 python3 - "$BASE" <<'PYEOF'
-import importlib.util
 import os
 import sys
 
@@ -95,17 +94,10 @@ import yaml
 BASE = sys.argv[1]
 sys.path.insert(0, BASE)
 
-def load(name, relpath):
-    path = os.path.join(BASE, relpath)
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-env_provider_mod = load("configuration.providers.env_file", "configuration/providers/env_file.py")
-mapping_mod = load("configuration.mapping.adapter", "configuration/mapping/adapter.py")
-validation_mod = load("configuration.validation.contract_validator", "configuration/validation/contract_validator.py")
-registry_mod = load("configuration.validation.registry", "configuration/validation/registry.py")
+from configuration.providers.env_file import DotEnvProvider
+from configuration.mapping.adapter import MappingAdapter
+from configuration.validation.contract_validator import StructuralValidator
+from configuration.validation.registry import ValidatorRegistry
 
 contracts_path = os.path.join(BASE, "..", "..", "..", "contracts")
 contracts_path = os.path.abspath(contracts_path)
@@ -115,10 +107,10 @@ with open(os.path.join(contracts_path, "deployment", "v1", "contract.yaml"), "r"
 with open(os.path.join(contracts_path, "deployment", "v1", "mapping.yaml"), "r", encoding="utf-8") as f:
     mapping_data = yaml.safe_load(f) or {}
 
-provider = env_provider_mod.DotEnvProvider(env_file=os.environ.get("TMP_DEPLOY_ENV", ""))
+provider = DotEnvProvider(env_file=os.environ.get("TMP_DEPLOY_ENV", ""))
 raw_values = provider.read()
 
-adapter = mapping_mod.MappingAdapter(mapping_data.get("mapping", {}))
+adapter = MappingAdapter(mapping_data.get("mapping", {}))
 resolved = adapter.map(raw_values)
 
 requirements = contract_def.get("requirements", {})
@@ -126,8 +118,8 @@ for key, spec in requirements.items():
     if isinstance(spec, dict) and "default" in spec and key not in resolved:
         resolved[key] = spec["default"]
 
-registry = registry_mod.ValidatorRegistry()
-registry.register("required-fields", validation_mod.StructuralValidator())
+registry = ValidatorRegistry()
+registry.register("required-fields", StructuralValidator())
 
 result = registry.validate_contract(
     contract_def.get("name", "deployment"),
