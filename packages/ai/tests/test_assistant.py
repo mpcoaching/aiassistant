@@ -6,6 +6,11 @@ Contracts: SA-CONTRACTS-PHASES-2-5.md C3, C4, C9.
 
 
 from assistant import AssistantReasoningService, StrategyDecision
+from capability_matcher import MatchResult
+from capabilities import Capability, CapabilityKind, CapabilityRegistry, CompiledRef, ExecutionMode
+from chat import AssistantChatService, ChatRequest, ChatResponse
+from concepts import ConceptKind, ConceptStore, EnterpriseConcept
+from enterprise_context import ContextRecord
 from intent import Intent, IntentOrigin, ProblemFrame, recognise
 from strategy import ReasoningStrategy, select_strategy
 
@@ -126,3 +131,119 @@ def _make_context(**overrides):
     }
     defaults.update(overrides)
     return ContextRecord(**defaults)
+
+
+# ---- Capability-First Routing (Increment 4) --------------------------------
+
+def _register_create_test_artifact(tmp_path: Path):
+    """Register create_test_artifact as a compiled capability."""
+    store = ConceptStore(data_dir=str(tmp_path))
+    reg = CapabilityRegistry(store)
+    cap = Capability(
+        id="cap-create_test_artifact",
+        name="create_test_artifact",
+        description="Creates a test artifact record",
+        owner="core",
+        created_by="test",
+        tags=["test", "artifact"],
+        capability_kind=CapabilityKind.TOOL,
+        execution_mode=ExecutionMode.COMPILED,
+        compiled_ref=CompiledRef(
+            module_path="packages.capabilities.create_test_artifact.run",
+            entrypoint="run",
+            tests_passed=True,
+        ),
+    )
+    reg.register(cap)
+    return reg, cap
+
+
+def test_chat_exposes_capability_candidates_before_decide(tmp_path: Path) -> None:
+    reg, _ = _register_create_test_artifact(tmp_path)
+    service = AssistantChatService(concept_store=reg._store, capability_registry=reg)
+    request = ChatRequest(message="Create a test artifact")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert response.capability_candidates[0]["name"] == "create_test_artifact"
+
+
+def test_chat_create_test_artifact_in_candidates(tmp_path: Path) -> None:
+    reg, _ = _register_create_test_artifact(tmp_path)
+    service = AssistantChatService(concept_store=reg._store, capability_registry=reg)
+    request = ChatRequest(message="Create a test artifact")
+    response = service.chat(request)
+
+    candidate_names = [c["name"] for c in response.capability_candidates or []]
+    assert "create_test_artifact" in candidate_names
+
+
+def test_chat_capability_selection_does_not_execute(tmp_path: Path) -> None:
+    reg, cap = _register_create_test_artifact(tmp_path)
+    service = AssistantChatService(concept_store=reg._store, capability_registry=reg)
+    request = ChatRequest(message="Create a test artifact")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert response.capability_candidates[0]["id"] == cap.id
+
+
+def test_chat_falls_through_without_capabilities(tmp_path: Path) -> None:
+    store = ConceptStore(data_dir=str(tmp_path))
+    reg = CapabilityRegistry(store)
+    service = AssistantChatService(concept_store=store, capability_registry=reg)
+    request = ChatRequest(message="Do something completely novel")
+    response = service.chat(request)
+
+    assert response.status == "pending"
+
+
+def test_chat_passes_recognised_context_to_matcher(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    store = ConceptStore(data_dir=str(tmp_path))
+    reg = CapabilityRegistry(store)
+    reg.register(Capability(
+        id="cap-1",
+        name="test-cap",
+        description="test",
+        capability_kind=CapabilityKind.TOOL,
+        execution_mode=ExecutionMode.AI_MEDIATED,
+    ))
+
+    service = AssistantChatService(concept_store=store, capability_registry=reg)
+    request = ChatRequest(message="Design a new task tracker")
+
+    captured = {}
+    def capture_match(**kwargs):
+        captured.update(kwargs)
+        return MatchResult(candidates=[], confidence=0.0, matcher_id="human_selection")
+
+    with patch("chat.HumanSelectionMatcher") as MockMatcher:
+        MockMatcher.return_value.match.side_effect = capture_match
+        response = service.chat(request)
+
+    assert "context" in captured
+    assert isinstance(captured["context"], ContextRecord)
+    assert captured["request_text"] == "Design a new task tracker"
+
+
+def test_chat_capability_candidates_contain_metadata(tmp_path: Path) -> None:
+    reg, cap = _register_create_test_artifact(tmp_path)
+    service = AssistantChatService(concept_store=reg._store, capability_registry=reg)
+    request = ChatRequest(message="Create a test artifact")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    candidate = response.capability_candidates[0]
+    assert candidate["id"] == "cap-create_test_artifact"
+    assert candidate["name"] == "create_test_artifact"
+    assert candidate["description"] == "Creates a test artifact record"
+    assert candidate["kind"] == "tool"
+    assert candidate["execution_mode"] == "compiled"
+    assert "tags" in candidate

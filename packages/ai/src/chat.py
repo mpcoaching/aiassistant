@@ -15,9 +15,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 from assistant import AssistantReasoningService, StrategyDecision
+from capability_matcher import CapabilityMatcher, HumanSelectionMatcher
 from capabilities import CapabilityRegistry, ConceptStore
 from concepts import ConceptKind, EnterpriseConcept
-from intent import Intent, IntentOrigin
+from enterprise_context import ContextRecord
+from executor import ExecutionResult, execute_capability
+from intent import Intent, IntentOrigin, ProblemFrame, recognise
 from pathway_runtime import (
     PathwayCallRequest,
     PathwayRuntime,
@@ -49,6 +52,7 @@ class ChatResponse(BaseModel):
     reasoning: str | None = None
     previous_solution: dict[str, Any] | None = None
     human_input_request: dict[str, Any] | None = None
+    capability_candidates: list[dict[str, Any]] | None = None
     telemetry: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -76,6 +80,12 @@ class AssistantChatService:
             raw={"type": "natural_language", "text": request.message},
             declared_context=request.context,
         )
+
+        frame = recognise(intent)
+
+        candidates = self._match_capabilities(intent, frame)
+        if candidates is not None:
+            return self._capability_selection_response(intent, frame, candidates)
 
         decision = self._reasoning.decide(intent)
 
@@ -202,3 +212,61 @@ class AssistantChatService:
             },
         )
         self._store.upsert(concept)
+
+    def _match_capabilities(self, intent: Intent, frame: ProblemFrame) -> list[Capability] | None:
+        """Return capability candidates, or None if the registry is empty."""
+        capabilities = self._registry.list_all()
+        if not capabilities:
+            return None
+        matcher = HumanSelectionMatcher()
+        result = matcher.match(
+            request_text=intent.raw.get("text", ""),
+            context=frame.context,
+            capabilities=capabilities,
+        )
+        return result.candidates if result.candidates else None
+
+    def _capability_selection_response(
+        self,
+        intent: Intent,
+        frame: ProblemFrame,
+        candidates: list[Capability],
+    ) -> ChatResponse:
+        """Build a response that exposes capability candidates for human selection."""
+        return ChatResponse(
+            message="I found capabilities that might help. Please select one to proceed.",
+            session_id=f"ses-{intent.id}",
+            status="awaiting_capability_selection",
+            reasoning=(
+                f"Recognised as {frame.context.problem_context.value} / "
+                f"{frame.context.activity_purpose.value}. "
+                f"{len(candidates)} capabilities available."
+            ),
+            capability_candidates=[
+                {
+                    "id": cap.id,
+                    "name": cap.name,
+                    "description": cap.description,
+                    "kind": cap.capability_kind.value,
+                    "execution_mode": cap.execution_mode.value,
+                    "tags": cap.tags,
+                }
+                for cap in candidates
+            ],
+            telemetry={
+                "recognition_level": frame.recognition_level.value,
+                "matcher": "human_selection",
+                "candidate_count": len(candidates),
+            },
+        )
+
+    def execute_selected_capability(
+        self,
+        capability_id: str,
+        context: dict[str, Any],
+    ) -> ExecutionResult:
+        """Execute a capability selected by the caller."""
+        capability = self._registry.get(capability_id)
+        if not capability:
+            raise ValueError(f"Capability not found: {capability_id}")
+        return execute_capability(capability, context)

@@ -576,6 +576,7 @@ class _ChatResponse(BaseModel):
     reasoning: str | None = None
     previous_solution: dict[str, Any] | None = None
     human_input_request: dict[str, Any] | None = None
+    capability_candidates: list[dict[str, Any]] | None = None
     telemetry: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -631,6 +632,7 @@ async def assistant_chat(body: _ChatRequest) -> _ChatResponse:
         reasoning=response.reasoning,
         previous_solution=response.previous_solution,
         human_input_request=response.human_input_request,
+        capability_candidates=response.capability_candidates,
         telemetry=response.telemetry,
     )
 
