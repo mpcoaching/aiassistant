@@ -30,6 +30,7 @@ steps:
       LANGGRAPH_DEV_DB_USER: langgraph_dev_user
       LANGGRAPH_DEV_DB_PASSWORD: dev_langgraph_password
       LANGGRAPH_DEV_DB_NAME: langgraph_dev
+      PYTHONPATH: /woodpecker/src/gitea.local.test/ai/aiassistant/packages
     commands:
       - bash scripts/validate-deployment-contract.sh
 
