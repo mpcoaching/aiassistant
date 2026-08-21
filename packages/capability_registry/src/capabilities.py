@@ -145,6 +145,8 @@ class CapabilityRegistry:
 
     def list(self) -> builtins.list[Capability]:
         return [c for c in self._store.list_by_kind(ConceptKind.CAPABILITY) if isinstance(c, Capability)]
+    def list_all(self) -> builtins.list[Capability]:
+        return self.list()
 
     def resolve(self, name: str, capability_kind: CapabilityKind) -> Capability | None:
         for cap in self.list():
