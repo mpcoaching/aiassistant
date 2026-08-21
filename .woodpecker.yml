@@ -67,9 +67,13 @@ steps:
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - echo "IMAGE_TAG=$IMAGE_TAG"
       - "docker build -t registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG -f packages/workflow_runner/Dockerfile ."
+      - "docker tag registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG registry.local.test/aiassistant/workflow_runner:latest"
       - "docker build -t registry.local.test/aiassistant/langgraph:$IMAGE_TAG -f packages/langgraph/Dockerfile ."
+      - "docker tag registry.local.test/aiassistant/langgraph:$IMAGE_TAG registry.local.test/aiassistant/langgraph:latest"
       - "docker build -t registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG -f packages/control-center-ui/Dockerfile packages/control-center-ui"
+      - "docker tag registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG registry.local.test/aiassistant/control-center-ui:latest"
       - "docker build -t registry.local.test/aiassistant/ci-runner:$IMAGE_TAG -f infrastructure/images/ci-runner/Dockerfile infrastructure/images/ci-runner"
+      - "docker tag registry.local.test/aiassistant/ci-runner:$IMAGE_TAG registry.local.test/aiassistant/ci-runner:latest"
 
   - name: test-image
     image: registry.local.test/aiassistant/docker-client:latest
@@ -137,6 +141,14 @@ steps:
       - "docker push registry.local.test/aiassistant/langgraph:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/ci-runner:$IMAGE_TAG"
+      - "docker tag registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG registry.local.test/aiassistant/workflow_runner:latest"
+      - "docker push registry.local.test/aiassistant/workflow_runner:latest"
+      - "docker tag registry.local.test/aiassistant/langgraph:$IMAGE_TAG registry.local.test/aiassistant/langgraph:latest"
+      - "docker push registry.local.test/aiassistant/langgraph:latest"
+      - "docker tag registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG registry.local.test/aiassistant/control-center-ui:latest"
+      - "docker push registry.local.test/aiassistant/control-center-ui:latest"
+      - "docker tag registry.local.test/aiassistant/ci-runner:$IMAGE_TAG registry.local.test/aiassistant/ci-runner:latest"
+      - "docker push registry.local.test/aiassistant/ci-runner:latest"
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
