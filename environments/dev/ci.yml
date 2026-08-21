@@ -7,8 +7,6 @@
 
 services:
   dev-workflow-engine:
-    volumes:
-      - ../../infra/wait_for.py:/wait_for.py:ro
     entrypoint:
       - python3
       - /wait_for.py
