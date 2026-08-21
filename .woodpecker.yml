@@ -79,6 +79,44 @@ steps:
       - "bash scripts/test-image.sh registry.local.test/aiassistant/langgraph:$IMAGE_TAG"
       - "bash scripts/test-image.sh registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG"
 
+  - name: build-ci-runner
+    image: registry.local.test/aiassistant/docker-client:latest
+    when:
+      event: [push, manual]
+      path: [infrastructure/images/ci-runner/**]
+    environment:
+      REGISTRY_USER:
+        from_secret: registry_user
+      REGISTRY_PASSWORD:
+        from_secret: registry_password
+    commands:
+      - git config --global --add safe.directory /woodpecker/src/gitea.local.test/ai/aiassistant
+      - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
+      - IMAGE_TAG=$(git rev-parse --short HEAD)
+      - echo "IMAGE_TAG=$IMAGE_TAG"
+      - docker build --no-cache -t aiassistant-ci:test -f infrastructure/images/ci-runner/Dockerfile infrastructure/images/ci-runner
+      - docker tag aiassistant-ci:test aiassistant-ci:latest
+      - docker tag aiassistant-ci:test registry.local.test/aiassistant/ci-runner:latest
+      - docker tag aiassistant-ci:test registry.local.test/aiassistant/ci-runner:$IMAGE_TAG
+      - docker push registry.local.test/aiassistant/ci-runner:latest
+      - docker push registry.local.test/aiassistant/ci-runner:$IMAGE_TAG
+
+  - name: test-ci-runner
+    image: aiassistant-ci:test
+    when:
+      event: [push, manual]
+      path: [infrastructure/images/ci-runner/**]
+    commands:
+      - python --version
+      - pip --version
+      - uv --version
+      - jq --version
+      - yq --version
+      - node --version
+      - npm --version
+      - ruff --version
+      - pytest --version
+
   - name: push
     image: registry.local.test/aiassistant/docker-client:latest
     when:
@@ -127,5 +165,3 @@ steps:
     when:
       event: [push, manual]
       branch: main
-# pipeline trigger Fri Aug 21 11:36:14 AM AEST 2026
-# test
