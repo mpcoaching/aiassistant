@@ -6,8 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev libffi-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY packages/workflow_runner/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY packages/configuration /packages/configuration
 COPY packages/ai /packages/ai
