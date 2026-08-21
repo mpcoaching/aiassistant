@@ -1,9 +1,10 @@
 """
 Tests for CapabilityMatcher and HumanSelectionMatcher (Increment 1).
-from pathlib import Path
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 from capability_matcher import CapabilityMatcher, HumanSelectionMatcher, MatchResult
@@ -24,39 +25,25 @@ def _capability(name: str, tags: list[str] | None = None) -> Capability:
     )
 
 
-def test_human_selection_matcher_returns_matching_candidates():
+def test_human_selection_matcher_returns_all_capabilities():
     matcher = HumanSelectionMatcher()
     caps = [
         _capability("create_test_artifact", tags=["test", "artifact"]),
         _capability("send_email", tags=["email", "notification"]),
         _capability("analyse_data", tags=["data", "analysis"]),
     ]
-    result = matcher.match("create a test artifact", ContextRecord(), caps)
-    assert len(result.candidates) == 1
-    assert result.candidates[0].name == "create_test_artifact"
+    result = matcher.match("weather forecast", ContextRecord(), caps)
+    assert len(result.candidates) == 3
     assert result.confidence == 0.0
     assert result.matcher_id == "human_selection"
+    assert "Human selection required" in result.rationale
 
 
-def test_human_selection_matcher_returns_empty_when_no_match():
+def test_human_selection_matcher_returns_empty_for_empty_catalog():
     matcher = HumanSelectionMatcher()
-    caps = [_capability("send_email", tags=["email"])]
-    result = matcher.match("weather forecast", ContextRecord(), caps)
+    result = matcher.match("weather forecast", ContextRecord(), [])
     assert result.candidates == []
     assert result.confidence == 0.0
-    assert "No deterministic match" in result.rationale
-
-
-def test_human_selection_matcher_matches_multiple():
-    matcher = HumanSelectionMatcher()
-    caps = [
-        _capability("create_test_artifact", tags=["test"]),
-        _capability("run_test", tags=["test"]),
-        _capability("send_email", tags=["email"]),
-    ]
-    result = matcher.match("run test", ContextRecord(), caps)
-    assert len(result.candidates) == 2
-    assert {c.name for c in result.candidates} == {"create_test_artifact", "run_test"}
 
 
 def test_capability_registry_list_all(tmp_path: Path):

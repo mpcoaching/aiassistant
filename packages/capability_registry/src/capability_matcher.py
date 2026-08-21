@@ -2,8 +2,8 @@
 Capability matching (Increment 1).
 
 Defines the CapabilityMatcher protocol and HumanSelectionMatcher,
-the first implementation that uses a simple deterministic heuristic
-to surface relevant candidates for human selection.
+the first implementation that presents available capabilities for human
+selection without performing automated semantic matching.
 """
 
 from __future__ import annotations
@@ -40,11 +40,9 @@ class CapabilityMatcher(Protocol):
 class HumanSelectionMatcher:
     """First CapabilityMatcher implementation.
 
-    Uses a simple deterministic heuristic:
-    - tokenize request_text into lowercase words
-    - a capability is a candidate if its name or any tag appears in the request
-    - confidence is always 0.0 because the human makes the final selection
-    - if no capability matches the heuristic, candidates is empty
+    Performs no automated matching. Returns all available capabilities
+    so a human can select the appropriate one or indicate that none
+    matches the request.
     """
 
     matcher_id = "human_selection"
@@ -55,26 +53,11 @@ class HumanSelectionMatcher:
         context: ContextRecord,
         capabilities: list[Capability],
     ) -> MatchResult:
-        tokens = set(request_text.lower().split())
-        candidates = []
-        for cap in capabilities:
-            haystack = f"{cap.name} {cap.description or ''} {' '.join(cap.tags or [])}".lower()
-            if any(token in haystack for token in tokens if len(token) > 2):
-                candidates.append(cap)
-
-        rationale = (
-            "Human selection required — heuristic matched "
-            f"{len(candidates)} candidate(s)"
-        )
-        if not candidates:
-            rationale = (
-                "No deterministic match found; human must indicate "
-                "whether a capability exists or specify a gap"
-            )
-
         return MatchResult(
-            candidates=candidates,
+            candidates=list(capabilities),
             confidence=0.0,
             matcher_id=self.matcher_id,
-            rationale=rationale,
+            rationale=(
+                "Human selection required — no automated matching in first slice"
+            ),
         )
