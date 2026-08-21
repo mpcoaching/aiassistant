@@ -93,6 +93,7 @@ import sys
 import yaml
 
 BASE = sys.argv[1]
+sys.path.insert(0, BASE)
 
 def load(name, relpath):
     path = os.path.join(BASE, relpath)
