@@ -1,0 +1,17 @@
+- generic [ref=f98e3]:
+  - navigation [ref=f98e4]:
+    - generic [ref=f98e5]:
+      - link "3.17.0" [ref=f98e6] [cursor=pointer]:
+        - /url: /
+      - link "Repositories" [ref=f98e10] [cursor=pointer]:
+        - /url: /repos
+      - link "Docs" [ref=f98e12] [cursor=pointer]:
+        - /url: https://woodpecker-ci.org/
+      - link "API" [ref=f98e13] [cursor=pointer]:
+        - /url: /swagger/index.html
+    - generic [ref=f98e14]:
+      - button "Pipeline feed" [ref=f98e15] [cursor=pointer]:
+        - generic [ref=f98e16]: "0"
+      - link "User Settings" [ref=f98e17] [cursor=pointer]:
+        - /url: /user
+  - main [ref=f98e19]

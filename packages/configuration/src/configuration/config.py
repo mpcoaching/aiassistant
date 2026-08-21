@@ -9,4 +9,4 @@ class ConfigurationManagerConfig(BaseModel):
     redis_url: str = "redis://redis:6379"
     contracts_path: str = "/etc/platform/contracts"
     sources_config_path: str = "/etc/platform/sources.yaml"
-    cache_ttl_seconds: int = 300
+    cache_ttl_seconds: int = 300# main trigger Fri Aug 21 11:41:54 AM AEST 2026
