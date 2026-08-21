@@ -58,6 +58,7 @@ steps:
       REGISTRY_PASSWORD:
         from_secret: registry_password
     commands:
+      - git config --global --add safe.directory /woodpecker/src/gitea.local.test/ai/aiassistant
       - test -n "$REGISTRY_USER" && echo "USER_SET=yes" || echo "USER_SET=no"
       - test -n "$REGISTRY_PASSWORD" && echo "PASS_SET=yes" || echo "PASS_SET=no"
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
@@ -72,6 +73,7 @@ steps:
     when:
       event: [push, manual]
     commands:
+      - git config --global --add safe.directory /woodpecker/src/gitea.local.test/ai/aiassistant
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - "bash scripts/test-image.sh registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG"
       - "bash scripts/test-image.sh registry.local.test/aiassistant/langgraph:$IMAGE_TAG"
@@ -87,6 +89,7 @@ steps:
       REGISTRY_PASSWORD:
         from_secret: registry_password
     commands:
+      - git config --global --add safe.directory /woodpecker/src/gitea.local.test/ai/aiassistant
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - "docker push registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG"
@@ -107,6 +110,7 @@ steps:
       LANGGRAPH_DEV_DB_PASSWORD: dev_langgraph_password
       LANGGRAPH_DEV_DB_NAME: langgraph_dev
     commands:
+      - git config --global --add safe.directory /woodpecker/src/gitea.local.test/ai/aiassistant
       - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
       - IMAGE_TAG=$(git rev-parse --short HEAD)
       - export REGISTRY_URL=registry.local.test
