@@ -1,8 +1,8 @@
 """
 CapabilityRequest governance model (Increment 3).
 
-A CapabilityRequest is a transient governance object. When approved,
-it is persisted as an EnterpriseConcept (kind=capability, status=draft).
+A CapabilityRequest is a transient governance object. Once approved,
+it is promoted to an EnterpriseConcept (kind=capability, status=draft).
 """
 
 from __future__ import annotations
@@ -10,9 +10,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 from capabilities import Parameter
+from pydantic import BaseModel, Field
 
 
 class CapabilityRequest(BaseModel):
@@ -26,11 +25,18 @@ class CapabilityRequest(BaseModel):
     requester: str = "user"
     status: str = "pending"
     governance: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime | None = None
     request_id: str | None = None
+
+    def _assert_pending(self) -> None:
+        if self.status != "pending":
+            raise AssertionError(
+                f"CapabilityRequest is {self.status}, not pending"
+            )
 
     def approve(self, approver: str, rationale: str | None = None) -> None:
         """Transition to approved and record governance."""
+        self._assert_pending()
         self.status = "approved"
         self.governance = {
             "action": "approved",
@@ -41,6 +47,7 @@ class CapabilityRequest(BaseModel):
 
     def reject(self, rejector: str, rationale: str | None = None) -> None:
         """Transition to rejected and record governance."""
+        self._assert_pending()
         self.status = "rejected"
         self.governance = {
             "action": "rejected",
@@ -59,6 +66,7 @@ class CapabilityRequest(BaseModel):
         modified_by: str = "user",
     ) -> None:
         """Update the specification before approval."""
+        self._assert_pending()
         if name is not None:
             self.name = name
         if purpose is not None:

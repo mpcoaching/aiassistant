@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +56,10 @@ from loader import load_workflow, resolve_workflow_path
 from models import Step, WorkflowDefinition
 from runtime_client import configure as _configure_runtime_client
 from scheduler import _build_scheduler, schedule_workflow, shutdown_scheduler, start_scheduler
+
+from capability_registry.src.capability_request import CapabilityRequest
+from capability_registry.src.capabilities import Capability, ConceptKind
+from capability_registry.src.concepts import ConceptStore, EnterpriseConcept, Provenance, RecognitionLevel
 
 logger = logging.getLogger("workflow-engine.api")
 app = FastAPI(title="Workflow Engine", version="1.0.0")
@@ -574,6 +579,22 @@ class _ChatResponse(BaseModel):
     telemetry: dict[str, Any] = Field(default_factory=dict)
 
 
+
+class _CapabilityRequestApprovalRequest(BaseModel):
+    request_id: str
+    action: str = Field(..., description="approve | reject | modify")
+    capability_request: dict[str, Any] | None = None
+    modified_spec: dict[str, Any] | None = None
+
+
+class _CapabilityRequestApprovalResponse(BaseModel):
+    request_id: str
+    action: str
+    status: str
+    concept_id: str | None = None
+    message: str
+    governance: dict[str, Any] | None = None
+
 _chat_service: Any | None = None
 
 
@@ -623,6 +644,110 @@ async def assistant_chat_resume(session_id: str, body: dict[str, Any]) -> _ChatR
         session_id=response.session_id,
         status=response.status,
         telemetry=response.telemetry,
+    )
+
+
+
+
+def _validate_capability_request(payload: dict[str, Any]) -> CapabilityRequest:
+    """Validate raw dict against CapabilityRequest model."""
+    try:
+        return CapabilityRequest.model_validate(payload)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid CapabilityRequest: {exc}",
+        ) from exc
+
+
+def _approve_capability_request(
+    request: CapabilityRequest,
+    approver: str = "system",
+    rationale: str | None = None,
+) -> EnterpriseConcept:
+    """Persist an approved CapabilityRequest as a draft EnterpriseConcept."""
+    from datetime import datetime, timezone
+
+    concept = EnterpriseConcept(
+        id=f"cap-{request.name.lower().replace(' ', '-')}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        kind=ConceptKind.CAPABILITY,
+        name=request.name,
+        description=request.purpose,
+        owner=request.requester,
+        created_by=approver,
+        status="draft",
+        tags=["capability-request", "draft"],
+        provenance=Provenance(
+            source_session_id=request.request_id,
+            recognition_level=RecognitionLevel.SYNTHESIS,
+        ),
+        payload={
+            "capability_request": request.model_dump(mode="json"),
+            "governance": {
+                "action": "approved",
+                "approved_by": approver,
+                "approved_at": datetime.now(timezone.utc).isoformat(),
+                "rationale": rationale or "",
+            },
+        },
+    )
+    return concept
+
+
+@app.post("/assistant/capability-request/{request_id}/approve", response_model=_CapabilityRequestApprovalResponse)
+async def assistant_capability_request_approve(
+    request_id: str,
+    body: _CapabilityRequestApprovalRequest,
+) -> _CapabilityRequestApprovalResponse:
+    if body.request_id != request_id:
+        raise HTTPException(status_code=400, detail="request_id mismatch")
+
+    action = body.action.lower()
+    if action not in ("approve", "reject", "modify"):
+        raise HTTPException(status_code=400, detail=f"Unsupported action: {action}")
+
+    if not body.capability_request:
+        raise HTTPException(status_code=400, detail="capability_request is required")
+
+    request = _validate_capability_request(body.capability_request)
+
+    if action == "modify":
+        if not body.modified_spec:
+            raise HTTPException(status_code=400, detail="modified_spec required for modify action")
+        modified = _validate_capability_request(body.modified_spec)
+        request.name = modified.name
+        request.purpose = modified.purpose
+        request.inputs = modified.inputs
+        request.outputs = modified.outputs
+        request.acceptance_criteria = modified.acceptance_criteria
+        request.governance = {
+            "action": "modified",
+            "modified_by": request.requester,
+            "modified_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    if action == "reject":
+        return _CapabilityRequestApprovalResponse(
+            request_id=request_id,
+            action="rejected",
+            status="rejected",
+            message="Capability request rejected.",
+        )
+
+    request.approve(approver=request.requester, rationale=request.governance.get("rationale"))
+    concept = _approve_capability_request(request, approver=request.requester)
+
+    from concepts import ConceptStore
+    store = ConceptStore()
+    store.upsert(concept)
+
+    return _CapabilityRequestApprovalResponse(
+        request_id=request_id,
+        action="approved",
+        status="draft",
+        concept_id=concept.id,
+        message="Capability request approved. Implementation pending.",
+        governance=concept.payload.get("governance"),
     )
 
 
