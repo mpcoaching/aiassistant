@@ -33,6 +33,14 @@ export const deleteSchedule = (id) =>
 export const chat = (body) => api("POST", "/assistant/chat", body);
 export const chatResume = (sessionId, body) =>
   api("POST", `/assistant/chat/${encodeURIComponent(sessionId)}/resume`, body);
+export const executeCapability = (capabilityId, context) =>
+  api("POST", `/assistant/capability/${encodeURIComponent(capabilityId)}/execute`, { context });
+export const createCapabilityRequest = (requestId, body) =>
+  api("POST", `/assistant/capability-request/${encodeURIComponent(requestId)}/approve`, {
+    request_id: requestId,
+    action: "approve",
+    ...body,
+  });
 
 export function esc(s) {
   if (s == null) return "";

@@ -596,6 +596,12 @@ class _CapabilityRequestApprovalResponse(BaseModel):
     message: str
     governance: dict[str, Any] | None = None
 
+
+class _ExecutionResultResponse(BaseModel):
+    outputs: dict[str, Any]
+    artifacts: list[str] = Field(default_factory=list)
+    telemetry: dict[str, Any] = Field(default_factory=dict)
+
 _chat_service: Any | None = None
 
 
@@ -750,6 +756,21 @@ async def assistant_capability_request_approve(
         concept_id=concept.id,
         message="Capability request approved. Implementation pending.",
         governance=concept.payload.get("governance"),
+    )
+
+
+@app.post("/assistant/capability/{capability_id}/execute", response_model=_ExecutionResultResponse)
+async def assistant_capability_execute(
+    capability_id: str,
+    body: dict[str, Any] | None = None,
+) -> _ExecutionResultResponse:
+    service = _get_chat_service()
+    context = (body or {}).get("context", {})
+    result = service.execute_selected_capability(capability_id=capability_id, context=context)
+    return _ExecutionResultResponse(
+        outputs=result.outputs,
+        artifacts=result.artifacts,
+        telemetry=result.telemetry,
     )
 
 
