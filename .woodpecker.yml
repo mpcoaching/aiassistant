@@ -15,6 +15,24 @@ steps:
       - for pkg in packages/*/; do if [ -f "$pkg/pyproject.toml" ]; then echo "Installing $pkg"; uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || pip install --system -e "$pkg"; fi; done
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
 
+  - name: validate-contracts
+    image: registry.local.test/aiassistant/ci-runner:latest
+    when:
+      event: [push, manual]
+    environment:
+      REGISTRY_USER:
+        from_secret: registry_user
+      REGISTRY_PASSWORD:
+        from_secret: registry_password
+      AGENT_DEV_DB_USER: aiassistant_user
+      AGENT_DEV_DB_PASSWORD: secureDevDbAssistPass
+      AGENT_DEV_DB_NAME: aiassistant
+      LANGGRAPH_DEV_DB_USER: langgraph_dev_user
+      LANGGRAPH_DEV_DB_PASSWORD: dev_langgraph_password
+      LANGGRAPH_DEV_DB_NAME: langgraph_dev
+    commands:
+      - bash scripts/validate-deployment-contract.sh
+
   - name: lint
     image: registry.local.test/aiassistant/ci-runner:latest
     when:
