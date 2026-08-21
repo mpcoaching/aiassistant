@@ -31,7 +31,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 
 # Install common Python tools
-RUN pip install --no-cache-dir --break-system-packages uv pytest pytest-cov ruff pyyaml
+RUN pip install --no-cache-dir --break-system-packages uv pytest pytest-cov ruff pyyaml python-dotenv
 
 
 # Verify tools
@@ -44,4 +44,6 @@ RUN python --version \
     && node --version \
     && npm --version \
     && ruff --version \
-    && pytest --version# ci-runner trigger Fri Aug 21 11:41:54 AM AEST 2026
+    && pytest --version
+
+# ci-runner trigger Fri Aug 21 11:41:54 AM AEST 2026

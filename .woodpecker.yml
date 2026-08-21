@@ -67,6 +67,7 @@ steps:
       - "docker build -t registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG -f packages/workflow_runner/Dockerfile packages/workflow_runner"
       - "docker build -t registry.local.test/aiassistant/langgraph:$IMAGE_TAG -f packages/langgraph/Dockerfile ."
       - "docker build -t registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG -f packages/control-center-ui/Dockerfile packages/control-center-ui"
+      - "docker build -t registry.local.test/aiassistant/ci-runner:$IMAGE_TAG -f infrastructure/images/ci-runner/Dockerfile infrastructure/images/ci-runner"
 
   - name: test-image
     image: registry.local.test/aiassistant/docker-client:latest
@@ -133,6 +134,7 @@ steps:
       - "docker push registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/langgraph:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG"
+      - "docker push registry.local.test/aiassistant/ci-runner:$IMAGE_TAG"
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
