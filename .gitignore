@@ -18,6 +18,12 @@ node_modules/
 
 # Backup artifacts (Phase 7.5) and encrypted secrets
 backups/
+
+# CI debugging artifacts
+.playwright-mcp/
+pipeline-*-logs.json
+validate-contracts-*-logs.json
+validate-contracts-logs*.json
 cicd/state/backup-validation-green
 .env.gpg
 
