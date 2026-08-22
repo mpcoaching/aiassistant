@@ -4,44 +4,13 @@ Tests for OrganisationControlPlane and InMemoryOrganisationControlPlane.
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
-from pathway_runtime import PathwayCallRequest, PathwayResponse, PathwayRuntime, PathwayStatus
 
 from organisation_control_plane import (
     InMemoryOrganisationControlPlane,
     OrganisationControlPlane,
 )
 from role import Agent, Authority, Person, Role, RoleStatus, Work, WorkStatus
-
-
-class MockRuntime(PathwayRuntime):
-    """Mock PathwayRuntime for testing execute_work."""
-
-    def __init__(self, response: PathwayResponse | None = None) -> None:
-        self._response = response or PathwayResponse(
-            status=PathwayStatus.COMPLETED,
-            outputs={"summary": "Mock execution completed"},
-            artifacts=[],
-            telemetry={"mock": True},
-        )
-        self.invoked_with: PathwayCallRequest | None = None
-
-    @property
-    def id(self) -> str:
-        return "mock-runtime"
-
-    @property
-    def capabilities(self) -> list[str]:
-        return []
-
-    def invoke(self, request: PathwayCallRequest) -> PathwayResponse:
-        self.invoked_with = request
-        return self._response
-
-    def resume(self, session_id: str, human_response: dict[str, Any]) -> PathwayResponse:
-        return self._response
 
 
 def test_interface_is_abstract() -> None:
@@ -166,6 +135,7 @@ def test_architectural_boundary_no_forbidden_methods() -> None:
         "sequence_work",
         "track_progress",
         "manage_dependencies",
+        "execute_work",
     }
     for method in forbidden:
         assert not hasattr(OrganisationControlPlane, method), (
@@ -208,39 +178,41 @@ def test_strategic_project_accountability_scenario() -> None:
     assert initiative.coordinating_role_id == "r-pm"
 
 
-def test_execute_work_without_runtime_returns_simulated_result() -> None:
+def test_mark_work_ready_transitions_to_in_progress() -> None:
     plane = InMemoryOrganisationControlPlane()
-    work = Work(id="w1", title="Simulated task", accountable_role_id="r1")
+    work = Work(id="w1", title="Task", accountable_role_id="r1")
     plane.register_role(Role(id="r1", name="Operator"))
     plane.assign_work(work, Role(id="r1", name="Operator"))
-    result = plane.execute_work("w1", {"input": "test"})
-    assert result["status"] == "completed"
-    assert result["outputs"]["simulated"] is True
-    assert result["outputs"]["work_id"] == "w1"
+    assert work.status == WorkStatus.ASSIGNED
+
+    ready = plane.mark_work_ready("w1")
+    assert ready is not None
+    assert ready.status == WorkStatus.IN_PROGRESS
+    assert plane.get_work("w1").status == WorkStatus.IN_PROGRESS
 
 
-def test_execute_work_with_runtime_delegates_to_runtime() -> None:
-    mock_response = PathwayResponse(
-        status=PathwayStatus.COMPLETED,
-        outputs={"summary": "Runtime executed"},
-        artifacts=["artifact1"],
-        telemetry={"runtime": "mock"},
+def test_mark_work_ready_missing_work_returns_none() -> None:
+    plane = InMemoryOrganisationControlPlane()
+    result = plane.mark_work_ready("missing")
+    assert result is None
+
+
+def test_ocp_has_no_pathway_runtime_import() -> None:
+    """OrganisationControlPlane must not import PathwayRuntime or other operational types."""
+    import ast
+    import os
+
+    source_path = os.path.join(
+        os.path.dirname(__file__), "..", "src", "organisation_control_plane.py"
     )
-    runtime = MockRuntime(response=mock_response)
-    plane = InMemoryOrganisationControlPlane(runtime=runtime)
-    work = Work(id="w1", title="Runtime task", accountable_role_id="r1")
-    plane.register_role(Role(id="r1", name="Operator"))
-    plane.assign_work(work, Role(id="r1", name="Operator"))
-    result = plane.execute_work("w1", {"input": "test"})
-    assert result["status"] == "completed"
-    assert result["outputs"]["summary"] == "Runtime executed"
-    assert result["artifacts"] == ["artifact1"]
-    assert runtime.invoked_with is not None
-    assert runtime.invoked_with.session_id == "ops-w1"
-
-
-def test_execute_work_missing_work_returns_failure() -> None:
-    plane = InMemoryOrganisationControlPlane()
-    result = plane.execute_work("missing", {})
-    assert result["status"] == "failed"
-    assert "not found" in result["error"]
+    source_path = os.path.normpath(source_path)
+    with open(source_path) as f:
+        tree = ast.parse(f.read())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            assert "pathway_runtime" not in node.module, (
+                "OrganisationControlPlane must not import from pathway_runtime"
+            )
+            assert "bus" not in node.module, (
+                "OrganisationControlPlane must not import from bus"
+            )

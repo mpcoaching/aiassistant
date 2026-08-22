@@ -258,7 +258,7 @@ Organisation/Control plane:
     - Creates Work
     - Sets accountable_role_id, coordinating_role_id
     - Assigns Work via OrganisationControlPlane.assign_work()
-    - Calls OrganisationControlPlane.execute_work() to hand off to Operations
+    - Calls OrganisationControlPlane.mark_work_ready() to hand off to Operations
     - Receives execution result
     - Assesses outcome against acceptance_criteria
     - Updates Work.outcome and Work.status
@@ -271,7 +271,7 @@ Operations plane:
 ```
 
 Key principle: **Work is organisational. Execution is operational.**
-- OrganisationControlPlane.execute_work() is the handoff seam
+- OrganisationControlPlane.mark_work_ready() is the handoff seam
 - Execution result is evidence, not automatic organisational acceptance
 - Organisation assesses outcome and decides acceptance
 
@@ -491,7 +491,7 @@ Paperclip does NOT provide:
 8. No plane or role may coordinate work outside its authority boundary.
 9. The OrganisationControlPlane provides mechanisms; roles provide coordination.
 10. Organisation/Control references Person/Agent by ID; People/Capability owns their records.
-11. Work is organisational; execution is operational. The handoff is via OrganisationControlPlane.execute_work().
+11. Work is organisational; execution is operational. The handoff is via OrganisationControlPlane.mark_work_ready().
 12. Execution result is evidence; organisational outcome is assessed against acceptance_criteria.
 
 ## Constraints
@@ -537,7 +537,7 @@ Paperclip does NOT provide:
 - Role model: Role, Person, Agent, Authority, Work, Assignment, OrgContext, Delegation
 - Work accountability model: work_type, accountable_role_id, coordinating_role_id, required_capability_ids, acceptance_criteria, dependencies, parent_work_id, outcome
 - Role required capabilities: required_capability_ids
-- Operational handoff: OrganisationControlPlane.execute_work() with PathwayRuntime integration
+- Operational handoff: OrganisationControlPlane.mark_work_ready() with PathwayRuntime integration
 - Outcome assessment: assess_work_outcome() helper
 - EIMS learning: record_work_learning() helper
 - Four-plane architecture documented (Increment 7)
@@ -629,6 +629,6 @@ Current Docker PYTHONPATH:
 - **Work decomposition**: Breaking large Work into smaller Work items via `parent_work_id` and `dependencies`. Management concern, not execution concern.
 - **Accountability**: Role answerable for outcome. Explicitly modelled via `accountable_role_id` on Work.
 - **Coordination**: Role sequencing and managing work. Explicitly modelled via `coordinating_role_id` on Work.
-- **Operational handoff**: Transition from organisational Work to operational execution via `OrganisationControlPlane.execute_work()`. Work.status ASSIGNED→IN_PROGRESS marks the boundary.
+- **Operational handoff**: Transition from organisational Work to operational execution via `OrganisationControlPlane.mark_work_ready()`. Work.status ASSIGNED→IN_PROGRESS marks the boundary.
 - **Execution result**: Evidence from Operations. NOT automatically an accepted organisational outcome.
 - **Outcome assessment**: Process of evaluating execution result against acceptance_criteria to determine acceptance.

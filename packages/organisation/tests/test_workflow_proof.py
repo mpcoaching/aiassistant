@@ -1,9 +1,12 @@
 """
-Behavioural tests for Increment 10 — Organisational Workflow Proof.
+Behavioural tests for Increment 10/11 — Organisational Workflow Proof.
 
 Proves that organisational accountability and coordination produce operational
 work without the organisation becoming the operations engine, and that operations
 produce evidence without becoming the organisation.
+
+Corrected Increment 11: OrganisationControlPlane does NOT execute Work.
+It marks Work as ready. Operations executes Work via its own entry points.
 """
 
 from __future__ import annotations
@@ -48,7 +51,7 @@ def test_strategic_work_flow_without_ceo_coordinating() -> None:
 
 
 def test_bau_work_flow_without_ceo_involvement() -> None:
-    """BAU: functional manager accountable and coordinates, operational execution."""
+    """BAU: functional manager accountable and coordinates, work ready for execution."""
     plane = InMemoryOrganisationControlPlane()
     fm = Role(id="r-fm", name="Functional Manager")
     plane.register_role(fm)
@@ -61,9 +64,11 @@ def test_bau_work_flow_without_ceo_involvement() -> None:
         coordinating_role_id="r-fm",
     )
     plane.assign_work(work, fm)
+    assert work.status == WorkStatus.ASSIGNED
 
-    result = plane.execute_work("w-bau", {"context": "kpi_fix"})
-    assert result["status"] == "completed"
+    ready = plane.mark_work_ready("w-bau")
+    assert ready is not None
+    assert ready.status == WorkStatus.IN_PROGRESS
     assert work.accountable_role_id == "r-fm"
 
 
@@ -188,8 +193,12 @@ def test_capability_portable_across_roles() -> None:
 # ---- Test 7: Operational handoff -------------------------------------------------
 
 
-def test_operational_handoff_work_to_execution() -> None:
-    """Organisational Work transitions to operational execution."""
+def test_operational_handoff_is_status_transition_not_execution() -> None:
+    """Organisational Work transitions to IN_PROGRESS (ready for execution).
+    
+    OrganisationControlPlane does NOT execute Work. It only marks Work as ready.
+    Operations is responsible for picking up ready Work and executing it.
+    """
     plane = InMemoryOrganisationControlPlane()
     operator = Role(id="r-ops", name="Operator")
     plane.register_role(operator)
@@ -202,9 +211,14 @@ def test_operational_handoff_work_to_execution() -> None:
     assignment = plane.assign_work(work, operator)
     assert work.status == WorkStatus.ASSIGNED
 
-    result = plane.execute_work("w-handoff", {"input": "data"})
-    assert result["status"] == "completed"
+    ready = plane.mark_work_ready("w-handoff")
+    assert ready is not None
+    assert ready.status == WorkStatus.IN_PROGRESS
     assert assignment.assignee_id == "r-ops"
+
+    assert not hasattr(plane, "execute_work")
+    assert not hasattr(plane, "invoke")
+    assert not hasattr(plane, "run_agent")
 
 
 # ---- Test 8: Outcome assessment --------------------------------------------------
@@ -369,3 +383,51 @@ def test_capability_is_not_agent() -> None:
     assert cap.id != agent.id
     assert not hasattr(cap, "marker")
     assert not hasattr(cap, "fulfilled_role_ids")
+
+
+def test_operations_executes_work_independently() -> None:
+    """Operations can execute Work via its own entry points without OCP involvement.
+    
+    This test proves Operations is independent of OrganisationControlPlane.
+    It uses a mock runtime to simulate execution, showing that execution
+    does not require OCP to invoke it.
+    """
+    from pathway_runtime import (
+        PathwayCallRequest,
+        PathwayResponse,
+        PathwayRuntime,
+        PathwayStatus,
+    )
+
+    class MockRuntime(PathwayRuntime):
+        def __init__(self) -> None:
+            self.invoked = False
+
+        @property
+        def id(self) -> str:
+            return "mock"
+
+        @property
+        def capabilities(self) -> list[str]:
+            return []
+
+        def invoke(self, request: PathwayCallRequest) -> PathwayResponse:
+            self.invoked = True
+            return PathwayResponse(
+                status=PathwayStatus.COMPLETED,
+                outputs={"summary": "Executed by Operations"},
+            )
+
+    runtime = MockRuntime()
+    work = Work(id="w1", title="Task", accountable_role_id="r1")
+
+    request = PathwayCallRequest(
+        session_id=f"ops-{work.id}",
+        pattern_step={"pattern_id": work.title, "ordered_steps": []},
+        context={},
+        participants=[{"role": work.assignee_role_id or "operator"}],
+        prompt=work.description or work.title,
+    )
+    response = runtime.invoke(request)
+    assert response.status == PathwayStatus.COMPLETED
+    assert runtime.invoked is True
