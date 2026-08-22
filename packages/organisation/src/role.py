@@ -1,8 +1,13 @@
 """
-Organisational role model (Increment 6).
+Organisational role model (Increment 6, corrected Increment 9).
 
 Defines the core domain records for the Organisation/Control plane:
-Role, Person, Agent, Authority, Work, Assignment, OrgContext.
+Role, Authority, Delegation, Work, Assignment, OrgContext.
+
+Person and Agent classes are also defined here as lightweight references,
+but their ownership belongs to the People/Capability plane (ADR-037).
+Organisation/Control references Person/Agent by ID only and does not
+store their lifecycle records.
 
 Imports: pydantic only. No capability_registry, no concepts, no Paperclip.
 """
@@ -45,7 +50,10 @@ class AgentMarker(str, Enum):
 
 
 class Role(BaseModel):
-    """Abstract position with responsibilities, authority, constraints, information access."""
+    """Abstract position with responsibilities, authority, constraints, information access, required capabilities.
+
+    Owned by Organisation/Control plane. Not a person or agent.
+    """
 
     id: str
     name: str
@@ -56,11 +64,16 @@ class Role(BaseModel):
     information_access: list[str] = Field(default_factory=list)
     reports_to: str | None = None
     status: RoleStatus = RoleStatus.ACTIVE
+    required_capability_ids: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class Person(BaseModel):
-    """Human individual with identity and employment context."""
+    """Human individual with identity and employment context.
+
+    Owned by People/Capability plane (ADR-037). Organisation/Control
+    references Person by ID only (e.g., Work.assignee_person_id).
+    """
 
     id: str
     name: str
@@ -71,7 +84,11 @@ class Person(BaseModel):
 
 
 class Agent(BaseModel):
-    """Software entity marker/record — no runtime execution logic."""
+    """Software entity marker/record — no runtime execution logic.
+
+    Owned by People/Capability plane (ADR-037). Organisation/Control
+    references Agent by ID only (e.g., Work.assignee_agent_id).
+    """
 
     id: str
     name: str
@@ -110,18 +127,29 @@ class Delegation(BaseModel):
 
 
 class Work(BaseModel):
-    """Instance of assigned effort."""
+    """Instance of assigned effort.
+
+    Accountable to a Role. Not a capability, not an execution unit.
+    """
 
     id: str
     title: str
     description: str = ""
+    work_type: str = "bau"
     status: WorkStatus = WorkStatus.PENDING
     priority: str = "normal"
+    accountable_role_id: str
+    coordinating_role_id: str | None = None
     requested_by_role_id: str | None = None
     assignee_role_id: str | None = None
     assignee_person_id: str | None = None
     assignee_agent_id: str | None = None
+    required_capability_ids: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    dependencies: list[str] = Field(default_factory=list)
+    parent_work_id: str | None = None
     deliverables: list[str] = Field(default_factory=list)
+    outcome: dict[str, Any] | None = None
     constraints: list[str] = Field(default_factory=list)
     context: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

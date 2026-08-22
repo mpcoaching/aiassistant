@@ -1,8 +1,14 @@
 """
-OrganisationControlPlane abstraction and in-memory implementation (Increment 6).
+OrganisationControlPlane abstraction and in-memory implementation (Increment 6, corrected Increment 9).
 
 Defines the narrow interface for the Organisation/Control plane plus a
 reference in-memory implementation for testing and local development.
+
+OrganisationControlPlane is mechanism-only:
+- provides role lookup, work assignment, authority delegation, organisational context
+- does NOT store Person/Agent records (owned by People/Capability, ADR-037)
+- does NOT coordinate work (belongs to roles)
+- does NOT become the CEO/COO/PM
 
 Imports: role module only. No capability_registry, no concepts, no Paperclip.
 """
@@ -30,7 +36,7 @@ from role import (
 
 
 class OrganisationControlPlane(ABC):
-    """Narrow abstraction for organisational coordination.
+    """Narrow abstraction for organisational mechanisms and context.
 
     Explicitly excluded:
     - find_capability()
@@ -39,6 +45,11 @@ class OrganisationControlPlane(ABC):
     - execute_work()
     - run_agent()
     - invoke_tool()
+    - register_person()
+    - register_agent()
+    - store Person/Agent records
+    - coordinate work
+    - become the CEO/COO/PM
     """
 
     @abstractmethod
@@ -62,7 +73,11 @@ class OrganisationControlPlane(ABC):
     def assign_work(
         self, work: Work, assignee: Role | Person | Agent
     ) -> Assignment:
-        """Assign work to a role, person, or agent."""
+        """Assign work to a role, person, or agent.
+
+        Reads the assignee's ID but does NOT store the Person/Agent record.
+        Person/Agent records are owned by People/Capability (ADR-037).
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -79,12 +94,13 @@ class OrganisationControlPlane(ABC):
 
 
 class InMemoryOrganisationControlPlane(OrganisationControlPlane):
-    """Reference implementation using in-memory storage."""
+    """Reference implementation using in-memory storage.
+
+    Stores organisational mechanisms only. Does NOT store Person/Agent records.
+    """
 
     def __init__(self) -> None:
         self._roles: dict[str, Role] = {}
-        self._persons: dict[str, Person] = {}
-        self._agents: dict[str, Agent] = {}
         self._authorities: dict[str, Authority] = {}
         self._work: dict[str, Work] = {}
         self._assignments: dict[str, Assignment] = {}
@@ -154,12 +170,6 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
 
     def register_role(self, role: Role) -> None:
         self._roles[role.id] = role
-
-    def register_person(self, person: Person) -> None:
-        self._persons[person.id] = person
-
-    def register_agent(self, agent: Agent) -> None:
-        self._agents[agent.id] = agent
 
     def register_authority(self, authority: Authority) -> None:
         self._authorities[authority.id] = authority

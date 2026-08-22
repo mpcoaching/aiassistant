@@ -4,6 +4,8 @@ Tests for OrganisationControlPlane and InMemoryOrganisationControlPlane.
 
 from __future__ import annotations
 
+import pytest
+
 from organisation_control_plane import (
     InMemoryOrganisationControlPlane,
     OrganisationControlPlane,
@@ -12,8 +14,6 @@ from role import Agent, Authority, Person, Role, RoleStatus, Work, WorkStatus
 
 
 def test_interface_is_abstract() -> None:
-    import pytest
-
     with pytest.raises(TypeError):
         OrganisationControlPlane()
 
@@ -39,7 +39,7 @@ def test_in_memory_plane_assign_work_to_role() -> None:
     plane = InMemoryOrganisationControlPlane()
     role = Role(id="r1", name="QA")
     plane.register_role(role)
-    work = Work(id="w1", title="Test feature", requested_by_role_id="r1")
+    work = Work(id="w1", title="Test feature", accountable_role_id="r1")
     assignment = plane.assign_work(work, role)
     assert assignment.work_id == "w1"
     assert assignment.assignee_type == "role"
@@ -51,8 +51,7 @@ def test_in_memory_plane_assign_work_to_role() -> None:
 def test_in_memory_plane_assign_work_to_person() -> None:
     plane = InMemoryOrganisationControlPlane()
     person = Person(id="p1", name="Alice")
-    plane.register_person(person)
-    work = Work(id="w2", title="Review PR")
+    work = Work(id="w2", title="Review PR", accountable_role_id="r-mgr")
     assignment = plane.assign_work(work, person)
     assert assignment.assignee_type == "person"
     assert assignment.assignee_id == "p1"
@@ -62,12 +61,25 @@ def test_in_memory_plane_assign_work_to_person() -> None:
 def test_in_memory_plane_assign_work_to_agent() -> None:
     plane = InMemoryOrganisationControlPlane()
     agent = Agent(id="a1", name="CI-Bot")
-    plane.register_agent(agent)
-    work = Work(id="w3", title="Run tests")
+    work = Work(id="w3", title="Run tests", accountable_role_id="r-mgr")
     assignment = plane.assign_work(work, agent)
     assert assignment.assignee_type == "agent"
     assert assignment.assignee_id == "a1"
     assert work.assignee_agent_id == "a1"
+
+
+def test_in_memory_plane_does_not_store_person_agent_records() -> None:
+    """OrganisationControlPlane must not store Person/Agent records (ADR-037)."""
+    plane = InMemoryOrganisationControlPlane()
+    assert not hasattr(plane, "_persons")
+    assert not hasattr(plane, "_agents")
+
+
+def test_in_memory_plane_has_no_register_person_agent() -> None:
+    """OrganisationControlPlane must not expose register_person/register_agent."""
+    plane = InMemoryOrganisationControlPlane()
+    assert not hasattr(plane, "register_person")
+    assert not hasattr(plane, "register_agent")
 
 
 def test_in_memory_plane_get_work_missing() -> None:
@@ -126,3 +138,42 @@ def test_architectural_boundary_no_capability_methods() -> None:
         assert not hasattr(OrganisationControlPlane, method), (
             f"OrganisationControlPlane must not have {method}"
         )
+
+
+def test_bau_accountability_scenario() -> None:
+    """Scenario A: BAU — functional manager is accountable and coordinates."""
+    plane = InMemoryOrganisationControlPlane()
+    fm = Role(id="r-fm", name="Functional Manager")
+    plane.register_role(fm)
+
+    work = Work(
+        id="w-bau",
+        title="Fix KPI deterioration",
+        work_type="bau",
+        accountable_role_id="r-fm",
+        coordinating_role_id="r-fm",
+    )
+    assignment = plane.assign_work(work, fm)
+    assert work.accountable_role_id == "r-fm"
+    assert work.coordinating_role_id == "r-fm"
+    assert assignment.assignee_id == "r-fm"
+
+
+def test_strategic_project_accountability_scenario() -> None:
+    """Scenario B: Strategic project — C-Suite accountable, PM coordinates."""
+    plane = InMemoryOrganisationControlPlane()
+    cmo = Role(id="r-cmo", name="CMO")
+    pm = Role(id="r-pm", name="Project Manager")
+    plane.register_role(cmo)
+    plane.register_role(pm)
+
+    initiative = Work(
+        id="w-init",
+        title="Enter Market X",
+        work_type="project",
+        accountable_role_id="r-cmo",
+        coordinating_role_id="r-pm",
+    )
+    plane.assign_work(initiative, cmo)
+    assert initiative.accountable_role_id == "r-cmo"
+    assert initiative.coordinating_role_id == "r-pm"
