@@ -9,7 +9,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from ceo import CEOAgent
-from concepts import ConceptStore
 
 
 # ---- CEOAgent boundary tests -------------------------------------------------
@@ -23,8 +22,7 @@ def test_ceo_agent_receives_org_plane_via_di() -> None:
 
 def test_ceo_agent_uses_org_plane_for_context(tmp_path) -> None:
     org_plane = MagicMock()
-    store = ConceptStore(data_dir=str(tmp_path))
-    ceo = CEOAgent(org_plane=org_plane, concept_store=store)
+    ceo = CEOAgent(org_plane=org_plane)
 
     org_context = MagicMock()
     org_plane.get_organisational_context.return_value = org_context
@@ -35,12 +33,12 @@ def test_ceo_agent_uses_org_plane_for_context(tmp_path) -> None:
     )
 
 
-def test_ceo_agent_does_not_instantiate_capability_registry(tmp_path) -> None:
+def test_ceo_agent_does_not_instantiate_capability_registry() -> None:
     org_plane = MagicMock()
-    store = ConceptStore(data_dir=str(tmp_path))
-    ceo = CEOAgent(org_plane=org_plane, concept_store=store)
+    ceo = CEOAgent(org_plane=org_plane)
 
     assert not hasattr(ceo, "_registry")
+    assert not hasattr(ceo, "_store")
 
 
 def test_ceo_agent_does_not_contain_match_capabilities() -> None:
@@ -64,25 +62,22 @@ def test_ceo_agent_escalates_when_confidence_low() -> None:
 
 
 def test_ceo_agent_reuses_previous_solution(tmp_path) -> None:
+    from ai.tests.fixtures.in_memory_ports import InMemoryEnterpriseInformationPort
+    from ports.enterprise_information import PreviousSolution
+
     org_plane = MagicMock()
     org_plane.get_organisational_context.return_value = MagicMock()
-    store = ConceptStore(data_dir=str(tmp_path))
-    from concepts import ConceptKind, EnterpriseConcept
 
-    concept = EnterpriseConcept(
-        id="sol-1",
-        kind=ConceptKind.CAPABILITY,
-        name="previous-solution",
-        description="A previous solution",
-        tags=["solution", "strategy:recognise_and_reuse"],
-        payload={
-            "summary": "Ran daily report successfully",
-            "maturation_history": {"invocation_count": 2, "correction_count": 0},
-        },
+    previous = PreviousSolution(
+        concept_id="sol-1",
+        name="strategy:recognise_and_reuse",
+        summary="Ran daily report successfully",
+        invocation_count=2,
+        last_invoked=None,
     )
-    store.upsert(concept)
+    enterprise_info = InMemoryEnterpriseInformationPort(solutions=[previous])
 
-    ceo = CEOAgent(org_plane=org_plane, concept_store=store)
+    ceo = CEOAgent(org_plane=org_plane, enterprise_information=enterprise_info)
     response = ceo.orchestrate({"message": "Run the daily report", "context": {}})
 
     assert response["status"] == "awaiting_confirmation"

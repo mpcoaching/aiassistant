@@ -1,13 +1,13 @@
 """
-CEO Orchestrator Agent (Increment 6).
+CEO Orchestrator Agent (Increment 6, Increment 15 boundary correction).
 
 The CEO is an organisational ROLE, not the central AI agent. CEOAgent consumes
-OrganisationControlPlane via dependency injection and uses it for role lookup,
-work assignment, and authority checks. CEO does NOT discover or select capabilities.
+OrganisationControlPlane and EnterpriseInformationPort via dependency injection.
+CEO does NOT discover or select capabilities.
 
 Routes all requests through a lightweight CEO node that:
 1. Classifies intent
-2. Checks context for known solutions
+2. Checks enterprise information for known solutions
 3. Delegates to the appropriate organisational role
 4. Synthesises results back to the user
 5. Escalates to human when uncertain or when a capability gap is detected
@@ -20,9 +20,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from assistant import AssistantReasoningService, StrategyDecision
-from concepts import ConceptStore
 from intent import Intent, IntentOrigin, ProblemFrame, recognise
 from organisation_control_plane import OrganisationControlPlane
+from ports.enterprise_information import EnterpriseInformationPort
 
 logger = logging.getLogger("ai.ceo")
 
@@ -34,12 +34,12 @@ class CEOAgent:
         self,
         org_plane: OrganisationControlPlane,
         reasoning_service: AssistantReasoningService | None = None,
-        concept_store: ConceptStore | None = None,
+        enterprise_information: EnterpriseInformationPort | None = None,
         confidence_threshold: float = 0.5,
     ) -> None:
         self._org = org_plane
         self._reasoning = reasoning_service or AssistantReasoningService()
-        self._store = concept_store or ConceptStore()
+        self._enterprise_information = enterprise_information
         self._confidence_threshold = confidence_threshold
 
     def orchestrate(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -70,26 +70,18 @@ class CEOAgent:
 
     def _find_previous_solution(self, frame: ProblemFrame) -> dict[str, Any] | None:
         strategy_tag = f"strategy:{self._strategy_from_frame(frame)}"
-        concepts = self._store.list_by_tag(strategy_tag)
-        if not concepts:
+        if self._enterprise_information is None:
             return None
-
-        best = max(
-            concepts,
-            key=lambda c: c.payload.get("maturation_history", {}).get("invocation_count", 0),
-        )
-        history = best.payload.get("maturation_history", {})
-        if history.get("invocation_count", 0) >= 1:
-            return {
-                "concept_id": best.id,
-                "name": best.name,
-                "summary": best.payload.get("summary", "Previous solution available"),
-                "invocation_count": history.get("invocation_count", 0),
-                "last_invoked": str(history.get("last_invoked_at", ""))
-                if history.get("last_invoked_at")
-                else None,
-            }
-        return None
+        previous = self._enterprise_information.find_previous_solutions(strategy_tag)
+        if previous is None:
+            return None
+        return {
+            "concept_id": previous.concept_id,
+            "name": previous.name,
+            "summary": previous.summary,
+            "invocation_count": previous.invocation_count,
+            "last_invoked": previous.last_invoked,
+        }
 
     def _strategy_from_frame(self, frame: ProblemFrame) -> str:
         problem = frame.context.problem_context.value

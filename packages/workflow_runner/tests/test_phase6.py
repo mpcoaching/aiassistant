@@ -6,12 +6,8 @@ Contracts: RUNTIME-MAPPING.md; REASONING-PATTERN-CATALOGUE.md §12.
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
 
-from capabilities import CapabilityRegistry
-from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
 from chat import AssistantChatService, ChatRequest
-from concepts import ConceptKind, ConceptStore, EnterpriseConcept
 from langgraph_runtime import LangGraphRuntime
 from pathway_runtime import (
     PathwayCallRequest,
@@ -20,6 +16,7 @@ from pathway_runtime import (
     PathwayStatus,
     RuntimeCapability,
 )
+from ports.pattern_execution import PatternExecutionResult
 
 from human_loop import HumanInputStatus, HumanInTheLoopMixin
 from session import SessionStatus
@@ -153,25 +150,18 @@ def test_human_input_history_tracked() -> None:
 # ---- Assistant chat service (Phase 6) ---------------------------------------
 
 def test_chat_service_returns_previous_solution(tmp_path: Path) -> None:
-    store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
+    from ai.tests.fixtures.in_memory_ports import InMemoryEnterpriseInformationPort
+    from ports.enterprise_information import PreviousSolution
 
-    concept = EnterpriseConcept(
-        id="sol-previous",
-        kind=ConceptKind.CAPABILITY,
-        name="previous-solution",
-        description="A previous solution",
-        tags=["solution", "strategy:deliberate_to_consensus"],
-        payload={
-            "summary": "Designed a task tracker with 3 interfaces",
-            "strategy": "deliberate_to_consensus",
-            "pattern_pipeline": ["debate@1.0.0", "consensus@1.0.0"],
-            "maturation_history": {"invocation_count": 2, "correction_count": 0},
-        },
+    previous = PreviousSolution(
+        concept_id="sol-previous",
+        name="strategy:deliberate_to_consensus",
+        summary="Designed a task tracker with 3 interfaces",
+        invocation_count=2,
+        last_invoked=None,
     )
-    store.upsert(concept)
-
-    service = AssistantChatService(concept_store=store, capability_registry=reg)
+    enterprise_info = InMemoryEnterpriseInformationPort(solutions=[previous])
+    service = AssistantChatService(enterprise_information=enterprise_info)
     request = ChatRequest(message="Design a new task tracking service")
     response = service.chat(request)
 
@@ -181,10 +171,10 @@ def test_chat_service_returns_previous_solution(tmp_path: Path) -> None:
 
 
 def test_chat_service_creates_new_session_when_no_match(tmp_path: Path) -> None:
-    store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
-    service = AssistantChatService(concept_store=store, capability_registry=reg)
+    from ai.tests.fixtures.in_memory_ports import InMemorySessionFactoryPort
 
+    session_factory = InMemorySessionFactoryPort()
+    service = AssistantChatService(session_factory=session_factory)
     request = ChatRequest(message="Do something completely novel")
     response = service.chat(request)
 
@@ -193,19 +183,31 @@ def test_chat_service_creates_new_session_when_no_match(tmp_path: Path) -> None:
 
 
 def test_chat_service_resumes_with_human_input(tmp_path: Path) -> None:
-    store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
-    runtime = MagicMock(spec=PathwayRuntime)
-    runtime.invoke.return_value = PathwayResponse(
-        status=PathwayStatus.WAITING,
-        human_input_request={"question": "Approve?", "session_id": "ses-htl-1"},
-    )
-    runtime.resume.return_value = PathwayResponse(
-        status=PathwayStatus.COMPLETED,
-        outputs={"summary": "Completed after approval"},
+    from ai.tests.fixtures.in_memory_ports import (
+        InMemoryPatternExecutionPort,
+        InMemorySessionFactoryPort,
     )
 
-    service = AssistantChatService(concept_store=store, capability_registry=reg, runtime=runtime)
+    session_factory = InMemorySessionFactoryPort()
+    pattern_execution = InMemoryPatternExecutionPort(
+        execute_result=PatternExecutionResult(
+            status="waiting",
+            outputs={},
+            artifacts=[],
+            telemetry={},
+            human_input_request={"question": "Approve?", "session_id": "ses-htl-1"},
+        ),
+        resume_result=PatternExecutionResult(
+            status="completed",
+            outputs={"summary": "Completed after approval"},
+            artifacts=[],
+            telemetry={"resumed": True},
+        ),
+    )
+    service = AssistantChatService(
+        session_factory=session_factory,
+        pattern_execution=pattern_execution,
+    )
     request = ChatRequest(message="Deploy service", session_id="ses-htl-1")
     response = service.chat(request)
     assert response.status == "awaiting_human_input"

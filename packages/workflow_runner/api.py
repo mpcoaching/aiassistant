@@ -624,8 +624,7 @@ def _get_chat_service() -> Any:
             if _src.exists() and str(_src) not in sys.path:
                 sys.path.insert(0, str(_src))
         from chat import AssistantChatService
-        from langgraph_runtime import LangGraphRuntime
-        _chat_service = AssistantChatService(runtime=LangGraphRuntime())
+        _chat_service = AssistantChatService()
     return _chat_service
 
 

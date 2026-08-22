@@ -5,16 +5,19 @@ Contracts: SA-CONTRACTS-PHASES-2-5.md C3, C4, C9.
 """
 
 
-from pathlib import Path
-
 from assistant import AssistantReasoningService, StrategyDecision
-from capability_matcher import MatchResult
-from capabilities import Capability, CapabilityKind, CapabilityRegistry, CompiledRef, ExecutionMode
 from chat import AssistantChatService, ChatRequest
-from concepts import ConceptStore
 from enterprise_context import ContextRecord
 from intent import Intent, IntentOrigin, ProblemFrame, recognise
 from strategy import ReasoningStrategy, select_strategy
+
+from ai.tests.fixtures.in_memory_ports import (
+    InMemoryCapabilityDiscoveryPort,
+    InMemoryEnterpriseInformationPort,
+    InMemorySessionFactoryPort,
+)
+from ports.capability_discovery import CapabilityCandidate
+from ports.enterprise_information import PreviousSolution
 
 # ---- Intent / recognise (C3) ----------------------------------------------
 
@@ -135,34 +138,24 @@ def _make_context(**overrides):
     return ContextRecord(**defaults)
 
 
-# ---- Capability-First Routing (Increment 4) --------------------------------
+# ---- Assistant Chat Service via ports (Increment 15) -----------------------
 
-def _register_create_test_artifact(tmp_path: Path):
-    """Register create_test_artifact as a compiled capability."""
-    store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
-    cap = Capability(
-        id="cap-create_test_artifact",
-        name="create_test_artifact",
-        description="Creates a test artifact record",
-        owner="core",
-        created_by="test",
-        tags=["test", "artifact"],
-        capability_kind=CapabilityKind.TOOL,
-        execution_mode=ExecutionMode.COMPILED,
-        compiled_ref=CompiledRef(
-            module_path="packages.capabilities.create_test_artifact.run",
-            entrypoint="run",
-            tests_passed=True,
-        ),
-    )
-    reg.register(cap)
-    return reg, cap
+def _make_capability_candidates() -> list[CapabilityCandidate]:
+    return [
+        CapabilityCandidate(
+            id="cap-create_test_artifact",
+            name="create_test_artifact",
+            description="Creates a test artifact record",
+            kind="tool",
+            tags=["test", "artifact"],
+            execution_mode="compiled",
+        )
+    ]
 
 
-def test_chat_exposes_capability_candidates_before_decide(tmp_path: Path) -> None:
-    reg, _ = _register_create_test_artifact(tmp_path)
-    service = AssistantChatService(concept_store=reg._store, capability_registry=reg)
+def test_chat_exposes_capability_candidates_before_decide() -> None:
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=_make_capability_candidates())
+    service = AssistantChatService(capability_discovery=discovery)
     request = ChatRequest(message="Create a test artifact")
     response = service.chat(request)
 
@@ -172,9 +165,9 @@ def test_chat_exposes_capability_candidates_before_decide(tmp_path: Path) -> Non
     assert response.capability_candidates[0]["name"] == "create_test_artifact"
 
 
-def test_chat_create_test_artifact_in_candidates(tmp_path: Path) -> None:
-    reg, _ = _register_create_test_artifact(tmp_path)
-    service = AssistantChatService(concept_store=reg._store, capability_registry=reg)
+def test_chat_create_test_artifact_in_candidates() -> None:
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=_make_capability_candidates())
+    service = AssistantChatService(capability_discovery=discovery)
     request = ChatRequest(message="Create a test artifact")
     response = service.chat(request)
 
@@ -182,61 +175,58 @@ def test_chat_create_test_artifact_in_candidates(tmp_path: Path) -> None:
     assert "create_test_artifact" in candidate_names
 
 
-def test_chat_capability_selection_does_not_execute(tmp_path: Path) -> None:
-    reg, cap = _register_create_test_artifact(tmp_path)
-    service = AssistantChatService(concept_store=reg._store, capability_registry=reg)
+def test_chat_capability_selection_does_not_execute() -> None:
+    candidates = _make_capability_candidates()
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    service = AssistantChatService(capability_discovery=discovery)
     request = ChatRequest(message="Create a test artifact")
     response = service.chat(request)
 
     assert response.status == "awaiting_capability_selection"
     assert response.capability_candidates is not None
     assert len(response.capability_candidates) == 1
-    assert response.capability_candidates[0]["id"] == cap.id
+    assert response.capability_candidates[0]["id"] == "cap-create_test_artifact"
 
 
-def test_chat_falls_through_without_capabilities(tmp_path: Path) -> None:
-    store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
-    service = AssistantChatService(concept_store=store, capability_registry=reg)
+def test_chat_falls_through_without_capabilities() -> None:
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=[])
+    session_factory = InMemorySessionFactoryPort()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        session_factory=session_factory,
+    )
     request = ChatRequest(message="Do something completely novel")
     response = service.chat(request)
 
     assert response.status == "pending"
 
 
-def test_chat_passes_recognised_context_to_matcher(tmp_path: Path) -> None:
-    from unittest.mock import patch
-
-    store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
-    reg.register(Capability(
-        id="cap-1",
-        name="test-cap",
-        description="test",
-        capability_kind=CapabilityKind.TOOL,
-        execution_mode=ExecutionMode.AI_MEDIATED,
-    ))
-
-    service = AssistantChatService(concept_store=store, capability_registry=reg)
-    request = ChatRequest(message="Design a new task tracker")
-
+def test_chat_passes_recognised_context_to_discovery_port() -> None:
     captured = {}
-    def capture_match(**kwargs):
-        captured.update(kwargs)
-        return MatchResult(candidates=[], confidence=0.0, matcher_id="human_selection")
+    def capture_find_capabilities(request_text: str, context):
+        captured["request_text"] = request_text
+        captured["context"] = context
+        return []
 
-    with patch("ceo.HumanSelectionMatcher") as MockMatcher:
-        MockMatcher.return_value.match.side_effect = capture_match
-        service.chat(request)
+    class CapturingDiscoveryPort:
+        def list_capabilities(self) -> list:
+            return []
 
-    assert "context" in captured
-    assert isinstance(captured["context"], ContextRecord)
+        def find_capabilities(self, request_text: str, context) -> list:
+            return capture_find_capabilities(request_text, context)
+
+    service = AssistantChatService(capability_discovery=CapturingDiscoveryPort())
+    request = ChatRequest(message="Design a new task tracker")
+    service.chat(request)
+
     assert captured["request_text"] == "Design a new task tracker"
+    assert isinstance(captured["context"], ContextRecord)
 
 
-def test_chat_capability_candidates_contain_metadata(tmp_path: Path) -> None:
-    reg, cap = _register_create_test_artifact(tmp_path)
-    service = AssistantChatService(concept_store=reg._store, capability_registry=reg)
+def test_chat_capability_candidates_contain_metadata() -> None:
+    candidates = _make_capability_candidates()
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    service = AssistantChatService(capability_discovery=discovery)
     request = ChatRequest(message="Create a test artifact")
     response = service.chat(request)
 
@@ -249,3 +239,22 @@ def test_chat_capability_candidates_contain_metadata(tmp_path: Path) -> None:
     assert candidate["kind"] == "tool"
     assert candidate["execution_mode"] == "compiled"
     assert "tags" in candidate
+
+
+def test_chat_service_returns_previous_solution() -> None:
+    previous = PreviousSolution(
+        concept_id="sol-previous",
+        name="strategy:deliberate_to_consensus",
+        summary="Designed a task tracker with 3 interfaces",
+        invocation_count=2,
+        last_invoked=None,
+    )
+    enterprise_info = InMemoryEnterpriseInformationPort(solutions=[previous])
+    service = AssistantChatService(enterprise_information=enterprise_info)
+    request = ChatRequest(message="Design a new task tracking service")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_confirmation"
+    assert response.previous_solution is not None
+    assert response.previous_solution["invocation_count"] == 2
+    assert response.previous_solution["summary"] == "Designed a task tracker with 3 interfaces"

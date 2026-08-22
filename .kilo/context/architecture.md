@@ -105,6 +105,12 @@ Person and Agent domain records belong to People/Capability plane. Organisation/
 ### ADR-038: Work Decomposition and Dependency Model (Accepted)
 Work supports parent/child decomposition and dependency tracking for project coordination. Work decomposition is an organisational/management concern, not an operational workflow concern.
 
+### ADR-044: Assistant as Application-Layer Translation Service (Proposed)
+Assistant is an application-layer translation service, not a domain service. It translates natural language user intent into structured requests for domain planes. It does NOT own capability matching, EIMS access, session creation, runtime invocation, or execution.
+
+### ADR-045: Assistant Port Interfaces (Proposed)
+Define explicit port interfaces between Assistant and each domain plane. Assistant depends on these ports; implementations live in the respective planes. Ports: CapabilityDiscoveryPort, CapabilityExecutionPort, EnterpriseInformationPort, OrganisationalContextPort, WorkManagementPort, SessionFactoryPort.
+
 ## Four-Plane Architecture (Validated)
 
 ### Enterprise Plane
@@ -402,9 +408,12 @@ CEO should eventually use an `EnterpriseInformation` interface rather than acces
   - Own the business outcome (that belongs to the accountable C-Suite executive)
 
 ### Assistant
-- Assistant is a Role/interface, not an orchestrator.
-- AssistantChatService routes to the appropriate organisational role via OrganisationControlPlane.
-- Assistant does NOT implicitly become CEO.
+- Assistant is an application-layer translation service, not a domain service in any plane.
+- AssistantChatService translates natural language intent into structured requests for domain planes.
+- Assistant depends on ports/interfaces (CapabilityDiscoveryPort, CapabilityExecutionPort, EnterpriseInformationPort, OrganisationalContextPort, WorkManagementPort, SessionFactoryPort), not concrete implementations.
+- Assistant does NOT own capability matching, EIMS access, session creation, runtime invocation, or execution.
+- Assistant does NOT implicitly become CEO or any other organisational role.
+- The `ai` package owns only: intent recognition, strategy selection, reasoning, and the Assistant port interface.
 
 ## Distributed Coordination Model
 
@@ -493,6 +502,9 @@ Paperclip does NOT provide:
 10. Organisation/Control references Person/Agent by ID; People/Capability owns their records.
 11. Work is organisational; execution is operational. The handoff is via OrganisationControlPlane.mark_work_ready().
 12. Execution result is evidence; organisational outcome is assessed against acceptance_criteria.
+13. Application layer (Assistant) may depend on port interfaces to all planes but owns only translation and presentation.
+14. AI plane owns intent recognition and strategy selection only; it does not import from domain plane implementations.
+15. All cross-plane communication from Assistant goes through ports; no direct imports from other planes' src/ directories.
 
 ## Constraints
 
@@ -517,6 +529,9 @@ Paperclip does NOT provide:
 19. **Person/Agent owned by People/Capability** — Organisation/Control references by ID; does not store Person/Agent records
 20. **Work decomposition is management, not execution** — Work hierarchy and dependencies express management intent; Operations executes individual items
 21. **Work is organisational; execution is operational** — Work.status ASSIGNED→IN_PROGRESS is the handoff boundary; execution result is evidence, not automatic acceptance
+22. **AI plane is reasoning-only** — AI package owns intent recognition, strategy selection, and reasoning only. It does not import from capability_registry, concepts, workflow_runner.src.executor, workflow_runner.src.runtime, workflow_runner.src.session, bus, or pathway_runtime.
+23. **Assistant depends on ports** — All cross-plane communication from Assistant goes through ports. No direct imports from other planes' src/ directories.
+24. **No God services in AI plane** — AssistantChatService must not become a universal orchestrator. It translates intent into requests; it does not execute them.
 
 ## Current Implementation State
 
@@ -532,7 +547,7 @@ Paperclip does NOT provide:
 - Workflow execution: `execute_workflow()` with skill/tool/workflow handlers
 - Capability execution: `execute_capability()` (compiled mode only) + `PatternRuntime.invoke_step()` (tier2/tier3)
 - CapabilityRequest: transient governance model (pending -> approved/rejected)
-- AssistantChatService: wired with capability matching and session creation
+- AssistantChatService: wired with capability matching and session creation — **needs port refactoring (Increment 15)**
 - OrganisationControlPlane: ABC + InMemoryOrganisationControlPlane (Increment 6)
 - Role model: Role, Person, Agent, Authority, Work, Assignment, OrgContext, Delegation
 - Work accountability model: work_type, accountable_role_id, coordinating_role_id, required_capability_ids, acceptance_criteria, dependencies, parent_work_id, outcome
@@ -555,38 +570,44 @@ Paperclip does NOT provide:
 - EIMS expansion beyond ConceptStore
 - EnterpriseInformation abstraction for CEO-EIMS boundary
 - Kilo handoff contract via `.kilo/plans/`
-- Capability routing in `AssistantChatService`
+- Assistant port interfaces and dependency inversion (Increment 15)
+- Capability routing in `AssistantChatService` — deferred until port boundary is established
 - Capability matching implementation
 - Capability execution in CEO
 - Universal routing
 - Capability/Skill/Tool distinction (under investigation)
 - OutcomeRecorder / LearningService (prototype proven)
 
-## Increment 11 Proposed Scope
+## Increment 15 Proposed Scope
 
 ### In Scope
-1. People/Capability plane package skeleton
-2. Capability lifecycle hooks in existing CapabilityRegistry
-3. AssistantChatService capability routing (if architecture permits)
+1. Define Assistant as application-layer translation service (ADR-044)
+2. Create Assistant port interfaces (ADR-045)
+3. Add architectural guardrail tests for AI plane boundaries
+4. Update AssistantChatService to depend on ports instead of concrete implementations
+5. Resolve failing test by removing capability matching from Assistant, not by changing assertion
 
 ### Out of Scope
-- Full CEO/COO/PM implementation
+- Capability matching implementation
+- PatternRuntime authorisation enforcement
+- CEO/COO/PM implementation
 - Paperclip integration
 - EIMS expansion
 - EnterpriseInformation abstraction
-- All specialist role implementations
+- Work creation by Assistant
 - Universal routing
+- Full AssistantChatService rewrite
 
 ## Test Baseline
 
 ```
-pytest packages/capability_registry/tests/test_capabilities.py packages/ai/tests/test_assistant.py -q
-Result: 18 passed
+pytest packages/organisation/tests/ packages/ai/tests/test_ceo.py packages/capability_registry/tests/ packages/people_capability/tests/ packages/workflow_runner/tests/ -q
+Result: 254 passed, 1 failed (pre-existing deferred to I15)
 ```
 
 ```
-pytest packages/organisation/tests/ -q
-Result: 46 passed
+ruff check packages/ai/src/ packages/ai/tests/
+Result: All pass (after port interfaces added)
 ```
 
 ## Import Model
@@ -632,3 +653,11 @@ Current Docker PYTHONPATH:
 - **Operational handoff**: Transition from organisational Work to operational execution via `OrganisationControlPlane.mark_work_ready()`. Work.status ASSIGNED→IN_PROGRESS marks the boundary.
 - **Execution result**: Evidence from Operations. NOT automatically an accepted organisational outcome.
 - **Outcome assessment**: Process of evaluating execution result against acceptance_criteria to determine acceptance.
+- **Assistant**: Application-layer translation service that converts natural language intent into structured requests for domain planes. Owns intent recognition, strategy selection, and presentation. Does NOT own capability matching, EIMS access, execution, or Work creation.
+- **AssistantPort**: Interface provided by Assistant to external consumers (e.g., API layer). Methods: `chat()`, `resume()`.
+- **CapabilityDiscoveryPort**: Interface from Assistant to People/Capability for capability queries. Methods: `list_capabilities()`, `find_capabilities()`.
+- **CapabilityExecutionPort**: Interface from Assistant to Operations for capability execution. Methods: `execute()`, `execute_many()`.
+- **EnterpriseInformationPort**: Interface from Assistant to Enterprise/EIMS for knowledge queries. Methods: `find_previous_solutions()`, `record_solution()`.
+- **OrganisationalContextPort**: Interface from Assistant to Organisation/Control for context. Methods: `get_context()`, `get_role()`.
+- **WorkManagementPort**: Interface from Assistant to Organisation/Control for Work operations. Methods: `create_work()`, `mark_ready()`, `get_work()`.
+- **SessionFactoryPort**: Interface from Assistant to Operations for session creation. Methods: `create_session_from_decision()`.
