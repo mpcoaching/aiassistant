@@ -65,7 +65,7 @@ def test_capability_context_is_immutable() -> None:
         event_bus=DummyEventBus(),
     )
 
-    with pytest.raises(FrozenInstanceError, match="cannot assign field"):
+    with pytest.raises(FrozenInstanceError, match="cannot assign to field"):
         context.configuration = DummyConfig(value="modified")
 
 

@@ -93,7 +93,7 @@ def _list_workflow_names() -> list[str]:
 # Skill tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool(name="list_skills", title="List Skills", description="List available skills (agentic/skills/*.md) with their purpose and inputs.")
+@mcp.tool(name="list_skills", description="List available skills (agentic/skills/*.md) with their purpose and inputs.")
 def list_skills() -> str:
     items = []
     if _SKILLS_DIR.exists():
@@ -108,7 +108,7 @@ def list_skills() -> str:
     return json.dumps(items, indent=2)
 
 
-@mcp.tool(name="get_skill", title="Get Skill", description="Return the full markdown body of a skill by name.")
+@mcp.tool(name="get_skill", description="Return the full markdown body of a skill by name.")
 def get_skill(name: str) -> str:
     path = _SKILLS_DIR / f"{name}.md"
     if not path.exists():
@@ -120,7 +120,7 @@ def get_skill(name: str) -> str:
 # Tool tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool(name="list_tools", title="List Tools", description="List available tools (agentic/tools/*.yaml).")
+@mcp.tool(name="list_tools", description="List available tools (agentic/tools/*.yaml).")
 def list_tools() -> str:
     items = []
     if _TOOLS_DIR.exists():
@@ -134,7 +134,7 @@ def list_tools() -> str:
     return json.dumps(items, indent=2)
 
 
-@mcp.tool(name="get_tool", title="Get Tool", description="Return the full YAML definition of a tool by name.")
+@mcp.tool(name="get_tool", description="Return the full YAML definition of a tool by name.")
 def get_tool(name: str) -> str:
     path = _TOOLS_DIR / f"{name}.yaml"
     if not path.exists():
@@ -146,14 +146,14 @@ def get_tool(name: str) -> str:
 # Workflow tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool(name="list_workflows", title="List Workflows", description="List available workflow definitions (agentic/docs/workflows/*.yaml).")
+@mcp.tool(name="list_workflows", description="List available workflow definitions (agentic/docs/workflows/*.yaml).")
 def list_workflows() -> str:
     return json.dumps(_list_workflow_names(), indent=2)
 
 
-@mcp.tool(name="run_workflow", title="Run Workflow", description="Execute a workflow by name. Returns workflow_id immediately; the run is synchronous in this implementation.")
+@mcp.tool(name="run_workflow", description="Execute a workflow by name. Returns workflow_id immediately; the run is synchronous in this implementation.")
 def run_workflow(name: str, initial_context: dict[str, Any] | None = None, role_override: str | None = None) -> str:
-    from executor import execute_workflow_from_file
+    from workflow_runner.executor import execute_workflow_from_file
 
     wf = _load_workflow_yaml(name)
     if wf is None:
@@ -174,9 +174,9 @@ def run_workflow(name: str, initial_context: dict[str, Any] | None = None, role_
         return json.dumps({"status": "failed", "error": str(exc)})
 
 
-@mcp.tool(name="get_workflow_status", title="Get Workflow Status", description="Check the status of a running/completed workflow execution by workflow_id.")
+@mcp.tool(name="get_workflow_status", description="Check the status of a running/completed workflow execution by workflow_id.")
 def get_workflow_status(workflow_id: str, workflow_path: str) -> str:
-    from executor import get_workflow_status as _gws
+    from workflow_runner.executor import get_workflow_status as _gws
 
     result = _gws(workflow_id, workflow_path)
     return json.dumps(result, indent=2, default=str)
@@ -186,7 +186,7 @@ def get_workflow_status(workflow_id: str, workflow_path: str) -> str:
 # Service Authoring tools (Phase 4, C11 / Service_Authoring.md)
 # ---------------------------------------------------------------------------
 
-@mcp.tool(name="design_service", title="Design Service", description="Generate a service design spec from a name and description. Returns a JSON design document.")
+@mcp.tool(name="design_service", description="Generate a service design spec from a name and description. Returns a JSON design document.")
 def design_service(name: str, description: str = "") -> str:
     service_id = f"svc-{name.lower().replace(' ', '-')}"
     spec = {
@@ -206,7 +206,7 @@ def design_service(name: str, description: str = "") -> str:
     return json.dumps(spec, indent=2)
 
 
-@mcp.tool(name="create_service", title="Create Service", description="Register a service design as a Capability in the registry. Returns the capability_id.")
+@mcp.tool(name="create_service", description="Register a service design as a Capability in the registry. Returns the capability_id.")
 def create_service(design: dict[str, Any]) -> str:
     try:
         capability = Capability(
@@ -234,7 +234,7 @@ def create_service(design: dict[str, Any]) -> str:
         return json.dumps({"status": "failed", "error": str(exc)})
 
 
-@mcp.tool(name="compile_capability", title="Compile Capability", description="Compile a capability to an executable module. Returns the module path.")
+@mcp.tool(name="compile_capability", description="Compile a capability to an executable module. Returns the module path.")
 def compile_capability(capability_id: str, entrypoint: str = "run") -> str:
     cap = _authoring_registry.get(capability_id)
     if cap is None:
@@ -244,7 +244,7 @@ def compile_capability(capability_id: str, entrypoint: str = "run") -> str:
     return json.dumps({"status": "compiled", "module_path": module_path, "entrypoint": entrypoint, "capability_id": capability_id})
 
 
-@mcp.tool(name="list_services", title="List Services", description="List all registered service capabilities.")
+@mcp.tool(name="list_services", description="List all registered service capabilities.")
 def list_services() -> str:
     capabilities = _authoring_registry.list()
     items = [

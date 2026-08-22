@@ -4,14 +4,11 @@ Tests for CapabilityRequest governance model and approval API (Increment 3).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-
 from capability_request import CapabilityRequest
-from capabilities import Capability, CapabilityKind, Parameter
+from capabilities import Parameter
 from concepts import (
     ConceptKind,
     ConceptStore,

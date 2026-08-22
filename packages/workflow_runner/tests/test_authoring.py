@@ -26,6 +26,8 @@ from session import SessionStatus, create_session_from_decision
 # ---- Service Authoring MCP tools (C11) -------------------------------------
 
 def _text(result) -> str:
+    if isinstance(result, list):
+        return result[0].text if result else ""
     content_blocks, _meta = result
     return content_blocks[0].text if content_blocks else ""
 

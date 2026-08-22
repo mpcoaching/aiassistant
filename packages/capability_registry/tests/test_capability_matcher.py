@@ -6,8 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-from capability_matcher import CapabilityMatcher, HumanSelectionMatcher, MatchResult
+from capability_matcher import HumanSelectionMatcher, MatchResult
 from capabilities import Capability, CapabilityKind, CapabilityRegistry
 from concepts import ConceptStore
 from enterprise_context import ContextRecord

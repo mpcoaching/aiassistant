@@ -40,7 +40,7 @@ def handle_workflow_step(
 
     try:
         # Lazy import to avoid circular dependency (executor -> handlers -> executor)
-        from executor import execute_workflow  # type: ignore[import-untyped]
+        from workflow_runner.executor import execute_workflow  # type: ignore[import-untyped]
 
         # Resolve the sub-workflow file path
         wf_path = resolve_workflow_path(step.uses, search_paths)

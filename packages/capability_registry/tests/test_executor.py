@@ -4,17 +4,14 @@ Tests for CapabilityExecutor and create_test_artifact (Increment 2).
 
 from __future__ import annotations
 
-import importlib
 import sys
 from pathlib import Path
 
 import pytest
 
-from capability_matcher import MatchResult
 from capabilities import Capability, CapabilityKind, CapabilityRegistry, CompiledRef, ExecutionMode, Transport
-from concepts import ConceptKind, ConceptStore, EnterpriseConcept
-from executor import execute_capability
-from enterprise_context import ContextRecord
+from concepts import ConceptKind, ConceptStore
+from capability_registry.src.executor import execute_capability
 
 
 def _register_create_test_artifact(tmp_path: Path):

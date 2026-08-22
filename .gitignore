@@ -37,6 +37,10 @@ infrastructure/configs/gitea-runner/data/config.yml
 # Workflow artifacts
 agentic/docs/workflows/.wf/
 
+# Generated data
+concepts_data/concepts.json
+token_economics.json
+
 # Coverage artifacts
 coverage.xml
 **/.coverage

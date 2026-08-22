@@ -16,9 +16,9 @@ from pathlib import Path
 from typing import Any
 
 from chain import find_downstream_chain, is_chain_workflow
-from executor import execute_workflow_from_file
 from loader import WorkflowLoadError, load_workflow
 from models import WorkflowDefinition
+from workflow_runner.executor import execute_workflow_from_file
 
 
 def collect_required_inputs(workflow: WorkflowDefinition) -> dict[str, Any]:

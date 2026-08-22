@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +40,14 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
+from capability_registry.src.capabilities import ConceptKind
+from capability_registry.src.capability_request import CapabilityRequest
+from capability_registry.src.concepts import (
+    EnterpriseConcept,
+    Provenance,
+    RecognitionLevel,
+)
+
 from bus import EventBus
 from db import (
     create_workflow_state,
@@ -55,11 +63,12 @@ from db import (
 from loader import load_workflow, resolve_workflow_path
 from models import Step, WorkflowDefinition
 from runtime_client import configure as _configure_runtime_client
-from scheduler import _build_scheduler, schedule_workflow, shutdown_scheduler, start_scheduler
-
-from capability_registry.src.capability_request import CapabilityRequest
-from capability_registry.src.capabilities import Capability, ConceptKind
-from capability_registry.src.concepts import ConceptStore, EnterpriseConcept, Provenance, RecognitionLevel
+from scheduler import (
+    _build_scheduler,
+    schedule_workflow,
+    shutdown_scheduler,
+    start_scheduler,
+)
 
 logger = logging.getLogger("workflow-engine.api")
 app = FastAPI(title="Workflow Engine", version="1.0.0")
@@ -674,10 +683,8 @@ def _approve_capability_request(
     rationale: str | None = None,
 ) -> EnterpriseConcept:
     """Persist an approved CapabilityRequest as a draft EnterpriseConcept."""
-    from datetime import datetime, timezone
-
     concept = EnterpriseConcept(
-        id=f"cap-{request.name.lower().replace(' ', '-')}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        id=f"cap-{request.name.lower().replace(' ', '-')}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
         kind=ConceptKind.CAPABILITY,
         name=request.name,
         description=request.purpose,
@@ -694,7 +701,7 @@ def _approve_capability_request(
             "governance": {
                 "action": "approved",
                 "approved_by": approver,
-                "approved_at": datetime.now(timezone.utc).isoformat(),
+                "approved_at": datetime.now(UTC).isoformat(),
                 "rationale": rationale or "",
             },
         },
@@ -731,7 +738,7 @@ async def assistant_capability_request_approve(
         request.governance = {
             "action": "modified",
             "modified_by": request.requester,
-            "modified_at": datetime.now(timezone.utc).isoformat(),
+            "modified_at": datetime.now(UTC).isoformat(),
         }
 
     if action == "reject":
@@ -830,8 +837,8 @@ def _execute_and_publish(
     bus: EventBus,
 ) -> dict[str, Any]:
     from db import record_step_result
-    from executor import execute_workflow
     from models import StepResult
+    from workflow_runner.executor import execute_workflow
 
     def _on_step_start(step: Step, index: int) -> None:
         bus.publish_step_started(state.workflow_id, {

@@ -5,11 +5,13 @@ Contracts: SA-CONTRACTS-PHASES-2-5.md C3, C4, C9.
 """
 
 
+from pathlib import Path
+
 from assistant import AssistantReasoningService, StrategyDecision
 from capability_matcher import MatchResult
 from capabilities import Capability, CapabilityKind, CapabilityRegistry, CompiledRef, ExecutionMode
-from chat import AssistantChatService, ChatRequest, ChatResponse
-from concepts import ConceptKind, ConceptStore, EnterpriseConcept
+from chat import AssistantChatService, ChatRequest
+from concepts import ConceptStore
 from enterprise_context import ContextRecord
 from intent import Intent, IntentOrigin, ProblemFrame, recognise
 from strategy import ReasoningStrategy, select_strategy
@@ -223,9 +225,9 @@ def test_chat_passes_recognised_context_to_matcher(tmp_path: Path) -> None:
         captured.update(kwargs)
         return MatchResult(candidates=[], confidence=0.0, matcher_id="human_selection")
 
-    with patch("chat.HumanSelectionMatcher") as MockMatcher:
+    with patch("ceo.HumanSelectionMatcher") as MockMatcher:
         MockMatcher.return_value.match.side_effect = capture_match
-        response = service.chat(request)
+        service.chat(request)
 
     assert "context" in captured
     assert isinstance(captured["context"], ContextRecord)

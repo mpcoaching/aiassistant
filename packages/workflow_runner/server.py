@@ -26,7 +26,7 @@ if _script_dir not in sys.path:
 # (server.py is in agentic/src/workflow_runner/)
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_script_dir)))
 
-from executor import execute_workflow_from_file, get_workflow_status
+from workflow_runner.executor import execute_workflow_from_file, get_workflow_status
 
 
 def main() -> None:

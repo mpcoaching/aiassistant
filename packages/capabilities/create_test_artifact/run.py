@@ -8,7 +8,6 @@ as an EnterpriseConcept and returns its identifier.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from capability_registry.src.concepts import ConceptKind, ConceptStore, EnterpriseConcept
