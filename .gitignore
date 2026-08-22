@@ -33,3 +33,19 @@ cicd/state/backup-validation-green
 # Gitea act_runner runtime state (contains registration tokens)
 infrastructure/configs/gitea-runner/data/.runner
 infrastructure/configs/gitea-runner/data/config.yml
+
+# Workflow artifacts
+agentic/docs/workflows/.wf/
+
+# Coverage artifacts
+coverage.xml
+**/.coverage
+
+# UI build artifacts
+packages/control-center-ui/dist/
+
+# Backup files
+*.bak
+
+# Experimental packages
+packages/knowledge_mcp/
