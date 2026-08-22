@@ -16,6 +16,7 @@ This file provides Kilo with the architectural context needed to make consistent
 | Pattern Recognition & Assimilation | `agentic/docs/architecture/PATTERN-RECOGNITION-ASSIMILATION.md` | Learning loop |
 | ADRs | `docs/architecture/adr/` | Accepted decisions |
 | Architecture Assessment | `docs/architecture/ARCHITECTURE-ASSESSMENT-2026-08-21.md` | Current state analysis |
+| Increment 8 Investigation Report | `docs/architecture/INCREMENT-8-INVESTIGATION-REPORT.md` | Validation findings |
 
 ## Key Decisions
 
@@ -53,7 +54,7 @@ Capabilities belong to the People/Capability function. The CEO and OrganisationC
 ConceptStore is the current implementation of the Enterprise Information Management System (EIMS) boundary. The eventual EIMS may expand beyond ConceptStore.
 
 ### ADR-022: OrganisationControlPlane Abstraction (Accepted)
-OrganisationControlPlane is a narrow abstraction providing role lookup, work assignment, authority delegation, and organisational context retrieval. It provides organisational mechanisms and context through which roles operate. It does NOT coordinate work, become the project manager, or become the COO.
+OrganisationControlPlane is a narrow abstraction providing role lookup, work assignment, authority delegation, and organisational context retrieval. It provides organisational mechanisms and context through which roles operate. It does NOT store Person/Agent records, coordinate work, become the project manager, or become the COO. **Updated by ADR-037.**
 
 ### ADR-023: Paperclip Adapter Boundary behind OrganisationControlPlane (Accepted)
 The OrganisationControlPlane abstraction is defined independently of Paperclip. No Paperclip-specific types appear in the organisation domain.
@@ -65,19 +66,19 @@ CEO is an organisational ROLE, not the central AI agent. CEO does not discover/s
 Assistant is a Role/interface, not an orchestrator. AssistantChatService routes to the appropriate organisational role via OrganisationControlPlane.
 
 ### ADR-026: People/Capability as Peer Domain Plane (Accepted)
-People/Capability is a first-class domain plane alongside Enterprise, Organisation/Control, and Operations. It owns capability definitions, capability lifecycle, people records, and capability development/acquisition/testing. It does NOT own Work.
+People/Capability is a first-class domain plane alongside Enterprise, Organisation/Control, and Operations. It owns capability definitions, capability lifecycle, people records, and capability development/acquisition/testing. It does NOT own Work. **Updated by ADR-037.**
 
 ### ADR-027: Work-Capability "Requires" Relationship (Accepted)
-Work references required capabilities via `required_capability_ids` but does NOT own capability lifecycle. People/Capability owns capability definitions and lifecycle. Work is about effort allocation; Capability is about reusable ability.
+Work references required capabilities via `required_capability_ids` but does NOT own capability lifecycle. People/Capability owns capability definitions and lifecycle. Work is about effort allocation; Capability is about reusable ability. Role also has `required_capability_ids`.
 
 ### ADR-028: Role Workflow Handoff Model for Specialist Roles (Accepted)
-EA, SA, BA, Designer, Developer, QA are Roles in the Organisation/Control plane. Work flows between them through explicit Assignment and handoff. Each role produces durable enterprise assets consumed by downstream roles. **Superseded by ADR-033 for project coordination.**
+EA, SA, BA, Designer, Developer, QA are Roles in the Organisation/Control plane. Work flows between them through explicit Assignment and handoff. Each role produces durable enterprise assets consumed by downstream roles. **Superseded by ADR-033 for project coordination and ADR-038 for decomposition.**
 
 ### ADR-029: EIMS Learning Loop and Outcome Capture (Accepted)
 Operational execution outcomes flow back into EIMS through a structured learning loop. Not all operational state becomes durable knowledge. The boundary between transient operational state and durable enterprise knowledge is explicit.
 
 ### ADR-030: Future EnterpriseInformation Abstraction for CEO (Proposed)
-CEO should eventually consume an EnterpriseInformation abstraction rather than accessing ConceptStore directly. Do NOT implement until Increment 9+ unless immediately required.
+CEO should eventually consume an `EnterpriseInformation` interface rather than accessing ConceptStore directly. Do NOT implement until Increment 9+ unless immediately required.
 
 ### ADR-031: CEO as Strategic Role, Not Orchestrator (Accepted)
 Supersedes ADR-024. The CEO is an organisational ROLE with strategic responsibilities only. The CEO makes strategic decisions, establishes strategic direction, observes organisational performance, and intervenes at the strategic level. The CEO does NOT organise day-to-day work, assign individual operational tasks, manage project delivery, coordinate specialist work, select capabilities, execute operational work, or act as a universal system router.
@@ -92,12 +93,18 @@ Project Manager / Delivery Manager is an organisational ROLE, not an operations 
 Work is accountable to an appropriate Role, not owned by Organisation/Control. Work carries explicit accountability, coordination, assignment, and outcome fields. Every Work item has exactly one `accountable_role_id`. BAU work and project work have different accountability structures.
 
 ### ADR-035: Capability / Skill / Tool Distinction Investigation (Proposed)
-Do NOT collapse Skill and Tool into Capability merely for implementation convenience. Investigate whether a cleaner model distinguishes Capability (ability), Skill (component), Tool (enabler), and Resource (supporting material). Do NOT implement until the domain boundary is understood.
+Do NOT collapse Skill and Tool into Capability merely for implementation convenience. Investigate whether a cleaner model distinguishes Capability (ability), Skill (component), Tool (enabler), and Resource (supporting material). Do NOT implement until the domain boundary is understood. **Finding: Keep unified Capability type for now; express distinctions through metadata and tags.**
 
 ### ADR-036: Distributed Organisational Coordination (Accepted)
 Organisational coordination is distributed according to responsibility and authority. No single role, service, or plane coordinates all organisational activity. The OrganisationControlPlane provides mechanisms and context; actual coordination belongs to appropriate roles (CEO, COO, C-Suite executives, Project Managers, functional managers, specialist roles).
 
-## Four-Plane Architecture (Corrected)
+### ADR-037: Person/Agent Ownership by People/Capability (Accepted)
+Person and Agent domain records belong to People/Capability plane. Organisation/Control references them by ID only. OrganisationControlPlane does not store Person or Agent records.
+
+### ADR-038: Work Decomposition and Dependency Model (Accepted)
+Work supports parent/child decomposition and dependency tracking for project coordination. Work decomposition is an organisational/management concern, not an operational workflow concern.
+
+## Four-Plane Architecture (Validated)
 
 ### Enterprise Plane
 - **Owns:** strategy, enterprise goals, durable enterprise knowledge/information, governance policies, enterprise priorities, institutional learning
@@ -106,12 +113,12 @@ Organisational coordination is distributed according to responsibility and autho
 
 ### Organisation / Control Plane
 - **Owns:** organisational structure, roles, relationships, authority, accountability, management mechanisms, organisational context
-- **Boundary:** `OrganisationControlPlane` abstraction — provides mechanisms and context, NOT coordination
-- **Does NOT:** execute operational work, own EIMS, own capability definitions/lifecycle, directly control runtime agents, own people records, coordinate work, become the CEO/COO/PM
+- **Boundary:** `OrganisationControlPlane` abstraction — provides mechanisms and context, NOT coordination, NOT storage of Person/Agent records
+- **Does NOT:** execute operational work, own EIMS, own capability definitions/lifecycle, directly control runtime agents, own people records, coordinate work, become the CEO/COO/PM, store Person/Agent records
 
 ### People / Capability Plane
-- **Owns:** people records, capability definitions, capability lifecycle (registration, maturation, promotion, retirement), capability development/acquisition/testing, capability matching, CapabilityRequest governance, capability readiness
-- **Boundary:** `CapabilityRegistry`, `CapabilityMatcher`, `CapabilityRequest`
+- **Owns:** people records (Person, Agent), capability definitions, capability lifecycle (registration, maturation, promotion, retirement), capability development/acquisition/testing, capability matching, CapabilityRequest governance, capability readiness
+- **Boundary:** `CapabilityRegistry`, `CapabilityMatcher`, `CapabilityRequest`, Person/Agent records
 - **Does NOT:** own Work, assign work, define organisational authority, execute operational work, own EIMS, coordinate organisational work
 
 ### Operations Plane
@@ -125,13 +132,13 @@ Organisational coordination is distributed according to responsibility and autho
 
 | Concept | Description | Owner | Notes |
 |---|---|---|---|
-| **Role** | Abstract position with responsibilities, authority, constraints, information access, required capabilities | Organisation-Control | Template/blueprint; not a person or agent |
-| **Person** | Human individual with identity and employment context | People/Capability | Occupies one or more Roles |
-| **Agent** | Software entity marker/record — no runtime execution logic in domain model | Operations plane | Fulfils a Role at runtime |
+| **Role** | Abstract position with responsibilities, authority, constraints, information access, required capabilities, accountabilities | Organisation-Control | Central organisational unit; not a person or agent |
+| **Person** | Human individual with identity and employment context | People/Capability | Occupies one or more Roles; Organisation/Control references by ID |
+| **Agent** | Software entity marker/record — no runtime execution logic in domain model | People/Capability | Fulfils a Role at runtime; Organisation/Control references by ID |
 | **Capability** | Reusable unit of work (tool, skill, service) | People/Capability | Has lifecycle (register -> operate -> measure -> learn -> retire) |
-| **Skill** | Component of a capability (knowledge, method, technique) | People/Capability | Part of Capability; distinction under investigation (ADR-035) |
-| **Tool** | Something used to enable/support a capability | IT/Technology or People/Capability | Ownership under investigation (ADR-035) |
-| **Work** | Instance of assigned effort | Organisation-Control | Accountable to a Role; has status, assignments, deliverables, required_capability_ids |
+| **Skill** | Component of a capability (knowledge, method, technique) | People/Capability | Expressed through Capability metadata/tags for now |
+| **Tool** | Something used to enable/support a capability | IT/Technology or People/Capability | Expressed through Capability metadata/tags for now |
+| **Work** | Instance of assigned effort | Organisation-Control | Accountable to a Role; has status, assignments, deliverables, required_capability_ids, dependencies, outcome |
 | **Authority** | Permission grant within scope | Organisation-Control | Can be delegated, has constraints |
 
 ### Distinctions
@@ -146,18 +153,18 @@ Organisational coordination is distributed according to responsibility and autho
 ### Agent -> Role -> Capability Chain
 
 ```
-Person / Agent
+Person / Agent (People/Capability plane)
       |
       | fulfils
       v
-    Role
+    Role (Organisation/Control plane)
       |
       | requires
       v
-  Capability
+  Capability (People/Capability plane)
       ^
       | possesses / fulfils
-Person / Agent
+Person / Agent (People/Capability plane)
 ```
 
 Capabilities are portable. The same capability may be required by multiple roles over time. People/Capability determines whether a Person/Agent has, needs, or can develop the capabilities required to fulfil a Role.
@@ -204,6 +211,22 @@ When Work requires a capability that does not exist, a CapabilityRequest is crea
 | assignee_role | Operational role | Specialist role |
 | duration | ongoing | bounded |
 | outcome | operational performance | business outcome |
+| decomposition | ongoing operational tasks | bounded project deliverables |
+
+### Work Decomposition Model
+
+```
+Initiative Work (accountable: C-Suite executive)
+    ↓ parent_work_id
+Project Work (accountable: C-Suite executive, coordinating: PM)
+    ↓ parent_work_id
+    ├── Specialist Work A (accountable: EA, coordinating: PM)
+    ├── Specialist Work B (accountable: BA, coordinating: PM)
+    ├── Specialist Work C (accountable: Dev, coordinating: PM)
+    └── Specialist Work D (accountable: QA, coordinating: PM)
+```
+
+Dependencies express sequencing: `Work C depends_on: [Work A, Work B]`.
 
 ## EIMS Boundary and Learning Loop
 
@@ -234,7 +257,7 @@ EnterpriseConcept (EIMS)
 future organisational decisions
 ```
 
-- **Transient operational state:** Session state, workflow execution state, runtime agent state, human-in-the-loop pending state.
+- **Transient operational state:** Session state, workflow execution state, runtime agent state, human-in-the-loop pending state, operations monitoring state (KPIs, alerts).
 - **Durable EIMS knowledge:** Strategy decisions, capability definitions, work outcomes, enterprise assets, governance decisions, institutional learning.
 - **Capability maturation** is the first implemented learning loop: `execute_capability()` -> caller invokes `record_invocation()` -> `MaturationHistory` updated -> promotion threshold may trigger COMPILED mode.
 - **Future:** A formal OutcomeRecorder or LearningService may promote operational outcomes to EIMS.
@@ -270,7 +293,7 @@ CEO should eventually use an `EnterpriseInformation` interface rather than acces
 - CEO decision flow: strategic decision -> "We should do X." -> Hand to accountable executive / management structure.
 
 ### COO (BAU Management Role)
-- COO is an organisational ROLE accountable for Business-as-Usual operational performance.
+- COO is an organisational ROLE accountable for Business-as-Usual (BAU) operational performance.
 - COO responsibilities:
   - Operational performance oversight
   - BAU outcomes tracking
@@ -377,17 +400,37 @@ Paperclip does NOT provide:
 - Enterprise strategy
 - Domain model types
 
+### Paperclip Conceptual Mapping
+
+| Our Domain | Paperclip Concept | Mapping Quality |
+|---|---|---|
+| Role | Agent / Team | Clean |
+| Work | Task / work mechanism | Clean |
+| Authority | Permissions / approvals | Clean |
+| Assignment | Task assignment | Clean |
+| Delegation | Delegation / chain | Clean |
+| Reporting relationships | Hierarchy | Clean |
+| Coordination | Meetings / coordination | Partial |
+| Required capabilities | Not modelled | Missing |
+| Accountability model | Not modelled | Missing |
+| Enterprise assets | Not modelled | Missing |
+| Governance | Not modelled | Missing |
+| EIMS | Not modelled | Missing |
+
+**Conclusion:** Paperclip fits naturally behind OrganisationControlPlane for organisational mechanisms. What Paperclip does NOT provide (capabilities, EIMS, governance, enterprise assets, accountability semantics) must remain ours.
+
 ## Four-Plane Dependency Rules
 
 1. Enterprise may read from all planes but owns strategy and durable knowledge.
 2. Organisation/Control may read from People/Capability and Operations but owns roles, authority, and work assignment mechanisms.
-3. People/Capability may read from EIMS but owns capability definitions and lifecycle.
+3. People/Capability may read from EIMS but owns capability definitions and lifecycle, people records.
 4. Operations may read from Organisation/Control and People/Capability but owns execution.
 5. EIMS is written to by all planes but owned by Enterprise.
 6. No plane may execute operational work on behalf of another plane.
 7. No plane may own capability lifecycle except People/Capability.
 8. No plane or role may coordinate work outside its authority boundary.
 9. The OrganisationControlPlane provides mechanisms; roles provide coordination.
+10. Organisation/Control references Person/Agent by ID; People/Capability owns their records.
 
 ## Constraints
 
@@ -409,68 +452,8 @@ Paperclip does NOT provide:
 16. **Distributed coordination** — coordination belongs to roles (COO, C-Suite, PM, functional managers), not to planes or central services
 17. **Work has accountable role** — every Work item has exactly one accountable_role_id; Organisation/Control does not own Work
 18. **Role is central** — Role carries responsibilities, authority, required capabilities, and accountabilities; Person/Agent fulfils Role
-
-## Architectural Questions Answered
-
-1. **What exactly is the organisational responsibility of the CEO?**
-   Strategic decision-making, strategic direction, observing organisational performance, reviewing significant outcomes, intervening at strategic level, changing direction when necessary. The CEO does NOT organise day-to-day work or assign operational tasks.
-
-2. **What exactly is the organisational responsibility of the COO?**
-   BAU operational performance oversight, outcomes tracking, capacity management, exception handling, cross-functional coordination, reporting operational health to CEO. The COO does NOT execute operational work or micro-manage tasks.
-
-3. **Where does a C-Suite executive's accountability begin and end?**
-   A C-Suite executive is accountable for a business outcome resulting from a strategic initiative. They appoint/approve the Project Manager, receive outcome reports, and are answerable to the CEO. They do NOT coordinate project delivery details.
-
-4. **Where does a Project Manager's authority begin and end?**
-   A PM coordinates project delivery: sequencing, tracking, dependencies, risks, specialist coordination, reporting. The PM does NOT own the business outcome, execute tasks, or replace specialist roles.
-
-5. **Is Work accountable to a Role rather than owned by Organisation/Control?**
-   Yes. Work is accountable to an appropriate Role (`accountable_role_id`). Organisation/Control provides assignment mechanisms but does not own Work.
-
-6. **How are BAU responsibilities represented differently from temporary project work?**
-   BAU work has `work_type="bau"`, is accountable to COO/functional managers, and is ongoing. Project work has `work_type="project"`, is accountable to a C-Suite executive, coordinated by a PM, and is bounded.
-
-7. **What is the relationship between Role, Person, Agent and Capability?**
-   Person/Agent fulfils Role. Role requires Capability. Person/Agent possesses Capability. Capability is portable between roles.
-
-8. **Can capabilities move between roles?**
-   Yes. Capabilities are owned by People/Capability and are portable. The same capability may be required by different roles over time.
-
-9. **Who determines whether a person/agent is capable of fulfilling a role?**
-   People/Capability determines capability readiness: whether a person/agent has the required capabilities, needs training, or requires capability development/acquisition.
-
-10. **Who identifies capability gaps?**
-    CEO may identify capability gaps as organisational observations. People/Capability validates and resolves them through the capability lifecycle.
-
-11. **Who develops/acquires/trains capabilities?**
-    People/Capability develops, acquires, tests, and registers capabilities. Training/development is determined by People/Capability based on role requirements.
-
-12. **Who decides when work actually happens?**
-    The coordinating role (functional manager for BAU, Project Manager for projects) decides scheduling within their authority. Operations executes when scheduled.
-
-13. **Who coordinates work?**
-    Distributed by role: COO for BAU cross-functional, functional managers for functional BAU, Project Manager for projects, specialist roles for specialist work.
-
-14. **Who executes work?**
-    Operations plane executes operational work through workflows, pathways, sessions, and runtime agents.
-
-15. **What is the exact responsibility of OrganisationControlPlane?**
-    Provides organisational mechanisms and context: role definitions, relationships, reporting hierarchy, authority, delegation, organisational context, role assignment mechanisms. Does NOT coordinate work, become roles, or execute work.
-
-16. **What belongs in People/Capability versus Organisation/Control?**
-    People/Capability: people records, capability definitions, capability lifecycle, capability matching, capability readiness, CapabilityRequest governance. Organisation/Control: roles, authority, work assignment mechanisms, accountability relationships, organisational structure.
-
-17. **What belongs in Operations versus organisational management?**
-    Operations: execution, workflows, runtime, tools, agents, operational processes. Organisational management (roles): strategic decisions, BAU oversight, project coordination, specialist work direction, accountability.
-
-18. **Does the current Work model reflect accountability and coordination correctly?**
-    No. Current Work model lacks `accountable_role_id`, `coordinating_role_id`, `work_type`, `outcome`, and `acceptance_criteria`. These must be added.
-
-19. **Does Paperclip fit naturally behind OrganisationControlPlane?**
-    Yes. Paperclip implements organisational mechanisms (role/agent representation, work assignment, coordination, approvals, hierarchy) behind the OrganisationControlPlane abstraction.
-
-20. **Does the architecture still work if there are humans, AI agents, or mixed teams?**
-    Yes. The Role model is agnostic to fulfilment type. A Role may be fulfilled by human, AI agent, human+AI, or multiple people/agents. The domain model does not change.
+19. **Person/Agent owned by People/Capability** — Organisation/Control references by ID; does not store Person/Agent records
+20. **Work decomposition is management, not execution** — Work hierarchy and dependencies express management intent; Operations executes individual items
 
 ## Current Implementation State
 
@@ -491,9 +474,12 @@ Paperclip does NOT provide:
 - Role model: Role, Person, Agent, Authority, Work, Assignment, OrgContext, Delegation
 - Four-plane architecture documented (Increment 7)
 - Corrected role model with CEO/COO/PM/C-Suite distinctions (Increment 7 correction)
+- Increment 8 investigation completed (documentation only)
 
 ### Not Yet Implemented
-- Work accountability model (`accountable_role_id`, `coordinating_role_id`, `work_type`, `outcome`, `acceptance_criteria`)
+- Work accountability model (`accountable_role_id`, `coordinating_role_id`, `work_type`, `outcome`, `acceptance_criteria`, `required_capability_ids`, `dependencies`, `parent_work_id`)
+- Person/Agent ownership correction (move to People/Capability)
+- OrganisationControlPlane mechanism-only refactor (remove Person/Agent storage)
 - People/Capability plane package and services
 - Capability routing in `AssistantChatService`
 - `CapabilityMatcher` interface (HumanSelectionMatcher exists but not formalised)
@@ -511,13 +497,31 @@ Paperclip does NOT provide:
 - Role workflow handoff enforcement
 - Capability/Skill/Tool distinction (under investigation)
 
-## Increment 8 Proposed Scope (Revised)
+## Increment 9 Proposed Scope
 
 ### In Scope
-1. **Work model extension:** Add `work_type`, `accountable_role_id`, `coordinating_role_id`, `outcome`, `acceptance_criteria` to Work record in `packages/organisation/src/role.py`
-2. **People/Capability plane documentation:** Formalise the peer domain boundary in architecture
-3. **Architectural boundary tests:** Verify Work accountability model, verify plane boundaries
-4. **Capability/Skill/Tool investigation documentation:** Document findings from ADR-035 investigation
+1. **Extend Work model with minimum accountability fields:**
+   - `work_type`: "bau" | "project" | "initiative"
+   - `accountable_role_id`: str (REQUIRED)
+   - `coordinating_role_id`: str | None
+   - `outcome`: dict | None
+   - `acceptance_criteria`: list[str]
+   - `required_capability_ids`: list[str]
+   - `dependencies`: list[str]
+   - `parent_work_id`: str | None
+   - Update tests to verify Work accountability model
+
+2. **Extend Role model with required capabilities:**
+   - `required_capability_ids`: list[str]
+   - Update tests
+
+3. **Add architectural boundary tests:**
+   - Verify Work does not import capability definitions
+   - Verify Person/Agent are not stored in OrganisationControlPlane
+   - Verify Organisation/Control references Person/Agent by ID only
+
+4. **Document Paperclip mapping:**
+   - Conceptual mapping table in architecture.md (completed in this increment)
 
 ### Out of Scope
 - Full People/Capability service implementation
@@ -533,6 +537,8 @@ Paperclip does NOT provide:
 - Capability matching implementation
 - Capability execution in CEO
 - Universal routing
+- Capability/Skill/Tool split
+- OutcomeRecorder / LearningService
 
 ## Test Baseline
 
@@ -564,12 +570,12 @@ Current Docker PYTHONPATH:
 - **MatchResult**: Output of `CapabilityMatcher.match()`. Contains candidates, confidence, matcher_id.
 - **ExecutionMode**: `ai_mediated` (LLM-based) or `compiled` (deterministic code).
 - **MaturationHistory**: Tracks invocation count, corrections, promotion status for capabilities.
-- **OrganisationControlPlane**: Narrow abstraction providing organisational mechanisms and context. Does NOT coordinate work or become management roles.
+- **OrganisationControlPlane**: Narrow abstraction providing organisational mechanisms and context. Does NOT store Person/Agent records, coordinate work, or become management roles.
 - **Role**: Abstract position with responsibilities, authority, constraints, information access, required capabilities, accountabilities. Central organisational unit.
-- **Person**: Human individual with identity and employment context. Occupies Roles.
-- **Agent**: Software entity marker/record — no runtime execution logic in the domain model. Fulfils Roles.
+- **Person**: Human individual with identity and employment context. Owned by People/Capability plane. Occupies Roles.
+- **Agent**: Software entity marker/record — no runtime execution logic in the domain model. Owned by People/Capability plane. Fulfils Roles.
 - **EIMS**: Enterprise Information Management System. ConceptStore is the current implementation.
-- **Work**: Instance of assigned effort. Accountable to a Role. Contains `required_capability_ids`, `accountable_role_id`, `coordinating_role_id`, `outcome`, `acceptance_criteria`.
+- **Work**: Instance of assigned effort. Accountable to a Role. Contains `required_capability_ids`, `accountable_role_id`, `coordinating_role_id`, `outcome`, `acceptance_criteria`, `dependencies`, `parent_work_id`.
 - **People/Capability plane**: Peer domain plane owning capability definitions, lifecycle, people records, and capability governance. Does NOT own Work.
 - **EnterpriseInformation**: Future abstraction between CEO and ConceptStore/EIMS. Proposed in ADR-030.
 - **Outcome assessment**: Operational concern that decides which execution results become durable EIMS knowledge.
@@ -577,3 +583,6 @@ Current Docker PYTHONPATH:
 - **BAU**: Business-as-Usual. Ongoing operational work accountable to COO/functional managers.
 - **Project**: Bounded initiative work accountable to C-Suite executive, coordinated by Project Manager.
 - **Distributed coordination**: Coordination belongs to roles (CEO, COO, C-Suite, PM, functional managers, specialists), not to central services.
+- **Work decomposition**: Breaking large Work into smaller Work items via `parent_work_id` and `dependencies`. Management concern, not execution concern.
+- **Accountability**: Role answerable for outcome. Explicitly modelled via `accountable_role_id` on Work.
+- **Coordination**: Role sequencing and managing work. Explicitly modelled via `coordinating_role_id` on Work.
