@@ -4,13 +4,44 @@ Tests for OrganisationControlPlane and InMemoryOrganisationControlPlane.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
+from pathway_runtime import PathwayCallRequest, PathwayResponse, PathwayRuntime, PathwayStatus
 
 from organisation_control_plane import (
     InMemoryOrganisationControlPlane,
     OrganisationControlPlane,
 )
 from role import Agent, Authority, Person, Role, RoleStatus, Work, WorkStatus
+
+
+class MockRuntime(PathwayRuntime):
+    """Mock PathwayRuntime for testing execute_work."""
+
+    def __init__(self, response: PathwayResponse | None = None) -> None:
+        self._response = response or PathwayResponse(
+            status=PathwayStatus.COMPLETED,
+            outputs={"summary": "Mock execution completed"},
+            artifacts=[],
+            telemetry={"mock": True},
+        )
+        self.invoked_with: PathwayCallRequest | None = None
+
+    @property
+    def id(self) -> str:
+        return "mock-runtime"
+
+    @property
+    def capabilities(self) -> list[str]:
+        return []
+
+    def invoke(self, request: PathwayCallRequest) -> PathwayResponse:
+        self.invoked_with = request
+        return self._response
+
+    def resume(self, session_id: str, human_response: dict[str, Any]) -> PathwayResponse:
+        return self._response
 
 
 def test_interface_is_abstract() -> None:
@@ -69,14 +100,12 @@ def test_in_memory_plane_assign_work_to_agent() -> None:
 
 
 def test_in_memory_plane_does_not_store_person_agent_records() -> None:
-    """OrganisationControlPlane must not store Person/Agent records (ADR-037)."""
     plane = InMemoryOrganisationControlPlane()
     assert not hasattr(plane, "_persons")
     assert not hasattr(plane, "_agents")
 
 
 def test_in_memory_plane_has_no_register_person_agent() -> None:
-    """OrganisationControlPlane must not expose register_person/register_agent."""
     plane = InMemoryOrganisationControlPlane()
     assert not hasattr(plane, "register_person")
     assert not hasattr(plane, "register_agent")
@@ -124,15 +153,19 @@ def test_in_memory_plane_organisational_context_missing_role() -> None:
     assert ctx.authority_scope == []
 
 
-def test_architectural_boundary_no_capability_methods() -> None:
-    """OrganisationControlPlane must not expose capability-related methods."""
+def test_architectural_boundary_no_forbidden_methods() -> None:
     forbidden = {
         "find_capability",
         "match_capability",
         "execute_capability",
-        "execute_work",
         "run_agent",
         "invoke_tool",
+        "register_person",
+        "register_agent",
+        "coordinate_project",
+        "sequence_work",
+        "track_progress",
+        "manage_dependencies",
     }
     for method in forbidden:
         assert not hasattr(OrganisationControlPlane, method), (
@@ -141,11 +174,9 @@ def test_architectural_boundary_no_capability_methods() -> None:
 
 
 def test_bau_accountability_scenario() -> None:
-    """Scenario A: BAU — functional manager is accountable and coordinates."""
     plane = InMemoryOrganisationControlPlane()
     fm = Role(id="r-fm", name="Functional Manager")
     plane.register_role(fm)
-
     work = Work(
         id="w-bau",
         title="Fix KPI deterioration",
@@ -160,13 +191,11 @@ def test_bau_accountability_scenario() -> None:
 
 
 def test_strategic_project_accountability_scenario() -> None:
-    """Scenario B: Strategic project — C-Suite accountable, PM coordinates."""
     plane = InMemoryOrganisationControlPlane()
     cmo = Role(id="r-cmo", name="CMO")
     pm = Role(id="r-pm", name="Project Manager")
     plane.register_role(cmo)
     plane.register_role(pm)
-
     initiative = Work(
         id="w-init",
         title="Enter Market X",
@@ -177,3 +206,41 @@ def test_strategic_project_accountability_scenario() -> None:
     plane.assign_work(initiative, cmo)
     assert initiative.accountable_role_id == "r-cmo"
     assert initiative.coordinating_role_id == "r-pm"
+
+
+def test_execute_work_without_runtime_returns_simulated_result() -> None:
+    plane = InMemoryOrganisationControlPlane()
+    work = Work(id="w1", title="Simulated task", accountable_role_id="r1")
+    plane.register_role(Role(id="r1", name="Operator"))
+    plane.assign_work(work, Role(id="r1", name="Operator"))
+    result = plane.execute_work("w1", {"input": "test"})
+    assert result["status"] == "completed"
+    assert result["outputs"]["simulated"] is True
+    assert result["outputs"]["work_id"] == "w1"
+
+
+def test_execute_work_with_runtime_delegates_to_runtime() -> None:
+    mock_response = PathwayResponse(
+        status=PathwayStatus.COMPLETED,
+        outputs={"summary": "Runtime executed"},
+        artifacts=["artifact1"],
+        telemetry={"runtime": "mock"},
+    )
+    runtime = MockRuntime(response=mock_response)
+    plane = InMemoryOrganisationControlPlane(runtime=runtime)
+    work = Work(id="w1", title="Runtime task", accountable_role_id="r1")
+    plane.register_role(Role(id="r1", name="Operator"))
+    plane.assign_work(work, Role(id="r1", name="Operator"))
+    result = plane.execute_work("w1", {"input": "test"})
+    assert result["status"] == "completed"
+    assert result["outputs"]["summary"] == "Runtime executed"
+    assert result["artifacts"] == ["artifact1"]
+    assert runtime.invoked_with is not None
+    assert runtime.invoked_with.session_id == "ops-w1"
+
+
+def test_execute_work_missing_work_returns_failure() -> None:
+    plane = InMemoryOrganisationControlPlane()
+    result = plane.execute_work("missing", {})
+    assert result["status"] == "failed"
+    assert "not found" in result["error"]

@@ -17,6 +17,7 @@ This file provides Kilo with the architectural context needed to make consistent
 | ADRs | `docs/architecture/adr/` | Accepted decisions |
 | Architecture Assessment | `docs/architecture/ARCHITECTURE-ASSESSMENT-2026-08-21.md` | Current state analysis |
 | Increment 8 Investigation Report | `docs/architecture/INCREMENT-8-INVESTIGATION-REPORT.md` | Validation findings |
+| Increment 10 Proposal | `docs/architecture/INCREMENT-10-PROPOSAL.md` | Implementation proposal |
 
 ## Key Decisions
 
@@ -54,7 +55,7 @@ Capabilities belong to the People/Capability function. The CEO and OrganisationC
 ConceptStore is the current implementation of the Enterprise Information Management System (EIMS) boundary. The eventual EIMS may expand beyond ConceptStore.
 
 ### ADR-022: OrganisationControlPlane Abstraction (Accepted)
-OrganisationControlPlane is a narrow abstraction providing role lookup, work assignment, authority delegation, and organisational context retrieval. It provides organisational mechanisms and context through which roles operate. It does NOT store Person/Agent records, coordinate work, become the project manager, or become the COO. **Updated by ADR-037.**
+OrganisationControlPlane is a narrow abstraction providing role lookup, work assignment, authority delegation, organisational context retrieval, and operational handoff via `execute_work()`. It provides organisational mechanisms and context through which roles operate. It does NOT store Person/Agent records, coordinate work, become the project manager, or become the COO. **Updated by ADR-037 and Increment 10.**
 
 ### ADR-023: Paperclip Adapter Boundary behind OrganisationControlPlane (Accepted)
 The OrganisationControlPlane abstraction is defined independently of Paperclip. No Paperclip-specific types appear in the organisation domain.
@@ -112,7 +113,7 @@ Work supports parent/child decomposition and dependency tracking for project coo
 - **Does NOT:** run operations, execute work, own capabilities, coordinate organisational work
 
 ### Organisation / Control Plane
-- **Owns:** organisational structure, roles, relationships, authority, accountability, management mechanisms, organisational context
+- **Owns:** organisational structure, roles, relationships, authority, accountability, management mechanisms, organisational context, operational handoff
 - **Boundary:** `OrganisationControlPlane` abstraction — provides mechanisms and context, NOT coordination, NOT storage of Person/Agent records
 - **Does NOT:** execute operational work, own EIMS, own capability definitions/lifecycle, directly control runtime agents, own people records, coordinate work, become the CEO/COO/PM, store Person/Agent records
 
@@ -123,7 +124,7 @@ Work supports parent/child decomposition and dependency tracking for project coo
 
 ### Operations Plane
 - **Owns:** workflows, pathways, sessions, deterministic execution, agent execution, tools, runtime orchestration, operational work
-- **Boundary:** `PathwayRuntime`, `Session`, `PatternStep`
+- **Boundary:** `PathwayRuntime`, `Session`, `PatternStep`, `execute_workflow()`
 - **Does NOT:** define organisational authority or strategy, own capability definitions, govern capability lifecycle, coordinate organisational work
 
 ## Role Model
@@ -228,7 +229,66 @@ Project Work (accountable: C-Suite executive, coordinating: PM)
 
 Dependencies express sequencing: `Work C depends_on: [Work A, Work B]`.
 
-## EIMS Boundary and Learning Loop
+### Work Lifecycle
+
+```
+DRAFT
+  ↓
+ASSIGNED (organisational handoff)
+  ↓
+IN_PROGRESS (operational execution begins)
+  ↓
+COMPLETED (execution finished)
+  ↓
+ACCEPTED (outcome assessed against acceptance_criteria)
+```
+
+Status transitions:
+- `ASSIGNED` → `IN_PROGRESS`: organisational responsibility established, Operations begins execution
+- `IN_PROGRESS` → `COMPLETED`: execution finished, result returned to organisation
+- `COMPLETED` → `ACCEPTED`: outcome assessed against acceptance_criteria
+- Any status → `CANCELLED` or `ESCALATED`: organisational decision
+
+## Operational Handoff
+
+The boundary between organisational Work and operational execution is:
+
+```
+Organisation/Control plane:
+    - Creates Work
+    - Sets accountable_role_id, coordinating_role_id
+    - Assigns Work via OrganisationControlPlane.assign_work()
+    - Calls OrganisationControlPlane.execute_work() to hand off to Operations
+    - Receives execution result
+    - Assesses outcome against acceptance_criteria
+    - Updates Work.outcome and Work.status
+
+Operations plane:
+    - Receives Work for execution via execute_work()
+    - Creates operational execution request (PathwayCallRequest, Session, or Workflow)
+    - Invokes PathwayRuntime or execute_workflow()
+    - Returns execution result (PathwayResponse, ExecutionResult, StepResult)
+```
+
+Key principle: **Work is organisational. Execution is operational.**
+- OrganisationControlPlane.execute_work() is the handoff seam
+- Execution result is evidence, not automatic organisational acceptance
+- Organisation assesses outcome and decides acceptance
+
+## Outcome Assessment
+
+Outcome assessment is an organisational concern:
+- Takes execution result + Work.acceptance_criteria
+- Produces assessed outcome (accepted / not accepted)
+- Updates Work.outcome and Work.status
+- Optionally records durable learning in EIMS
+
+Outcome assessment is NOT:
+- automatic acceptance of execution results
+- an operational concern
+- a capability matching exercise
+
+## EIMS Learning Loop
 
 - **ConceptStore** is the current implementation of the Enterprise Information Management System (EIMS).
 - EIMS owns: durable enterprise information, enterprise concepts, provenance, relationships, institutional knowledge, learning.
@@ -259,7 +319,7 @@ future organisational decisions
 
 - **Transient operational state:** Session state, workflow execution state, runtime agent state, human-in-the-loop pending state, operations monitoring state (KPIs, alerts).
 - **Durable EIMS knowledge:** Strategy decisions, capability definitions, work outcomes, enterprise assets, governance decisions, institutional learning.
-- **Capability maturation** is the first implemented learning loop: `execute_capability()` -> caller invokes `record_invocation()` -> `MaturationHistory` updated -> promotion threshold may trigger COMPILED mode.
+- **Work outcome learning:** Only project/initiative work with accepted outcomes becomes EIMS knowledge. Routine BAU does not.
 - **Future:** A formal OutcomeRecorder or LearningService may promote operational outcomes to EIMS.
 
 ### Future CEO-EIMS Abstraction
@@ -431,6 +491,8 @@ Paperclip does NOT provide:
 8. No plane or role may coordinate work outside its authority boundary.
 9. The OrganisationControlPlane provides mechanisms; roles provide coordination.
 10. Organisation/Control references Person/Agent by ID; People/Capability owns their records.
+11. Work is organisational; execution is operational. The handoff is via OrganisationControlPlane.execute_work().
+12. Execution result is evidence; organisational outcome is assessed against acceptance_criteria.
 
 ## Constraints
 
@@ -454,6 +516,7 @@ Paperclip does NOT provide:
 18. **Role is central** — Role carries responsibilities, authority, required capabilities, and accountabilities; Person/Agent fulfils Role
 19. **Person/Agent owned by People/Capability** — Organisation/Control references by ID; does not store Person/Agent records
 20. **Work decomposition is management, not execution** — Work hierarchy and dependencies express management intent; Operations executes individual items
+21. **Work is organisational; execution is operational** — Work.status ASSIGNED→IN_PROGRESS is the handoff boundary; execution result is evidence, not automatic acceptance
 
 ## Current Implementation State
 
@@ -472,79 +535,58 @@ Paperclip does NOT provide:
 - AssistantChatService: wired with capability matching and session creation
 - OrganisationControlPlane: ABC + InMemoryOrganisationControlPlane (Increment 6)
 - Role model: Role, Person, Agent, Authority, Work, Assignment, OrgContext, Delegation
+- Work accountability model: work_type, accountable_role_id, coordinating_role_id, required_capability_ids, acceptance_criteria, dependencies, parent_work_id, outcome
+- Role required capabilities: required_capability_ids
+- Operational handoff: OrganisationControlPlane.execute_work() with PathwayRuntime integration
+- Outcome assessment: assess_work_outcome() helper
+- EIMS learning: record_work_learning() helper
 - Four-plane architecture documented (Increment 7)
 - Corrected role model with CEO/COO/PM/C-Suite distinctions (Increment 7 correction)
-- Increment 8 investigation completed (documentation only)
+- Domain model corrected to match architecture (Increment 9)
+- Organisational workflow proof with behavioural tests (Increment 10)
 
 ### Not Yet Implemented
-- Work accountability model (`accountable_role_id`, `coordinating_role_id`, `work_type`, `outcome`, `acceptance_criteria`, `required_capability_ids`, `dependencies`, `parent_work_id`)
-- Person/Agent ownership correction (move to People/Capability)
-- OrganisationControlPlane mechanism-only refactor (remove Person/Agent storage)
 - People/Capability plane package and services
-- Capability routing in `AssistantChatService`
-- `CapabilityMatcher` interface (HumanSelectionMatcher exists but not formalised)
-- Capability approval API
-- Capability selection UI
-- OutcomeRecorder / LearningService for EIMS promotion
+- Full CEO implementation as strategic role
+- COO implementation
+- C-Suite executive roles
+- Project Manager implementation
+- Paperclip adapter
+- EIMS expansion beyond ConceptStore
 - EnterpriseInformation abstraction for CEO-EIMS boundary
 - Kilo handoff contract via `.kilo/plans/`
-- Paperclip adapter
-- Full CEO implementation as strategic role
-- COO implementation
-- C-Suite executive roles
-- Project Manager implementation
-- Specialist role implementations (EA, SA, BA, Developer, QA)
-- Role workflow handoff enforcement
-- Capability/Skill/Tool distinction (under investigation)
-
-## Increment 9 Proposed Scope
-
-### In Scope
-1. **Extend Work model with minimum accountability fields:**
-   - `work_type`: "bau" | "project" | "initiative"
-   - `accountable_role_id`: str (REQUIRED)
-   - `coordinating_role_id`: str | None
-   - `outcome`: dict | None
-   - `acceptance_criteria`: list[str]
-   - `required_capability_ids`: list[str]
-   - `dependencies`: list[str]
-   - `parent_work_id`: str | None
-   - Update tests to verify Work accountability model
-
-2. **Extend Role model with required capabilities:**
-   - `required_capability_ids`: list[str]
-   - Update tests
-
-3. **Add architectural boundary tests:**
-   - Verify Work does not import capability definitions
-   - Verify Person/Agent are not stored in OrganisationControlPlane
-   - Verify Organisation/Control references Person/Agent by ID only
-
-4. **Document Paperclip mapping:**
-   - Conceptual mapping table in architecture.md (completed in this increment)
-
-### Out of Scope
-- Full People/Capability service implementation
-- Full CEO implementation as strategic role
-- COO implementation
-- C-Suite executive roles
-- Project Manager implementation
-- Paperclip integration
-- EIMS expansion beyond ConceptStore
-- EnterpriseInformation abstraction implementation
-- All specialist role implementations
-- Assistant redesign
+- Capability routing in `AssistantChatService`
 - Capability matching implementation
 - Capability execution in CEO
 - Universal routing
-- Capability/Skill/Tool split
-- OutcomeRecorder / LearningService
+- Capability/Skill/Tool distinction (under investigation)
+- OutcomeRecorder / LearningService (prototype proven)
+
+## Increment 11 Proposed Scope
+
+### In Scope
+1. People/Capability plane package skeleton
+2. Capability lifecycle hooks in existing CapabilityRegistry
+3. AssistantChatService capability routing (if architecture permits)
+
+### Out of Scope
+- Full CEO/COO/PM implementation
+- Paperclip integration
+- EIMS expansion
+- EnterpriseInformation abstraction
+- All specialist role implementations
+- Universal routing
 
 ## Test Baseline
 
 ```
 pytest packages/capability_registry/tests/test_capabilities.py packages/ai/tests/test_assistant.py -q
 Result: 18 passed
+```
+
+```
+pytest packages/organisation/tests/ -q
+Result: 46 passed
 ```
 
 ## Import Model
@@ -554,6 +596,7 @@ The repository uses **flat imports** from package `src/` directories:
 - `packages/capability_registry/src/capabilities.py` exports `CapabilityRegistry`
 - `packages/workflow_runner/src/session.py` exports `Session`
 - `packages/organisation/src/organisation_control_plane.py` exports `OrganisationControlPlane`
+- `packages/organisation/src/outcome.py` exports `assess_work_outcome`, `record_work_learning`
 
 pytest supports this via `conftest.py` which adds each package's `src/` to `sys.path`. Runtime environments must set `PYTHONPATH` to include all package `src/` directories.
 
@@ -570,7 +613,7 @@ Current Docker PYTHONPATH:
 - **MatchResult**: Output of `CapabilityMatcher.match()`. Contains candidates, confidence, matcher_id.
 - **ExecutionMode**: `ai_mediated` (LLM-based) or `compiled` (deterministic code).
 - **MaturationHistory**: Tracks invocation count, corrections, promotion status for capabilities.
-- **OrganisationControlPlane**: Narrow abstraction providing organisational mechanisms and context. Does NOT store Person/Agent records, coordinate work, or become management roles.
+- **OrganisationControlPlane**: Narrow abstraction providing organisational mechanisms and context, plus operational handoff via `execute_work()`. Does NOT store Person/Agent records, coordinate work, or become management roles.
 - **Role**: Abstract position with responsibilities, authority, constraints, information access, required capabilities, accountabilities. Central organisational unit.
 - **Person**: Human individual with identity and employment context. Owned by People/Capability plane. Occupies Roles.
 - **Agent**: Software entity marker/record — no runtime execution logic in the domain model. Owned by People/Capability plane. Fulfils Roles.
@@ -578,7 +621,7 @@ Current Docker PYTHONPATH:
 - **Work**: Instance of assigned effort. Accountable to a Role. Contains `required_capability_ids`, `accountable_role_id`, `coordinating_role_id`, `outcome`, `acceptance_criteria`, `dependencies`, `parent_work_id`.
 - **People/Capability plane**: Peer domain plane owning capability definitions, lifecycle, people records, and capability governance. Does NOT own Work.
 - **EnterpriseInformation**: Future abstraction between CEO and ConceptStore/EIMS. Proposed in ADR-030.
-- **Outcome assessment**: Operational concern that decides which execution results become durable EIMS knowledge.
+- **Outcome assessment**: Organisational concern that decides which execution results become accepted organisational outcomes.
 - **Learning loop**: Structured flow from operational execution -> outcome -> EIMS -> future decisions.
 - **BAU**: Business-as-Usual. Ongoing operational work accountable to COO/functional managers.
 - **Project**: Bounded initiative work accountable to C-Suite executive, coordinated by Project Manager.
@@ -586,3 +629,6 @@ Current Docker PYTHONPATH:
 - **Work decomposition**: Breaking large Work into smaller Work items via `parent_work_id` and `dependencies`. Management concern, not execution concern.
 - **Accountability**: Role answerable for outcome. Explicitly modelled via `accountable_role_id` on Work.
 - **Coordination**: Role sequencing and managing work. Explicitly modelled via `coordinating_role_id` on Work.
+- **Operational handoff**: Transition from organisational Work to operational execution via `OrganisationControlPlane.execute_work()`. Work.status ASSIGNED→IN_PROGRESS marks the boundary.
+- **Execution result**: Evidence from Operations. NOT automatically an accepted organisational outcome.
+- **Outcome assessment**: Process of evaluating execution result against acceptance_criteria to determine acceptance.
