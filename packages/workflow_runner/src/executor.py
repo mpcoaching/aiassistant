@@ -12,8 +12,9 @@ import importlib
 from typing import Any
 
 from capability import Capability
-from capability_deployment import CompiledRef, ExecutionMode
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from capability_deployment import CapabilityDeployment, ExecutionMode
 
 
 class ExecutionResult(BaseModel):
@@ -24,13 +25,13 @@ class ExecutionResult(BaseModel):
     telemetry: dict[str, Any] = {}
 
 
-def execute_capability(capability: Capability, context: dict[str, Any], deployment: CompiledRef | None = None) -> ExecutionResult:
+def execute_capability(capability: Capability, context: dict[str, Any], deployment: CapabilityDeployment | None = None) -> ExecutionResult:
     """Execute a compiled capability and return the result.
 
     Args:
         capability: The capability to execute.
         context: Execution context dict passed to the capability's run() function.
-        deployment: Optional CompiledRef with module_path and entrypoint.
+        deployment: Optional CapabilityDeployment with compiled_ref and execution metadata.
 
     Returns:
         ExecutionResult with outputs, artifacts, and telemetry.
@@ -42,12 +43,16 @@ def execute_capability(capability: Capability, context: dict[str, Any], deployme
     """
     if deployment is None:
         raise ValueError(
-            "execute_capability requires a CompiledRef deployment. "
-            "Pass deployment from CapabilityDeployment.compiled_ref."
+            "execute_capability requires a CapabilityDeployment. "
+            "Pass deployment with compiled_ref."
         )
 
-    module_path = deployment.module_path
-    entrypoint = deployment.entrypoint or "run"
+    compiled_ref = deployment.compiled_ref
+    if compiled_ref is None:
+        raise ValueError("execute_capability requires compiled_ref in deployment.")
+
+    module_path = compiled_ref.module_path
+    entrypoint = compiled_ref.entrypoint or "run"
 
     try:
         module = importlib.import_module(module_path)

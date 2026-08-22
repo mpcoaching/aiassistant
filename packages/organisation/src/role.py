@@ -17,10 +17,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
+from agent import Agent  # noqa: F401 — re-exported for organisation_control_plane
+from person import Person  # noqa: F401 — re-exported for organisation_control_plane
 from pydantic import BaseModel, Field
-
-from person import Person
-from agent import Agent
 
 
 class RoleStatus(str, Enum):

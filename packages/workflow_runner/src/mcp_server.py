@@ -53,8 +53,8 @@ mcp = FastMCP("workflow_runner")
 # ---------------------------------------------------------------------------
 
 _AUTHORING_DATA_DIR = os.getenv("AUTHORING_DATA_DIR", tempfile.mkdtemp(prefix="mcp-authoring-"))
-from capability import Capability, CapabilityInterface, CapabilityKind
 from capabilities import CapabilityRegistry
+from capability import Capability, CapabilityInterface, CapabilityKind
 from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
 
 _authoring_registry = CapabilityRegistry(ConceptStoreCapabilityRepository(__import__("concepts").ConceptStore(data_dir=_AUTHORING_DATA_DIR)))
@@ -244,7 +244,7 @@ def list_services() -> str:
             "capability_id": cap.id,
             "name": cap.name,
             "description": cap.description,
-            "execution_mode": cap.execution_mode.value,
+            "execution_mode": cap.payload.get("execution_mode", "ai_mediated"),
             "capability_kind": cap.capability_kind.value,
         }
         for cap in capabilities

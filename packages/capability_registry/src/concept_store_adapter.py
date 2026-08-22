@@ -7,9 +7,8 @@ This is the ONLY place in capability_registry that knows about ConceptStore.
 
 from __future__ import annotations
 
-from typing import Any
 
-from capability import Capability, CapabilityInterface, CapabilityStatus
+from capability import Capability, CapabilityInterface, CapabilityKind, CapabilityStatus
 from concepts import ConceptKind, ConceptStore, EnterpriseConcept
 
 
@@ -51,17 +50,20 @@ class ConceptStoreCapabilityRepository:
         concepts = self._store.list_by_kind(ConceptKind.CAPABILITY)
         capabilities = [self._concept_to_capability(c) for c in concepts if isinstance(c, EnterpriseConcept)]
         if capability_kind is not None:
-            capabilities = [c for c in capabilities if c.capability_kind.value == capability_kind]
+            capabilities = [c for c in capabilities if c.capability_kind == capability_kind or c.capability_kind.value == capability_kind]
         return capabilities
 
     def _concept_to_capability(self, concept: EnterpriseConcept) -> Capability:
         payload = concept.payload or {}
         interface_data = payload.get("interface", {})
+        cap_kind = payload.get("capability_kind", "tool")
+        if isinstance(cap_kind, str):
+            cap_kind = CapabilityKind(cap_kind)
         return Capability(
             id=concept.id,
             name=concept.name,
             description=concept.description,
-            capability_kind=payload.get("capability_kind", "tool"),
+            capability_kind=cap_kind,
             status=concept.status,
             interface=CapabilityInterface(**interface_data) if interface_data else CapabilityInterface(),
             owns_durable_state=payload.get("owns_durable_state", False),

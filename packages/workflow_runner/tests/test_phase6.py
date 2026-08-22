@@ -10,8 +10,8 @@ from unittest.mock import MagicMock
 
 from capabilities import CapabilityRegistry
 from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
-from concepts import ConceptKind, ConceptStore, EnterpriseConcept
 from chat import AssistantChatService, ChatRequest
+from concepts import ConceptKind, ConceptStore, EnterpriseConcept
 from langgraph_runtime import LangGraphRuntime
 from pathway_runtime import (
     PathwayCallRequest,

@@ -9,13 +9,13 @@ from pathlib import Path
 
 import pytest
 from assistant import StrategyDecision
-from capability import Capability, CapabilityKind
 from capabilities import CapabilityRegistry
+from capability import Capability, CapabilityKind
 from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
 from concepts import ConceptStore
-from capability_deployment import AiSpec, CapabilityDeployment, ExecutionMode, Transport
 from strategy import ReasoningStrategy
 
+from capability_deployment import AiSpec, CapabilityDeployment, ExecutionMode, Transport
 from mcp_server import mcp
 from runtime import PatternRuntime
 from session import SessionStatus, create_session_from_decision

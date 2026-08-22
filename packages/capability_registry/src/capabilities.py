@@ -16,8 +16,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from capability import Capability, CapabilityKind, CapabilityStatus
-from concepts import ConceptKind
-from pydantic import BaseModel, Field
+from concepts import ConceptKind  # noqa: F401 — re-exported for api.py
 
 
 class CapabilityRegistry:

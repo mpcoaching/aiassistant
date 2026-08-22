@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 from capabilities import CapabilityRegistry
-from capability import Capability, CapabilityInterface, CapabilityKind, Parameter
+from capability import Capability, CapabilityInterface, CapabilityKind, CapabilityStatus, Parameter
 from capability_deployment import AiSpec
 from concepts import ConceptStore
 from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
@@ -42,10 +42,6 @@ def _capability(name: str, kind: CapabilityKind = CapabilityKind.TOOL, **kw) -> 
         created_at=kw.pop("created_at", datetime(2026, 7, 16, tzinfo=timezone.utc)),
         tags=kw.pop("tags", ["tool"]),
         capability_kind=kind,
-        execution_mode=kw.pop("execution_mode", "ai_mediated"),
-        ai_spec=kw.pop("ai_spec", _ai_spec()),
-        compiled_ref=kw.pop("compiled_ref", None),
-        transport=kw.pop("transport", "tier3_bus"),
         interface=kw.pop(
             "interface",
             CapabilityInterface(
@@ -108,27 +104,16 @@ def test_register_strict_persistence_raises(tmp_path: Path) -> None:
 
 # ---- maturation / promotion (C2) -------------------------------------------
 
-def test_record_invocation_updates_maturation(tmp_path: Path) -> None:
+def test_promote_sets_active_status(tmp_path: Path) -> None:
     reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
-    cap = _capability("y")
+    cap = _capability("z")
+    assert cap.status == CapabilityStatus.DRAFT
     reg.register(cap)
-    reg.record_invocation(cap.id, "success")
-    reg.record_invocation(cap.id, "success")
-    reg.record_invocation(cap.id, "failure")
+    promoted = reg.promote(cap.id)
+    assert promoted.status == CapabilityStatus.ACTIVE
     got = reg.get(cap.id)
-    assert got.payload["maturation_history"]["invocation_count"] == 3
-    assert got.payload["maturation_history"]["correction_count"] == 1
-
-
-def test_promote_sets_compiled(tmp_path: Path) -> None:
-    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
-    cap = _capability("z", execution_mode="ai_mediated")
-    reg.register(cap)
-    reg.promote(cap.id, compiled_ref_path="agentic/skills/_compiled/z.py")
-    got = reg.get(cap.id)
-    assert got.execution_mode == "compiled"
-    assert got.compiled_ref is not None
-    assert got.compiled_ref.module_path == "agentic/skills/_compiled/z.py"
+    assert got is not None
+    assert got.status == CapabilityStatus.ACTIVE
 
 
 # ---- SkillRecord -> Capability migration (P1.3 / C2) -----------------------
@@ -147,9 +132,9 @@ def test_skillrecord_maps_to_capability(tmp_path: Path) -> None:
     cap_distilled = reg.register_from_skill_record(distilled_rec)
 
     # prompt -> ai_mediated; code/distilled -> compiled
-    assert cap_prompt.execution_mode == "ai_mediated"
-    assert cap_code.execution_mode == "compiled"
-    assert cap_distilled.execution_mode == "compiled"
+    assert cap_prompt.payload.get("execution_mode") == "ai_mediated"
+    assert cap_code.payload.get("execution_mode") == "compiled"
+    assert cap_distilled.payload.get("execution_mode") == "compiled"
     # kind mapping: skill->skill, tool->tool, workflow->tool (a workflow is exposed as a tool capability)
     assert cap_prompt.capability_kind == "skill"
     assert cap_code.capability_kind == "tool"

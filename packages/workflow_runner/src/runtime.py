@@ -13,11 +13,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from capability import Capability
 from capabilities import CapabilityRegistry
-from capability_deployment import CapabilityDeployment, ExecutionMode, Transport
+from capability import Capability
 
 from bus import CapabilityReply, CapabilityRequest, EventBus
+from capability_deployment import CapabilityDeployment, ExecutionMode, Transport
 
 logger = logging.getLogger("workflow-engine.runtime")
 

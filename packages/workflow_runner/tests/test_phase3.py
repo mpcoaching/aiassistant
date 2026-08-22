@@ -7,13 +7,19 @@ Contracts: SA-CONTRACTS-PHASES-2-5.md C10, C7.
 from pathlib import Path
 
 from assistant import StrategyDecision
-from capability import Capability, CapabilityKind
 from capabilities import CapabilityRegistry
+from capability import Capability, CapabilityKind
 from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
-from capability_deployment import AiSpec, ExecutionMode
 from concepts import ConceptStore
 from strategy import ReasoningStrategy
 
+from capability_deployment import (
+    AiSpec,
+    CapabilityDeployment,
+    CompiledRef,
+    ExecutionMode,
+    Transport,
+)
 from runtime import PatternRuntime
 from session import SessionStatus, create_session_from_decision
 
@@ -52,9 +58,6 @@ def test_invoke_step_tier2_calls_run_directly(tmp_path: Path) -> None:
         id="cap-echo",
         name="echo",
         capability_kind=CapabilityKind.TOOL,
-        execution_mode=ExecutionMode.AI_MEDIATED,
-        transport="tier2_inprocess",
-        ai_spec=AiSpec(purpose="echo back the input", inputs=[], outputs=[]),
         interface={
             "inputs": [{"name": "text", "type": "string", "required": True}],
             "outputs": [{"name": "result", "type": "string"}],
@@ -63,8 +66,15 @@ def test_invoke_step_tier2_calls_run_directly(tmp_path: Path) -> None:
     )
     reg.register(cap)
 
+    deployment = CapabilityDeployment(
+        capability_id=cap.id,
+        environment="test",
+        execution_mode=ExecutionMode.AI_MEDIATED,
+        transport=Transport.TIER2_INPROCESS,
+        ai_spec=AiSpec(purpose="echo back the input", inputs=[], outputs=[]),
+    )
     runtime = PatternRuntime(registry=reg)
-    reply = runtime.invoke_step(cap.id, {"text": "hello"})
+    reply = runtime.invoke_step(cap.id, {"text": "hello"}, deployment=deployment)
     assert reply["status"] == "completed"
     assert "echo back the input" in reply["outputs"]["composed_prompt"]
 
@@ -76,15 +86,28 @@ def test_invoke_step_tier3_returns_capability_reply(tmp_path: Path) -> None:
         id="cap-bus",
         name="bus_tool",
         capability_kind=CapabilityKind.TOOL,
-        execution_mode=ExecutionMode.COMPILED,
-        transport="tier3_bus",
-        compiled_ref={"module_path": "agentic/skills/_compiled/bus_tool.py", "entrypoint": "run", "tests_passed": True},
+        interface={
+            "inputs": [{"name": "x", "type": "string"}],
+            "outputs": [{"name": "result", "type": "string"}],
+            "errors": [],
+        },
     )
     reg.register(cap)
 
+    deployment = CapabilityDeployment(
+        capability_id=cap.id,
+        environment="test",
+        execution_mode=ExecutionMode.COMPILED,
+        transport=Transport.TIER3_BUS,
+        compiled_ref=CompiledRef(
+            module_path="agentic/skills/_compiled/bus_tool.py",
+            entrypoint="run",
+            tests_passed=True,
+        ),
+    )
     runtime = PatternRuntime(registry=reg)
     # tier3_bus returns a reply dict (simulated bus hand-off)
-    reply = runtime.invoke_step(cap.id, {"x": 1})
+    reply = runtime.invoke_step(cap.id, {"x": 1}, deployment=deployment)
     assert reply["status"] == "completed"
     assert "correlation_id" in reply
 

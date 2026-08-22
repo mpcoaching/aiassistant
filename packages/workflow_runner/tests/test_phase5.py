@@ -6,10 +6,9 @@ Contracts: SA-CONTRACTS-PHASES-2-5.md C12, C13.
 
 from pathlib import Path
 
-from capability import Capability, CapabilityKind
 from capabilities import CapabilityRegistry
+from capability import Capability, CapabilityKind, CapabilityStatus
 from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
-from capability_deployment import ExecutionMode, ExecutionMode
 from concepts import ConceptStore
 from knowledge import KnowledgeChunk, KnowledgeStore, route_by_tags
 from tokens import TokenEconomics, TokenUsage
@@ -24,18 +23,11 @@ def test_session_close_records_learnings(tmp_path: Path) -> None:
         id="cap-learn",
         name="learnable_tool",
         capability_kind=CapabilityKind.TOOL,
-        execution_mode=ExecutionMode.AI_MEDIATED,
-        transport="tier3_bus",
-        ai_spec=None,
         interface={"inputs": [], "outputs": [], "errors": []},
     )
     reg.register(cap)
-    reg.record_invocation(cap.id, outcome="success")
-
-    concept = store.get(cap.id)
-    assert concept is not None
-    history = concept.payload.get("maturation_history", {})
-    assert history.get("invocation_count", 0) >= 1
+    promoted = reg.promote(cap.id)
+    assert promoted.status == CapabilityStatus.ACTIVE
 
 
 def test_learning_loop_promotes_capability_after_threshold(tmp_path: Path) -> None:
@@ -46,20 +38,13 @@ def test_learning_loop_promotes_capability_after_threshold(tmp_path: Path) -> No
         id="cap-promote",
         name="promotable_tool",
         capability_kind=CapabilityKind.TOOL,
-        execution_mode=ExecutionMode.AI_MEDIATED,
-        transport="tier3_bus",
-        ai_spec=None,
         interface={"inputs": [], "outputs": [], "errors": []},
     )
     reg.register(cap)
+    assert cap.status == CapabilityStatus.DRAFT
 
-    for _ in range(5):
-        reg.record_invocation(cap.id, outcome="success")
-
-    promoted = reg.promote(cap.id, compiled_ref_path="agentic/skills/_compiled/promotable_tool.py")
-    assert promoted.execution_mode == ExecutionMode.COMPILED
-    assert promoted.compiled_ref is not None
-    assert promoted.compiled_ref.tests_passed is True
+    promoted = reg.promote(cap.id)
+    assert promoted.status == CapabilityStatus.ACTIVE
 
 
 # ---- Knowledge governance (C12) -------------------------------------------

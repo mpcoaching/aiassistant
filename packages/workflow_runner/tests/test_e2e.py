@@ -16,15 +16,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from assistant import AssistantReasoningService
-from capability import Capability, CapabilityKind
 from capabilities import CapabilityRegistry
-from capability_deployment import AiSpec, ExecutionMode
+from capability import Capability, CapabilityKind
+from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
 from concepts import ConceptStore
 from fastapi.testclient import TestClient
 from intent import Intent, IntentOrigin
 from strategy import ReasoningStrategy
 
 from api import app
+from capability_deployment import AiSpec, CapabilityDeployment, ExecutionMode, Transport
 from session import create_session_from_decision
 
 
@@ -146,15 +147,12 @@ def test_event_bus_lifecycle_events_published(client) -> None:
 
 def test_capability_invocation_end_to_end(tmp_path: Path) -> None:
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
 
     cap = Capability(
         id="cap-e2e-echo",
         name="echo",
         capability_kind=CapabilityKind.TOOL,
-        execution_mode=ExecutionMode.AI_MEDIATED,
-        transport="tier2_inprocess",
-        ai_spec=AiSpec(purpose="echo", inputs=[], outputs=[]),
         interface={
             "inputs": [{"name": "text", "type": "string", "required": True}],
             "outputs": [{"name": "result", "type": "string"}],
@@ -163,9 +161,16 @@ def test_capability_invocation_end_to_end(tmp_path: Path) -> None:
     )
     reg.register(cap)
 
+    deployment = CapabilityDeployment(
+        capability_id=cap.id,
+        environment="test",
+        execution_mode=ExecutionMode.AI_MEDIATED,
+        transport=Transport.TIER2_INPROCESS,
+        ai_spec=AiSpec(purpose="echo", inputs=[], outputs=[]),
+    )
     from runtime import PatternRuntime
     runtime = PatternRuntime(registry=reg)
-    reply = runtime.invoke_step(cap.id, {"text": "hello e2e"})
+    reply = runtime.invoke_step(cap.id, {"text": "hello e2e"}, deployment=deployment)
     assert reply["status"] == "completed"
 
 

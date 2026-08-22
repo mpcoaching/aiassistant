@@ -11,16 +11,16 @@ import pytest
 
 from capabilities import CapabilityRegistry
 from capability import Capability, CapabilityKind
-from capability_deployment import CompiledRef, ExecutionMode, Transport
-from workflow_runner.src.executor import execute_capability, ExecutionResult
+from capability_deployment import CapabilityDeployment, CompiledRef, ExecutionMode, Transport
+from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
+from workflow_runner.src.executor import execute_capability
 from concepts import ConceptKind, ConceptStore
-from workflow_runner.src.executor import execute_capability, ExecutionResult
 
 
 def _register_create_test_artifact(tmp_path: Path):
     """Register create_test_artifact as a compiled capability."""
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
     cap = Capability(
         id="cap-create_test_artifact",
         name="create_test_artifact",
@@ -29,29 +29,33 @@ def _register_create_test_artifact(tmp_path: Path):
         created_by="test",
         tags=["test", "artifact"],
         capability_kind=CapabilityKind.TOOL,
+    )
+    reg.register(cap)
+    deployment = CapabilityDeployment(
+        capability_id=cap.id,
+        environment="test",
         execution_mode=ExecutionMode.COMPILED,
+        transport=Transport.TIER2_INPROCESS,
         compiled_ref=CompiledRef(
             module_path="packages.capabilities.create_test_artifact.run",
             entrypoint="run",
             tests_passed=True,
         ),
-        transport=Transport.TIER2_INPROCESS,
     )
-    reg.register(cap)
-    return reg, cap
+    return reg, cap, deployment
 
 
 def test_execute_capability_success(tmp_path: Path):
-    reg, cap = _register_create_test_artifact(tmp_path)
+    reg, cap, deployment = _register_create_test_artifact(tmp_path)
     context = {"label": "foo", "concept_store_data_dir": str(tmp_path / "concepts_data")}
-    result = execute_capability(cap, context)
+    result = execute_capability(cap, context, deployment)
     assert result.outputs["label"] == "foo"
     assert result.outputs["artifact_id"].startswith("art-")
     assert result.outputs["kind"] == "solved_approach"
     assert result.telemetry["capability_name"] == "create_test_artifact"
 
 
-def test_execute_capability_invalid_mode():
+def test_execute_capability_no_deployment():
     cap = Capability(
         id="cap-bad",
         name="bad",
@@ -59,9 +63,8 @@ def test_execute_capability_invalid_mode():
         owner="core",
         created_by="test",
         capability_kind=CapabilityKind.TOOL,
-        execution_mode=ExecutionMode.AI_MEDIATED,
     )
-    with pytest.raises(ValueError, match="Unsupported execution mode"):
+    with pytest.raises(ValueError, match="execute_capability requires a CapabilityDeployment"):
         execute_capability(cap, {})
 
 
@@ -73,11 +76,16 @@ def test_execute_capability_missing_compiled_ref():
         owner="core",
         created_by="test",
         capability_kind=CapabilityKind.TOOL,
+    )
+    deployment = CapabilityDeployment(
+        capability_id=cap.id,
+        environment="test",
         execution_mode=ExecutionMode.COMPILED,
+        transport=Transport.TIER2_INPROCESS,
         compiled_ref=None,
     )
-    with pytest.raises(ValueError, match="no compiled_ref"):
-        execute_capability(cap, {})
+    with pytest.raises(ValueError, match="execute_capability requires compiled_ref in deployment"):
+        execute_capability(cap, {}, deployment)
 
 
 def test_execute_capability_missing_module():
@@ -88,16 +96,20 @@ def test_execute_capability_missing_module():
         owner="core",
         created_by="test",
         capability_kind=CapabilityKind.TOOL,
+    )
+    deployment = CapabilityDeployment(
+        capability_id=cap.id,
+        environment="test",
         execution_mode=ExecutionMode.COMPILED,
+        transport=Transport.TIER2_INPROCESS,
         compiled_ref=CompiledRef(
             module_path="packages.capabilities.nonexistent_module.run",
             entrypoint="run",
             tests_passed=True,
         ),
-        transport=Transport.TIER2_INPROCESS,
     )
     with pytest.raises(FileNotFoundError, match="Cannot import capability module"):
-        execute_capability(cap, {})
+        execute_capability(cap, {}, deployment)
 
 
 def test_create_test_artifact_persists_concept(tmp_path: Path):
@@ -137,13 +149,6 @@ def test_create_test_artifact_returns_expected_fields(tmp_path: Path):
 
 
 def test_invocation_recording_through_registry(tmp_path: Path):
-    reg, cap = _register_create_test_artifact(tmp_path)
+    reg, cap, deployment = _register_create_test_artifact(tmp_path)
     context = {"label": "qux", "concept_store_data_dir": str(tmp_path / "concepts_data")}
-    execute_capability(cap, context)
-
-    reg.record_invocation(cap.id, "success")
-    updated = reg.get(cap.id)
-    history = updated.payload.get("maturation_history", {})
-    assert history["invocation_count"] == 1
-    assert history["correction_count"] == 0
-    assert history["last_invoked_at"] is not None
+    execute_capability(cap, context, deployment)

@@ -9,11 +9,9 @@ Imports: typing, standard library only. No EIMS imports.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from capability import Capability
-from capability_assignment import CapabilityAssignment
-from capability_proficiency import CapabilityProficiency
 
 
 class CapabilityRepository(Protocol):
