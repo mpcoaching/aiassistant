@@ -15,42 +15,39 @@ from ceo import CEOAgent
 
 
 def test_ceo_agent_receives_org_plane_via_di() -> None:
-    org_plane = MagicMock()
-    ceo = CEOAgent(org_plane=org_plane)
-    assert ceo._org is org_plane
+    org_context = MagicMock()
+    ceo = CEOAgent(org_context=org_context)
+    assert ceo._org is org_context
 
 
 def test_ceo_agent_uses_org_plane_for_context(tmp_path) -> None:
-    org_plane = MagicMock()
-    ceo = CEOAgent(org_plane=org_plane)
-
     org_context = MagicMock()
-    org_plane.get_organisational_context.return_value = org_context
+    ceo = CEOAgent(org_context=org_context)
 
     ceo.orchestrate({"message": "Do something novel", "context": {}})
-    org_plane.get_organisational_context.assert_called_once_with(
-        {"message": "Do something novel", "context": {}}
+    org_context.get_context.assert_called_once_with(
+        actor_id=None,
+        role_id=None,
     )
 
 
 def test_ceo_agent_does_not_instantiate_capability_registry() -> None:
-    org_plane = MagicMock()
-    ceo = CEOAgent(org_plane=org_plane)
+    org_context = MagicMock()
+    ceo = CEOAgent(org_context=org_context)
 
     assert not hasattr(ceo, "_registry")
     assert not hasattr(ceo, "_store")
 
 
 def test_ceo_agent_does_not_contain_match_capabilities() -> None:
-    org_plane = MagicMock()
-    ceo = CEOAgent(org_plane=org_plane)
+    org_context = MagicMock()
+    ceo = CEOAgent(org_context=org_context)
     assert not hasattr(ceo, "_match_capabilities")
 
 
 def test_ceo_agent_escalates_when_confidence_low() -> None:
-    org_plane = MagicMock()
-    org_plane.get_organisational_context.return_value = MagicMock()
-    ceo = CEOAgent(org_plane=org_plane)
+    org_context = MagicMock()
+    ceo = CEOAgent(org_context=org_context)
 
     response = ceo.orchestrate({"message": "xyzzy unknown nonsense", "context": {}})
 
@@ -63,10 +60,9 @@ def test_ceo_agent_escalates_when_confidence_low() -> None:
 
 def test_ceo_agent_reuses_previous_solution(tmp_path) -> None:
     from ai.tests.fixtures.in_memory_ports import InMemoryEnterpriseInformationPort
-    from ports.enterprise_information import PreviousSolution
+    from contracts.enterprise_information import PreviousSolution
 
-    org_plane = MagicMock()
-    org_plane.get_organisational_context.return_value = MagicMock()
+    org_context = MagicMock()
 
     previous = PreviousSolution(
         concept_id="sol-1",
@@ -77,7 +73,7 @@ def test_ceo_agent_reuses_previous_solution(tmp_path) -> None:
     )
     enterprise_info = InMemoryEnterpriseInformationPort(solutions=[previous])
 
-    ceo = CEOAgent(org_plane=org_plane, enterprise_information=enterprise_info)
+    ceo = CEOAgent(org_context=org_context, enterprise_information=enterprise_info)
     response = ceo.orchestrate({"message": "Run the daily report", "context": {}})
 
     assert response["status"] == "awaiting_confirmation"
@@ -88,9 +84,8 @@ def test_ceo_agent_reuses_previous_solution(tmp_path) -> None:
 
 
 def test_ceo_agent_delegates_execution_when_no_previous_solution() -> None:
-    org_plane = MagicMock()
-    org_plane.get_organisational_context.return_value = MagicMock()
-    ceo = CEOAgent(org_plane=org_plane)
+    org_context = MagicMock()
+    ceo = CEOAgent(org_context=org_context)
 
     response = ceo.orchestrate({"message": "Do something novel", "context": {}})
 
@@ -100,9 +95,8 @@ def test_ceo_agent_delegates_execution_when_no_previous_solution() -> None:
 
 
 def test_ceo_agent_assigns_session_id() -> None:
-    org_plane = MagicMock()
-    org_plane.get_organisational_context.return_value = MagicMock()
-    ceo = CEOAgent(org_plane=org_plane)
+    org_context = MagicMock()
+    ceo = CEOAgent(org_context=org_context)
     response = ceo.orchestrate({"message": "Hello", "context": {}})
 
     assert response["session_id"].startswith("ses-")

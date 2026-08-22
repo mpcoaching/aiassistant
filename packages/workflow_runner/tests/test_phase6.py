@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from chat import AssistantChatService, ChatRequest
+from contracts.pattern_execution import PatternExecutionResult
 from langgraph_runtime import LangGraphRuntime
 from pathway_runtime import (
     PathwayCallRequest,
@@ -16,7 +17,6 @@ from pathway_runtime import (
     PathwayStatus,
     RuntimeCapability,
 )
-from ports.pattern_execution import PatternExecutionResult
 
 from human_loop import HumanInputStatus, HumanInTheLoopMixin
 from session import SessionStatus
@@ -151,7 +151,7 @@ def test_human_input_history_tracked() -> None:
 
 def test_chat_service_returns_previous_solution(tmp_path: Path) -> None:
     from ai.tests.fixtures.in_memory_ports import InMemoryEnterpriseInformationPort
-    from ports.enterprise_information import PreviousSolution
+    from contracts.enterprise_information import PreviousSolution
 
     previous = PreviousSolution(
         concept_id="sol-previous",

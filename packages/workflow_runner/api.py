@@ -47,6 +47,7 @@ from capability_registry.src.concepts import (
     Provenance,
     RecognitionLevel,
 )
+from concepts import ConceptStore
 
 from bus import EventBus
 from db import (
@@ -76,6 +77,8 @@ app = FastAPI(title="Workflow Engine", version="1.0.0")
 _bus_cfg: MessageBusConfiguration | None = None
 _db_cfg: DatabaseConfiguration | None = None
 _langgraph_cfg: LangGraphRuntimeConfiguration | None = None
+
+_concept_store = ConceptStore()
 
 # Resolve repo root for workflow discovery (walk up to .git or .kilo)
 _script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -611,34 +614,22 @@ class _ExecutionResultResponse(BaseModel):
     artifacts: list[str] = Field(default_factory=list)
     telemetry: dict[str, Any] = Field(default_factory=dict)
 
-_chat_service: Any | None = None
+from composition import create_assistant
 
-
-def _get_chat_service() -> Any:
-    global _chat_service
-    if _chat_service is None:
-        _script_dir = Path(__file__).resolve().parent
-        _packages_root = _script_dir.parent.parent
-        for _pkg in ["ai", "bus", "langgraph", "capability_registry"]:
-            _src = _packages_root / _pkg / "src"
-            if _src.exists() and str(_src) not in sys.path:
-                sys.path.insert(0, str(_src))
-        from chat import AssistantChatService
-        _chat_service = AssistantChatService()
-    return _chat_service
+_assistant = create_assistant()
 
 
 @app.post("/assistant/chat", response_model=_ChatResponse)
 async def assistant_chat(body: _ChatRequest) -> _ChatResponse:
-    service = _get_chat_service()
     from chat import ChatRequest
+
     request = ChatRequest(
         message=body.message,
         session_id=body.session_id,
         user_id=body.user_id,
         context=body.context,
     )
-    response = service.chat(request)
+    response = _assistant.chat(request)
     return _ChatResponse(
         message=response.message,
         session_id=response.session_id,
@@ -653,8 +644,7 @@ async def assistant_chat(body: _ChatRequest) -> _ChatResponse:
 
 @app.post("/assistant/chat/{session_id}/resume")
 async def assistant_chat_resume(session_id: str, body: dict[str, Any]) -> _ChatResponse:
-    service = _get_chat_service()
-    response = service.resume_with_human_input(session_id, body)
+    response = _assistant.resume_with_human_input(session_id, body)
     return _ChatResponse(
         message=response.message,
         session_id=response.session_id,
@@ -751,9 +741,7 @@ async def assistant_capability_request_approve(
     request.approve(approver=request.requester, rationale=request.governance.get("rationale"))
     concept = _approve_capability_request(request, approver=request.requester)
 
-    from concepts import ConceptStore
-    store = ConceptStore()
-    store.upsert(concept)
+    _concept_store.upsert(concept)
 
     return _CapabilityRequestApprovalResponse(
         request_id=request_id,
@@ -770,9 +758,8 @@ async def assistant_capability_execute(
     capability_id: str,
     body: dict[str, Any] | None = None,
 ) -> _ExecutionResultResponse:
-    service = _get_chat_service()
     context = (body or {}).get("context", {})
-    result = service.execute_selected_capability(capability_id=capability_id, context=context)
+    result = _assistant.execute_selected_capability(capability_id=capability_id, context=context)
     return _ExecutionResultResponse(
         outputs=result.outputs,
         artifacts=result.artifacts,

@@ -24,13 +24,13 @@ from assistant import AssistantReasoningService
 from intent import Intent, IntentOrigin, ProblemFrame, recognise
 from pydantic import BaseModel, Field
 
-from ports.capability_discovery import CapabilityCandidate, CapabilityDiscoveryPort
-from ports.capability_execution import CapabilityExecutionPort, ExecutionResult
-from ports.enterprise_information import EnterpriseInformationPort, SolutionRecord
-from ports.organisational_context import OrganisationalContextPort
-from ports.pattern_execution import PatternExecutionPort, PatternExecutionRequest
-from ports.session_factory import SessionFactoryPort, SessionReference
-from ports.work_management import WorkManagementPort
+from contracts.capability_discovery import CapabilityCandidate, CapabilityDiscoveryPort
+from contracts.capability_execution import CapabilityExecutionPort, ExecutionResult
+from contracts.enterprise_information import EnterpriseInformationPort, SolutionRecord
+from contracts.organisational_context import OrganisationalContextPort
+from contracts.pattern_execution import PatternExecutionPort, PatternExecutionRequest
+from contracts.session_factory import SessionFactoryPort, SessionReference
+from contracts.work_management import WorkManagementPort
 
 logger = logging.getLogger("ai.chat")
 

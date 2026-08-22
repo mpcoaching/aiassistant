@@ -10,13 +10,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from ports.capability_discovery import CapabilityCandidate
-from ports.capability_execution import ExecutionResult
-from ports.enterprise_information import PreviousSolution, SolutionRecord
-from ports.organisational_context import RoleReference
-from ports.pattern_execution import PatternExecutionRequest, PatternExecutionResult
-from ports.session_factory import SessionReference
-from ports.work_management import WorkReference
+from contracts.capability_discovery import CapabilityCandidate
+from contracts.capability_execution import ExecutionResult
+from contracts.enterprise_information import PreviousSolution, SolutionRecord
+from contracts.organisational_context import RoleReference
+from contracts.pattern_execution import PatternExecutionRequest, PatternExecutionResult
+from contracts.session_factory import SessionReference
+from contracts.work_management import WorkReference
 
 
 class InMemoryCapabilityDiscoveryPort:
@@ -61,7 +61,7 @@ class InMemoryOrganisationalContextPort:
         self._roles: dict[str, RoleReference] = {}
 
     def get_context(self, actor_id: str | None, role_id: str | None) -> Any:
-        from ports.organisational_context import OrganisationalContext
+        from contracts.organisational_context import OrganisationalContext
         return OrganisationalContext(
             current_actor_id=actor_id or self._context.get("current_actor_id"),
             current_role_id=role_id or self._context.get("current_role_id"),

@@ -16,8 +16,8 @@ from ai.tests.fixtures.in_memory_ports import (
     InMemoryEnterpriseInformationPort,
     InMemorySessionFactoryPort,
 )
-from ports.capability_discovery import CapabilityCandidate
-from ports.enterprise_information import PreviousSolution
+from contracts.capability_discovery import CapabilityCandidate
+from contracts.enterprise_information import PreviousSolution
 
 # ---- Intent / recognise (C3) ----------------------------------------------
 

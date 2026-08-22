@@ -52,14 +52,12 @@ def client():
 
 
 def test_execute_capability_endpoint_returns_result(client):
-    with patch("workflow_runner_api._get_chat_service") as mock_get_service:
-        mock_service = MagicMock()
-        mock_service.execute_selected_capability.return_value = MagicMock(
+    with patch("workflow_runner_api._assistant") as mock_assistant:
+        mock_assistant.execute_selected_capability.return_value = MagicMock(
             outputs={"artifact_id": "art-123"},
             artifacts=[],
             telemetry={"capability_name": "create_test_artifact"},
         )
-        mock_get_service.return_value = mock_service
 
         response = client.post(
             "/assistant/capability/cap-exec-1/execute",
@@ -69,21 +67,19 @@ def test_execute_capability_endpoint_returns_result(client):
         data = response.json()
         assert data["outputs"]["artifact_id"] == "art-123"
         assert data["telemetry"]["capability_name"] == "create_test_artifact"
-        mock_service.execute_selected_capability.assert_called_once_with(
+        mock_assistant.execute_selected_capability.assert_called_once_with(
             capability_id="cap-exec-1", context={"label": "foo"}
         )
 
 
 def test_execute_capability_endpoint_defaults_context_to_empty(client):
-    with patch("workflow_runner_api._get_chat_service") as mock_get_service:
-        mock_service = MagicMock()
-        mock_service.execute_selected_capability.return_value = MagicMock(
+    with patch("workflow_runner_api._assistant") as mock_assistant:
+        mock_assistant.execute_selected_capability.return_value = MagicMock(
             outputs={}, artifacts=[], telemetry={}
         )
-        mock_get_service.return_value = mock_service
 
         response = client.post("/assistant/capability/cap-1/execute", json={})
         assert response.status_code == 200
-        mock_service.execute_selected_capability.assert_called_once_with(
+        mock_assistant.execute_selected_capability.assert_called_once_with(
             capability_id="cap-1", context={}
         )

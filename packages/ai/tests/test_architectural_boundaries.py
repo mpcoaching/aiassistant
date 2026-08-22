@@ -12,7 +12,7 @@ import os
 
 
 from chat import AssistantChatService
-from ports import (
+from contracts import (
     CapabilityCandidate,
     CapabilityDiscoveryPort,
     CapabilityExecutionPort,
