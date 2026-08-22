@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from capabilities import Parameter
+from capability import Parameter
 from pydantic import BaseModel, Field
 
 

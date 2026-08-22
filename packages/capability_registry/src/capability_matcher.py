@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from capabilities import Capability
+from capability import Capability
 from enterprise_context import ContextRecord
 from pydantic import BaseModel
 

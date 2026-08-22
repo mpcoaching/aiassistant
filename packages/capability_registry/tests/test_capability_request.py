@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from capability_request import CapabilityRequest
-from capabilities import Parameter
+from capability import Parameter
 from concepts import (
     ConceptKind,
     ConceptStore,

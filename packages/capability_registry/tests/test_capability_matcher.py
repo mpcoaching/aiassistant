@@ -8,6 +8,7 @@ from pathlib import Path
 
 from capability_matcher import HumanSelectionMatcher, MatchResult
 from capabilities import Capability, CapabilityKind, CapabilityRegistry
+from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
 from concepts import ConceptStore
 from enterprise_context import ContextRecord
 
@@ -47,7 +48,7 @@ def test_human_selection_matcher_returns_empty_for_empty_catalog():
 
 def test_capability_registry_list_all(tmp_path: Path):
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
     reg.register(_capability("alpha"))
     reg.register(_capability("beta"))
     all_caps = reg.list_all()
@@ -57,7 +58,7 @@ def test_capability_registry_list_all(tmp_path: Path):
 
 def test_capability_registry_list_all_empty(tmp_path: Path):
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
     assert reg.list_all() == []
 
 

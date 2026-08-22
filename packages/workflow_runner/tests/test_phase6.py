@@ -9,8 +9,9 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from capabilities import CapabilityRegistry
-from chat import AssistantChatService, ChatRequest
+from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
 from concepts import ConceptKind, ConceptStore, EnterpriseConcept
+from chat import AssistantChatService, ChatRequest
 from langgraph_runtime import LangGraphRuntime
 from pathway_runtime import (
     PathwayCallRequest,
@@ -153,7 +154,7 @@ def test_human_input_history_tracked() -> None:
 
 def test_chat_service_returns_previous_solution(tmp_path: Path) -> None:
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
 
     concept = EnterpriseConcept(
         id="sol-previous",
@@ -181,7 +182,7 @@ def test_chat_service_returns_previous_solution(tmp_path: Path) -> None:
 
 def test_chat_service_creates_new_session_when_no_match(tmp_path: Path) -> None:
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
     service = AssistantChatService(concept_store=store, capability_registry=reg)
 
     request = ChatRequest(message="Do something completely novel")
@@ -193,7 +194,7 @@ def test_chat_service_creates_new_session_when_no_match(tmp_path: Path) -> None:
 
 def test_chat_service_resumes_with_human_input(tmp_path: Path) -> None:
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
     runtime = MagicMock(spec=PathwayRuntime)
     runtime.invoke.return_value = PathwayResponse(
         status=PathwayStatus.WAITING,

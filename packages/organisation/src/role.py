@@ -1,11 +1,10 @@
 """
-Organisational role model (Increment 6, corrected Increment 9).
+Organisational role model (Increment 6, corrected Increment 9, Increment 14).
 
 Defines the core domain records for the Organisation/Control plane:
 Role, Authority, Delegation, Work, Assignment, OrgContext.
 
-Person and Agent classes are also defined here as lightweight references,
-but their ownership belongs to the People/Capability plane (ADR-037).
+Person and Agent are imported from People/Capability plane (ADR-037).
 Organisation/Control references Person/Agent by ID only and does not
 store their lifecycle records.
 
@@ -19,6 +18,9 @@ from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+from person import Person
+from agent import Agent
 
 
 class RoleStatus(str, Enum):
@@ -43,12 +45,6 @@ class AssignmentStatus(str, Enum):
     COMPLETED = "completed"
 
 
-class AgentMarker(str, Enum):
-    AI = "ai"
-    HUMAN = "human"
-    HYBRID = "hybrid"
-
-
 class Role(BaseModel):
     """Abstract position with responsibilities, authority, constraints, information access, required capabilities.
 
@@ -65,36 +61,6 @@ class Role(BaseModel):
     reports_to: str | None = None
     status: RoleStatus = RoleStatus.ACTIVE
     required_capability_ids: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class Person(BaseModel):
-    """Human individual with identity and employment context.
-
-    Owned by People/Capability plane (ADR-037). Organisation/Control
-    references Person by ID only (e.g., Work.assignee_person_id).
-    """
-
-    id: str
-    name: str
-    email: str | None = None
-    role_ids: list[str] = Field(default_factory=list)
-    employment_context: dict[str, Any] = Field(default_factory=dict)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class Agent(BaseModel):
-    """Software entity marker/record — no runtime execution logic.
-
-    Owned by People/Capability plane (ADR-037). Organisation/Control
-    references Agent by ID only (e.g., Work.assignee_agent_id).
-    """
-
-    id: str
-    name: str
-    marker: AgentMarker = AgentMarker.AI
-    fulfilled_role_ids: list[str] = Field(default_factory=list)
-    runtime_identity: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -1,9 +1,9 @@
 """
-Capability execution (Increment 2).
+Capability execution (Increment 2, moved to Operations plane in Increment 14).
 
 Provides a single function for executing compiled capabilities.
-Does not create an executor class; execution is a function that
-imports the capability module and invokes its run() entrypoint.
+Execution is an operational concern. The Capability domain model no longer
+carries execution_mode, compiled_ref, or ai_spec. Those live in CapabilityDeployment.
 """
 
 from __future__ import annotations
@@ -11,8 +11,9 @@ from __future__ import annotations
 import importlib
 from typing import Any
 
-from capabilities import Capability, ExecutionMode
-from pydantic import BaseModel
+from capability import Capability
+from capability_deployment import CompiledRef, ExecutionMode
+from pydantic import BaseModel, Field
 
 
 class ExecutionResult(BaseModel):
@@ -23,35 +24,30 @@ class ExecutionResult(BaseModel):
     telemetry: dict[str, Any] = {}
 
 
-def execute_capability(capability: Capability, context: dict[str, Any]) -> ExecutionResult:
+def execute_capability(capability: Capability, context: dict[str, Any], deployment: CompiledRef | None = None) -> ExecutionResult:
     """Execute a compiled capability and return the result.
 
     Args:
-        capability: The capability to execute. Must have execution_mode=compiled.
+        capability: The capability to execute.
         context: Execution context dict passed to the capability's run() function.
+        deployment: Optional CompiledRef with module_path and entrypoint.
 
     Returns:
         ExecutionResult with outputs, artifacts, and telemetry.
 
     Raises:
-        ValueError: If capability execution_mode is not compiled.
+        ValueError: If capability cannot be executed.
         FileNotFoundError: If the capability module cannot be imported.
         AttributeError: If the capability module lacks a run() callable.
     """
-    if capability.execution_mode != ExecutionMode.COMPILED:
+    if deployment is None:
         raise ValueError(
-            f"Unsupported execution mode: {capability.execution_mode}. "
-            "Only compiled capabilities can be executed in this slice."
+            "execute_capability requires a CompiledRef deployment. "
+            "Pass deployment from CapabilityDeployment.compiled_ref."
         )
 
-    if capability.compiled_ref is None:
-        raise ValueError(
-            f"Capability {capability.name} has no compiled_ref. "
-            "Register the capability with a compiled module path before execution."
-        )
-
-    module_path = capability.compiled_ref.module_path
-    entrypoint = capability.compiled_ref.entrypoint or "run"
+    module_path = deployment.module_path
+    entrypoint = deployment.entrypoint or "run"
 
     try:
         module = importlib.import_module(module_path)
@@ -74,7 +70,7 @@ def execute_capability(capability: Capability, context: dict[str, Any]) -> Execu
         telemetry={
             "capability_id": capability.id,
             "capability_name": capability.name,
-            "execution_mode": capability.execution_mode.value,
+            "execution_mode": ExecutionMode.COMPILED.value,
             "module_path": module_path,
         },
     )

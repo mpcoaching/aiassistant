@@ -16,15 +16,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from capabilities import (
-    AiSpec,
-    Capability,
-    CapabilityInterface,
-    CapabilityKind,
-    CapabilityRegistry,
-    Parameter,
-)
+from capabilities import CapabilityRegistry
+from capability import Capability, CapabilityInterface, CapabilityKind, Parameter
+from capability_deployment import AiSpec
 from concepts import ConceptStore
+from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
 
 
 def _ai_spec() -> AiSpec:
@@ -66,7 +62,7 @@ def _capability(name: str, kind: CapabilityKind = CapabilityKind.TOOL, **kw) -> 
 # ---- register / get / resolve ----------------------------------------------
 
 def test_register_and_get(tmp_path: Path) -> None:
-    reg = CapabilityRegistry(ConceptStore(data_dir=str(tmp_path)))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
     cap = _capability("work_session", owns_durable_state=True, standing_contract=True)
     reg.register(cap)
     got = reg.get(cap.id)
@@ -76,7 +72,7 @@ def test_register_and_get(tmp_path: Path) -> None:
 
 
 def test_resolve_by_name_and_kind(tmp_path: Path) -> None:
-    reg = CapabilityRegistry(ConceptStore(data_dir=str(tmp_path)))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
     reg.register(_capability("enrich", kind=CapabilityKind.TOOL))
     reg.register(_capability("summarise", kind=CapabilityKind.SKILL))
     resolved = reg.resolve("enrich", CapabilityKind.TOOL)
@@ -87,12 +83,12 @@ def test_resolve_by_name_and_kind(tmp_path: Path) -> None:
 
 
 def test_resolve_missing_returns_none(tmp_path: Path) -> None:
-    reg = CapabilityRegistry(ConceptStore(data_dir=str(tmp_path)))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
     assert reg.resolve("nope", CapabilityKind.TOOL) is None
 
 
 def test_list_capabilities(tmp_path: Path) -> None:
-    reg = CapabilityRegistry(ConceptStore(data_dir=str(tmp_path)))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
     reg.register(_capability("a"))
     reg.register(_capability("b"))
     assert {c.name for c in reg.list()} == {"a", "b"}
@@ -101,7 +97,7 @@ def test_list_capabilities(tmp_path: Path) -> None:
 # ---- strict persistence ------------------------------------------------------
 
 def test_register_strict_persistence_raises(tmp_path: Path) -> None:
-    reg = CapabilityRegistry(ConceptStore(data_dir=str(tmp_path)))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
     tmp_path.chmod(0o000)
     try:
         with pytest.raises(OSError):
@@ -113,7 +109,7 @@ def test_register_strict_persistence_raises(tmp_path: Path) -> None:
 # ---- maturation / promotion (C2) -------------------------------------------
 
 def test_record_invocation_updates_maturation(tmp_path: Path) -> None:
-    reg = CapabilityRegistry(ConceptStore(data_dir=str(tmp_path)))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
     cap = _capability("y")
     reg.register(cap)
     reg.record_invocation(cap.id, "success")
@@ -125,7 +121,7 @@ def test_record_invocation_updates_maturation(tmp_path: Path) -> None:
 
 
 def test_promote_sets_compiled(tmp_path: Path) -> None:
-    reg = CapabilityRegistry(ConceptStore(data_dir=str(tmp_path)))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
     cap = _capability("z", execution_mode="ai_mediated")
     reg.register(cap)
     reg.promote(cap.id, compiled_ref_path="agentic/skills/_compiled/z.py")
@@ -141,7 +137,7 @@ def test_skillrecord_maps_to_capability(tmp_path: Path) -> None:
     # Mirror registry.SkillRecord shape (prompt|code|distilled tiers)
     from registry import SkillRecord
 
-    reg = CapabilityRegistry(ConceptStore(data_dir=str(tmp_path)))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
     prompt_rec = SkillRecord(name="draft_idea", kind="skill", implementation="prompt")
     code_rec = SkillRecord(name="run_test", kind="tool", implementation="code")
     distilled_rec = SkillRecord(name="pci_sop", kind="workflow", implementation="distilled")
@@ -165,7 +161,7 @@ def test_skillrecord_maps_to_capability(tmp_path: Path) -> None:
 # ---- three business services register as capabilities (C7 / P1.6) ----------
 
 def test_business_services_register_as_capabilities(tmp_path: Path) -> None:
-    reg = CapabilityRegistry(ConceptStore(data_dir=str(tmp_path)))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(ConceptStore(data_dir=str(tmp_path))))
     for name in ("work_session", "task_tracking", "lead_enrichment"):
         cap = _capability(name, owns_durable_state=True, standing_contract=True)
         reg.register(cap)

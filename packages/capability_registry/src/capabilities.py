@@ -1,127 +1,51 @@
 """
 Capability Registry service (Phase 1, contracts C2 / C7 / P1.2 / P1.3 / P1.6).
 
-A **Capability** is an ``EnterpriseConcept`` with ``kind=capability`` whose payload
-is a ``CapabilityPayload``. This module is the unified Capability Registry: one
-record type for tools, skills, and the business Services (Work Session, Task
-Tracking, Lead Enrichment), all of which are Capabilities in the model.
+A **Capability** is defined in the People/Capability domain. This module is the
+Capability Registry: it provides registration, retrieval, listing, resolution,
+and domain maturation (promote). Execution metadata belongs to Operations
+(CapabilityDeployment in workflow_runner).
 
-It extends the existing ``registry.py`` ``SkillRecord`` vocabulary
-(``prompt | code | distilled``) by mapping to ``execution_mode``
-(``ai_mediated | compiled``) and to a single ``kind: tool | skill`` type system
-(anchor §10). A migration adapter ``register_from_skill_record`` loads existing
-skills/tools/workflows as Capabilities without changing their callers.
-
-Persistence is provided by ``ConceptStore`` (Postgres + strict file fallback).
+Persistence is provided by CapabilityRepository (injected dependency).
 """
 
 from __future__ import annotations
 
 import builtins
 from datetime import datetime, timezone
-from enum import Enum
+from typing import Any
 
-from concepts import ConceptKind, ConceptStore, EnterpriseConcept, MaturationHistory
+from capability import Capability, CapabilityKind, CapabilityStatus
+from concepts import ConceptKind
 from pydantic import BaseModel, Field
 
 
-class CapabilityKind(str, Enum):
-    TOOL = "tool"
-    SKILL = "skill"
-
-
-class ExecutionMode(str, Enum):
-    AI_MEDIATED = "ai_mediated"
-    COMPILED = "compiled"
-
-
-class Transport(str, Enum):
-    TIER2_INPROCESS = "tier2_inprocess"
-    TIER3_BUS = "tier3_bus"
-
-
-class Parameter(BaseModel):
-    name: str
-    type: str
-    required: bool = True
-    description: str = ""
-
-
-class AiSpec(BaseModel):
-    """Present when execution_mode = ai_mediated."""
-
-    purpose: str = ""
-    inputs: list[Parameter] = Field(default_factory=list)
-    outputs: list[Parameter] = Field(default_factory=list)
-    constraints: list[str] = Field(default_factory=list)
-    prompt_template_ref: str | None = None
-
-
-class CompiledRef(BaseModel):
-    """Present when execution_mode = compiled."""
-
-    module_path: str
-    entrypoint: str = "run"
-    tests_passed: bool = False
-
-
-class CapabilityInterface(BaseModel):
-    inputs: list[Parameter] = Field(default_factory=list)
-    outputs: list[Parameter] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-
-
-class Capability(EnterpriseConcept):
-    """An EnterpriseConcept with kind=capability and a CapabilityPayload."""
-
-    kind: ConceptKind = Field(default=ConceptKind.CAPABILITY)
-    capability_kind: CapabilityKind = CapabilityKind.TOOL
-    execution_mode: ExecutionMode = ExecutionMode.AI_MEDIATED
-    ai_spec: AiSpec | None = None
-    compiled_ref: CompiledRef | None = None
-    transport: Transport = Transport.TIER3_BUS
-    interface: CapabilityInterface = Field(default_factory=CapabilityInterface)
-    owns_durable_state: bool = False
-    standing_contract: bool = False
-
-
 class CapabilityRegistry:
-    """Single registry for all Capabilities (tools, skills, Services)."""
+    """Domain catalog for Capabilities (tools, skills, Services)."""
 
-    def __init__(self, store: ConceptStore | None = None) -> None:
-        self._store = store or ConceptStore()
+    def __init__(self, repository: Any | None = None) -> None:
+        self._repository = repository
 
     # ---- authoring ----
 
     def register(self, capability: Capability) -> Capability:
-        if capability.kind != ConceptKind.CAPABILITY:
-            raise ValueError("CapabilityRegistry only registers kind=capability")
-        self._store.upsert(capability)
+        if self._repository is not None:
+            self._repository.upsert_capability(capability)
         return capability
 
-    def register_from_skill_record(self, rec) -> Capability:
-        """Migration adapter: load an existing ``registry.SkillRecord`` as a Capability.
-
-        Mapping (C2):
-          prompt   -> execution_mode=ai_mediated
-          code     -> execution_mode=compiled
-          distilled -> execution_mode=compiled
-          skill    -> capability_kind=skill
-          tool     -> capability_kind=tool
-          workflow -> exposed as capability_kind=tool (a workflow is a tool capability)
-        """
+    def register_from_skill_record(self, rec: Any) -> Capability:
         impl_to_mode = {
-            "prompt": ExecutionMode.AI_MEDIATED,
-            "code": ExecutionMode.COMPILED,
-            "distilled": ExecutionMode.COMPILED,
+            "prompt": "ai_mediated",
+            "code": "compiled",
+            "distilled": "compiled",
         }
         kind_to_cap = {
             "skill": CapabilityKind.SKILL,
             "tool": CapabilityKind.TOOL,
             "workflow": CapabilityKind.TOOL,
         }
-        mode = impl_to_mode.get(getattr(rec, "implementation", "prompt"), ExecutionMode.AI_MEDIATED)
-        cap_kind = kind_to_cap.get(getattr(rec, "kind", "skill"), CapabilityKind.SKILL)
+        mode = impl_to_mode.get(getattr(rec, "implementation", "prompt"), "ai_mediated")
+        cap_kind = kind_to_cap.get(getattr(rec, "kind", "skill"), CapabilityKind.TOOL)
         cap = Capability(
             id=f"cap-{rec.name}",
             name=rec.name,
@@ -131,20 +55,22 @@ class CapabilityRegistry:
             created_at=datetime.now(timezone.utc),
             tags=[cap_kind.value],
             capability_kind=cap_kind,
-            execution_mode=mode,
-            ai_spec=AiSpec(purpose=getattr(rec, "description", "") or "") if mode == ExecutionMode.AI_MEDIATED else None,
-            transport=Transport.TIER3_BUS,
+            payload={"execution_mode": mode},
         )
         return self.register(cap)
 
     # ---- accessors ----
 
     def get(self, capability_id: str) -> Capability | None:
-        concept = self._store.get(capability_id)
-        return concept if isinstance(concept, Capability) else None
+        if self._repository is None:
+            return None
+        return self._repository.get_capability(capability_id)
 
     def list(self) -> builtins.list[Capability]:
-        return [c for c in self._store.list_by_kind(ConceptKind.CAPABILITY) if isinstance(c, Capability)]
+        if self._repository is None:
+            return []
+        return self._repository.list_capabilities()
+
     def list_all(self) -> builtins.list[Capability]:
         return self.list()
 
@@ -156,19 +82,14 @@ class CapabilityRegistry:
 
     # ---- lifecycle ----
 
-    def record_invocation(self, capability_id: str, outcome: str = "success") -> None:
-        self._store.record_invocation(capability_id, outcome)
-
-    def promote(self, capability_id: str, compiled_ref_path: str | None = None) -> Capability:
+    def promote(self, capability_id: str) -> Capability:
         cap = self.get(capability_id)
         if cap is None:
             raise KeyError(f"Capability not found: {capability_id}")
-        cap.execution_mode = ExecutionMode.COMPILED
-        if compiled_ref_path is not None:
-            cap.compiled_ref = CompiledRef(module_path=compiled_ref_path, tests_passed=True)
         history = cap.payload.get("maturation_history") or {}
-        history_obj = MaturationHistory(**history)
-        history_obj.promoted_at = datetime.now(timezone.utc)
-        cap.payload["maturation_history"] = history_obj.model_dump()
-        self._store.upsert(cap)
+        history["promoted_at"] = datetime.now(timezone.utc).isoformat()
+        cap.payload["maturation_history"] = history
+        cap.status = CapabilityStatus.ACTIVE
+        if self._repository is not None:
+            self._repository.upsert_capability(cap)
         return cap

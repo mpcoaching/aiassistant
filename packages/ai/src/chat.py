@@ -16,10 +16,11 @@ from typing import Any
 
 from assistant import AssistantReasoningService, StrategyDecision
 from capability_matcher import CapabilityMatcher, HumanSelectionMatcher
-from capabilities import CapabilityRegistry, ConceptStore
+from capabilities import CapabilityRegistry
+from concepts import ConceptStore
 from concepts import ConceptKind, EnterpriseConcept
 from enterprise_context import ContextRecord
-from executor import ExecutionResult, execute_capability
+from workflow_runner.src.executor import ExecutionResult, execute_capability
 from intent import Intent, IntentOrigin, ProblemFrame, recognise
 from pathway_runtime import (
     PathwayCallRequest,
@@ -248,7 +249,7 @@ class AssistantChatService:
                     "name": cap.name,
                     "description": cap.description,
                     "kind": cap.capability_kind.value,
-                    "execution_mode": cap.execution_mode.value,
+                    "execution_mode": cap.payload.get("execution_mode", "ai_mediated"),
                     "tags": cap.tags,
                 }
                 for cap in candidates

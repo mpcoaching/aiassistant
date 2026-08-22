@@ -9,9 +9,12 @@ from pathlib import Path
 
 import pytest
 
-from capabilities import Capability, CapabilityKind, CapabilityRegistry, CompiledRef, ExecutionMode, Transport
+from capabilities import CapabilityRegistry
+from capability import Capability, CapabilityKind
+from capability_deployment import CompiledRef, ExecutionMode, Transport
+from workflow_runner.src.executor import execute_capability, ExecutionResult
 from concepts import ConceptKind, ConceptStore
-from capability_registry.src.executor import execute_capability
+from workflow_runner.src.executor import execute_capability, ExecutionResult
 
 
 def _register_create_test_artifact(tmp_path: Path):

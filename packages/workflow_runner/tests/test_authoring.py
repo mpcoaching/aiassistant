@@ -9,14 +9,11 @@ from pathlib import Path
 
 import pytest
 from assistant import StrategyDecision
-from capabilities import (
-    AiSpec,
-    Capability,
-    CapabilityKind,
-    CapabilityRegistry,
-    ConceptStore,
-    ExecutionMode,
-)
+from capability import Capability, CapabilityKind
+from capabilities import CapabilityRegistry
+from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
+from concepts import ConceptStore
+from capability_deployment import AiSpec, CapabilityDeployment, ExecutionMode, Transport
 from strategy import ReasoningStrategy
 
 from mcp_server import mcp
@@ -108,15 +105,12 @@ def test_validation_session_creation(tmp_path: Path) -> None:
 
 def test_validation_session_invokes_architecture_review(tmp_path: Path) -> None:
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
 
     cap = Capability(
         id="cap-arch-review",
         name="architecture_review",
         capability_kind=CapabilityKind.SKILL,
-        execution_mode=ExecutionMode.AI_MEDIATED,
-        transport="tier2_inprocess",
-        ai_spec=AiSpec(purpose="review architecture", inputs=[], outputs=[]),
         interface={
             "inputs": [{"name": "design", "type": "object"}],
             "outputs": [{"name": "findings", "type": "array"}],
@@ -125,8 +119,15 @@ def test_validation_session_invokes_architecture_review(tmp_path: Path) -> None:
     )
     reg.register(cap)
 
+    deployment = CapabilityDeployment(
+        capability_id=cap.id,
+        environment="test",
+        execution_mode=ExecutionMode.AI_MEDIATED,
+        transport=Transport.TIER2_INPROCESS,
+        ai_spec=AiSpec(purpose="review architecture", inputs=[], outputs=[]),
+    )
     runtime = PatternRuntime(registry=reg)
-    reply = runtime.invoke_step(cap.id, {"design": {"name": "test"}})
+    reply = runtime.invoke_step(cap.id, {"design": {"name": "test"}}, deployment=deployment)
     assert reply["status"] == "completed"
     assert "composed_prompt" in reply["outputs"]
 

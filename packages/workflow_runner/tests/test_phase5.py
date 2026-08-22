@@ -6,7 +6,10 @@ Contracts: SA-CONTRACTS-PHASES-2-5.md C12, C13.
 
 from pathlib import Path
 
-from capabilities import Capability, CapabilityKind, CapabilityRegistry, ExecutionMode
+from capability import Capability, CapabilityKind
+from capabilities import CapabilityRegistry
+from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
+from capability_deployment import ExecutionMode, ExecutionMode
 from concepts import ConceptStore
 from knowledge import KnowledgeChunk, KnowledgeStore, route_by_tags
 from tokens import TokenEconomics, TokenUsage
@@ -15,7 +18,7 @@ from tokens import TokenEconomics, TokenUsage
 
 def test_session_close_records_learnings(tmp_path: Path) -> None:
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
 
     cap = Capability(
         id="cap-learn",
@@ -37,7 +40,7 @@ def test_session_close_records_learnings(tmp_path: Path) -> None:
 
 def test_learning_loop_promotes_capability_after_threshold(tmp_path: Path) -> None:
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
 
     cap = Capability(
         id="cap-promote",

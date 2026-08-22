@@ -7,7 +7,10 @@ Contracts: SA-CONTRACTS-PHASES-2-5.md C10, C7.
 from pathlib import Path
 
 from assistant import StrategyDecision
-from capabilities import AiSpec, Capability, CapabilityKind, CapabilityRegistry, ExecutionMode
+from capability import Capability, CapabilityKind
+from capabilities import CapabilityRegistry
+from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
+from capability_deployment import AiSpec, ExecutionMode
 from concepts import ConceptStore
 from strategy import ReasoningStrategy
 
@@ -44,7 +47,7 @@ def test_create_session_sets_intent_and_strategy(tmp_path: Path) -> None:
 
 def test_invoke_step_tier2_calls_run_directly(tmp_path: Path) -> None:
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
     cap = Capability(
         id="cap-echo",
         name="echo",
@@ -68,7 +71,7 @@ def test_invoke_step_tier2_calls_run_directly(tmp_path: Path) -> None:
 
 def test_invoke_step_tier3_returns_capability_reply(tmp_path: Path) -> None:
     store = ConceptStore(data_dir=str(tmp_path))
-    reg = CapabilityRegistry(store)
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
     cap = Capability(
         id="cap-bus",
         name="bus_tool",

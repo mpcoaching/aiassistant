@@ -16,7 +16,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from assistant import AssistantReasoningService
-from capabilities import AiSpec, Capability, CapabilityKind, CapabilityRegistry, ExecutionMode
+from capability import Capability, CapabilityKind
+from capabilities import CapabilityRegistry
+from capability_deployment import AiSpec, ExecutionMode
 from concepts import ConceptStore
 from fastapi.testclient import TestClient
 from intent import Intent, IntentOrigin

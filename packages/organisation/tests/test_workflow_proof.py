@@ -370,14 +370,13 @@ def test_role_is_not_agent() -> None:
 
 def test_capability_is_not_agent() -> None:
     """Capability is ability, not executor."""
-    from capabilities import Capability, CapabilityKind, ExecutionMode
+    from capability import Capability, CapabilityKind
 
     cap = Capability(
         id="cap-1",
         kind=ConceptKind.CAPABILITY,
         name="Coding",
         capability_kind=CapabilityKind.SKILL,
-        execution_mode=ExecutionMode.AI_MEDIATED,
     )
     agent = Agent(id="a1", name="DevBot")
     assert cap.id != agent.id
