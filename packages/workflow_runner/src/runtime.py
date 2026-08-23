@@ -15,7 +15,9 @@ from typing import Any
 
 from capabilities import CapabilityRegistry
 from capability import Capability
+from contracts.capability_execution import ExecutionResult
 from execution_authorisation import ExecutionAuthorisationPort
+from invocation_recorder import InvocationRecorder
 
 from bus import CapabilityReply, CapabilityRequest, EventBus
 from capability_deployment import CapabilityDeployment, ExecutionMode, Transport
@@ -31,10 +33,12 @@ class PatternRuntime:
         registry: CapabilityRegistry,
         bus: EventBus | None = None,
         authorisation_port: ExecutionAuthorisationPort | None = None,
+        invocation_recorder: InvocationRecorder | None = None,
     ) -> None:
         self._registry = registry
         self._bus = bus
         self._authorisation_port = authorisation_port
+        self._invocation_recorder = invocation_recorder
 
     def invoke_step(
         self,
@@ -52,9 +56,12 @@ class PatternRuntime:
 
         authorisation_error = self._check_authorisation(capability_id, actor_context)
         if authorisation_error:
+            self._record_invocation(capability_id, authorisation_error, actor_context)
             return authorisation_error
 
-        return self._invoke_with_deployment(cap, deployment, inputs)
+        result = self._invoke_with_deployment(cap, deployment, inputs)
+        self._record_invocation(capability_id, result, actor_context)
+        return result
 
     def _check_authorisation(self, capability_id: str, actor_context: dict[str, Any] | None) -> dict[str, Any] | None:
         if self._authorisation_port is None or actor_context is None:
@@ -71,6 +78,19 @@ class PatternRuntime:
                 "telemetry": {"authorisation": result.reason},
             }
         return None
+
+    def _record_invocation(self, capability_id: str, result: dict[str, Any], actor_context: dict[str, Any] | None) -> None:
+        if self._invocation_recorder is None:
+            return
+        telemetry = dict(result.get("telemetry", {}))
+        if "error" not in telemetry and "error" in result:
+            telemetry["error"] = result["error"]
+        execution_result = ExecutionResult(
+            outputs=result.get("outputs", {}),
+            artifacts=result.get("artifacts", []),
+            telemetry=telemetry,
+        )
+        self._invocation_recorder.record_invocation(capability_id, execution_result, actor_context)
 
     def _invoke_with_deployment(self, cap: Capability, deployment: CapabilityDeployment, inputs: dict[str, Any]) -> dict[str, Any]:
         if deployment.transport == Transport.TIER2_INPROCESS:

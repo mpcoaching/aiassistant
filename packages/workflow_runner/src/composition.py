@@ -62,16 +62,22 @@ def create_application() -> dict[str, Any]:
     from capability_matcher import HumanSelectionMatcher
     from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
     from concepts import ConceptStore
+    from contracts.capability_outcome_assessor import CapabilityOutcomeAssessor
     from execution_authorisation import ExecutionAuthorisationPort
     from execution_authorisation_adapter import InMemoryExecutionAuthorisationPort
+    from invocation_recorder import InvocationRecorder
     from langgraph_runtime import LangGraphRuntime
 
     from adapters.capability_execution_adapter import CapabilityExecutionAdapter
+    from adapters.invocation_recorder_adapter import InvocationRecorderAdapter
     from adapters.pattern_execution_adapter import PatternExecutionAdapter
     from adapters.session_factory_adapter import SessionFactoryAdapter
     from capability_deployment import CapabilityDeployment
     from deployment_resolver import DeploymentNotFoundError, DeploymentResolver
     from runtime import PatternRuntime
+    from workflow_runner.src.adapters.capability_outcome_assessor_adapter import (
+        CapabilityOutcomeAssessorAdapter,
+    )
 
     store = ConceptStore()
     repository = ConceptStoreCapabilityRepository(store)
@@ -81,6 +87,11 @@ def create_application() -> dict[str, Any]:
     discovery = CapabilityDiscoveryAdapter(registry=registry, matcher=matcher)
 
     authorisation_port: ExecutionAuthorisationPort = InMemoryExecutionAuthorisationPort()
+    outcome_assessor: CapabilityOutcomeAssessor = CapabilityOutcomeAssessorAdapter()
+    invocation_recorder: InvocationRecorder = InvocationRecorderAdapter(
+        store=store,
+        outcome_assessor=outcome_assessor,
+    )
     resolver = DeploymentResolver()
 
     def deployment_factory(capability: Capability) -> CapabilityDeployment | None:
@@ -93,11 +104,13 @@ def create_application() -> dict[str, Any]:
         registry=registry,
         deployment_factory=deployment_factory,
         authorisation_port=authorisation_port,
+        invocation_recorder=invocation_recorder,
     )
 
     PatternRuntime(
         registry=registry,
         authorisation_port=authorisation_port,
+        invocation_recorder=invocation_recorder,
     )
     langgraph_runtime = LangGraphRuntime()
     pattern_execution = PatternExecutionAdapter(runtime=langgraph_runtime)
