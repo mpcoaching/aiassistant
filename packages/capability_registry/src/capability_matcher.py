@@ -22,6 +22,7 @@ class MatchResult(BaseModel):
     confidence: float
     matcher_id: str
     rationale: str = ""
+    candidate_confidences: dict[str, float] = {}
 
 
 @runtime_checkable

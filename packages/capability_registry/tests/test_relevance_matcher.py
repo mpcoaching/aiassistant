@@ -143,3 +143,37 @@ def test_deterministic_ordering() -> None:
     result = matcher.match("alpha beta", ContextRecord(), caps)
     names = [cap.name for cap in result.candidates]
     assert names == sorted(names)
+
+
+def test_candidate_confidences_populated() -> None:
+    matcher = RelevanceMatcher()
+    caps = [
+        _capability("create_test_artifact", description="Creates a test artifact", tags=["test"]),
+        _capability("send_email", description="Sends an email notification", tags=["email"]),
+    ]
+    result = matcher.match("create artifact email", ContextRecord(), caps)
+    assert len(result.candidate_confidences) == len(result.candidates)
+    assert all(cap.id in result.candidate_confidences for cap in result.candidates)
+
+
+def test_candidate_confidences_aligns_with_candidates() -> None:
+    matcher = RelevanceMatcher()
+    caps = [
+        _capability("create_test_artifact", description="Creates a test artifact", tags=["test"]),
+        _capability("send_email", description="Sends an email notification", tags=["email"]),
+    ]
+    result = matcher.match("create artifact email", ContextRecord(), caps)
+    candidate_ids = [cap.id for cap in result.candidates]
+    assert list(result.candidate_confidences.keys()) == candidate_ids
+
+
+def test_candidate_confidences_excludes_unmatched() -> None:
+    matcher = RelevanceMatcher()
+    caps = [
+        _capability("create_test_artifact", description="Creates a test artifact", tags=["test"]),
+        _capability("send_email", description="Sends an email notification", tags=["email"]),
+    ]
+    result = matcher.match("create artifact email", ContextRecord(), caps)
+    for cap in result.candidates:
+        assert cap.id in result.candidate_confidences
+        assert result.candidate_confidences[cap.id] > 0.0

@@ -151,6 +151,7 @@ def _make_capability_candidates() -> list[CapabilityCandidate]:
             kind="tool",
             tags=["test", "artifact"],
             execution_mode="compiled",
+            confidence=1.0,
         )
     ]
 
@@ -172,13 +173,10 @@ def test_chat_executes_single_capability_and_returns_result() -> None:
     request = ChatRequest(message="Create a test artifact")
     response = service.chat(request)
 
-    assert response.status == "completed"
-    assert response.execution_outputs is not None
-    assert response.execution_outputs["result"] == "artifact-created"
-    assert response.execution_artifacts == ["artifact-123"]
-    assert "create_test_artifact" in response.message
-    assert len(execution.executed) == 1
-    assert execution.executed[0]["capability_id"] == "cap-create_test_artifact"
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert response.capability_candidates[0]["id"] == "cap-create_test_artifact"
 
 
 def test_chat_create_test_artifact_executes_when_single_candidate() -> None:
@@ -192,9 +190,10 @@ def test_chat_create_test_artifact_executes_when_single_candidate() -> None:
     request = ChatRequest(message="Create a test artifact")
     response = service.chat(request)
 
-    assert response.status == "completed"
-    assert response.capability_candidates is None
-    assert len(execution.executed) == 1
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert len(execution.executed) == 0
 
 
 def test_chat_capability_selection_presents_multiple_candidates() -> None:
@@ -225,6 +224,21 @@ def test_chat_capability_selection_presents_multiple_candidates() -> None:
     assert response.capability_candidates is not None
     assert len(response.capability_candidates) == 2
     assert "select one to proceed" in response.message.lower()
+    assert response.telemetry.get("interaction") == "select"
+
+
+def test_chat_single_candidate_asks_for_confirmation() -> None:
+    candidates = _make_capability_candidates()
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    service = AssistantChatService(capability_discovery=discovery)
+    request = ChatRequest(message="Create a test artifact")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert "shall i proceed" in response.message.lower()
+    assert response.telemetry.get("interaction") == "confirm"
 
 
 def test_chat_capability_single_candidate_execution_result_formatting() -> None:
@@ -244,9 +258,10 @@ def test_chat_capability_single_candidate_execution_result_formatting() -> None:
     request = ChatRequest(message="Create a test artifact")
     response = service.chat(request)
 
-    assert response.status == "completed"
-    assert "Executed create_test_artifact" in response.message
-    assert "Done" in response.message
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert len(execution.executed) == 0
 
 
 def test_chat_capability_execution_reports_failure() -> None:
@@ -266,9 +281,10 @@ def test_chat_capability_execution_reports_failure() -> None:
     request = ChatRequest(message="Create a test artifact")
     response = service.chat(request)
 
-    assert response.status == "failed"
-    assert "Execution failed" in response.message
-    assert "module_not_found" in response.message
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert len(execution.executed) == 0
 
 
 def test_chat_falls_through_without_capabilities() -> None:
@@ -317,10 +333,36 @@ def test_chat_capability_execution_includes_metadata_in_telemetry() -> None:
     request = ChatRequest(message="Create a test artifact")
     response = service.chat(request)
 
-    assert response.status == "completed"
-    assert response.telemetry["capability_id"] == "cap-create_test_artifact"
-    assert response.telemetry["capability_name"] == "create_test_artifact"
-    assert response.telemetry["execution_mode"] == "compiled"
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert response.capability_candidates[0]["id"] == "cap-create_test_artifact"
+    assert response.capability_candidates[0]["name"] == "create_test_artifact"
+    assert response.capability_candidates[0]["execution_mode"] == "compiled"
+    assert len(execution.executed) == 0
+
+
+def test_chat_weak_single_candidate_asks_user_instead_of_executing() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-create_test_artifact",
+            name="create_test_artifact",
+            description="Creates a test artifact record",
+            kind="tool",
+            tags=["test", "artifact"],
+            execution_mode="compiled",
+            confidence=0.1,
+        )
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    service = AssistantChatService(capability_discovery=discovery)
+    request = ChatRequest(message="create something vague")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert response.telemetry.get("interaction") == "confirm"
 
 
 def test_chat_service_returns_previous_solution() -> None:

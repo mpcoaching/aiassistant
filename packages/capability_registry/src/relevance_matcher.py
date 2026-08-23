@@ -67,11 +67,13 @@ class RelevanceMatcher:
 
         candidates = [cap for _, _, cap in scored]
         confidence = scored[0][0] if scored else 0.0
+        candidate_confidences = {cap.id: score for score, _, cap in scored}
 
         return MatchResult(
             candidates=candidates,
             confidence=confidence,
             matcher_id=self.matcher_id,
+            candidate_confidences=candidate_confidences,
             rationale=f"Matched {len(candidates)} capabilities by keyword relevance",
         )
 

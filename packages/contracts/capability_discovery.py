@@ -9,6 +9,7 @@ class CapabilityCandidate(BaseModel):
     kind: str
     tags: list[str] = []
     execution_mode: str = "ai_mediated"
+    confidence: float = 0.0
 
 
 class CapabilityDiscoveryPort(Protocol):
