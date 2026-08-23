@@ -16,9 +16,17 @@ from concepts import ConceptStore
 from strategy import ReasoningStrategy
 
 from capability_deployment import AiSpec, CapabilityDeployment, ExecutionMode, Transport
-from mcp_server import mcp
+from mcp_server import mcp, setup_authoring_registry
 from runtime import PatternRuntime
 from session import SessionStatus, create_session_from_decision
+
+
+@pytest.fixture(autouse=True)
+def _setup_authoring_registry(tmp_path: Path):
+    store = ConceptStore(data_dir=str(tmp_path))
+    reg = CapabilityRegistry(ConceptStoreCapabilityRepository(store))
+    setup_authoring_registry(reg)
+    yield
 
 # ---- Service Authoring MCP tools (C11) -------------------------------------
 

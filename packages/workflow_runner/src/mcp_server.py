@@ -55,9 +55,13 @@ mcp = FastMCP("workflow_runner")
 _AUTHORING_DATA_DIR = os.getenv("AUTHORING_DATA_DIR", tempfile.mkdtemp(prefix="mcp-authoring-"))
 from capabilities import CapabilityRegistry
 from capability import Capability, CapabilityInterface, CapabilityKind
-from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
 
-_authoring_registry = CapabilityRegistry(ConceptStoreCapabilityRepository(__import__("concepts").ConceptStore(data_dir=_AUTHORING_DATA_DIR)))
+_authoring_registry: CapabilityRegistry | None = None
+
+
+def setup_authoring_registry(registry: CapabilityRegistry) -> None:
+    global _authoring_registry
+    _authoring_registry = registry
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +224,8 @@ def create_service(design: dict[str, Any]) -> str:
             owns_durable_state=True,
             standing_contract=True,
         )
+        if _authoring_registry is None:
+            return json.dumps({"status": "failed", "error": "Authoring registry not configured"})
         _authoring_registry.register(capability)
         return json.dumps({"status": "created", "capability_id": capability.id, "name": capability.name})
     except Exception as exc:  # noqa: BLE001
@@ -228,6 +234,8 @@ def create_service(design: dict[str, Any]) -> str:
 
 @mcp.tool(name="compile_capability", description="Compile a capability to an executable module. Returns the module path.")
 def compile_capability(capability_id: str, entrypoint: str = "run") -> str:
+    if _authoring_registry is None:
+        return json.dumps({"status": "failed", "error": "Authoring registry not configured"})
     cap = _authoring_registry.get(capability_id)
     if cap is None:
         return json.dumps({"status": "failed", "error": f"Capability not found: {capability_id}"})
@@ -238,6 +246,8 @@ def compile_capability(capability_id: str, entrypoint: str = "run") -> str:
 
 @mcp.tool(name="list_services", description="List all registered service capabilities.")
 def list_services() -> str:
+    if _authoring_registry is None:
+        return json.dumps({"status": "failed", "error": "Authoring registry not configured"})
     capabilities = _authoring_registry.list()
     items = [
         {

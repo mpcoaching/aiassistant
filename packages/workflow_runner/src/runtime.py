@@ -15,6 +15,7 @@ from typing import Any
 
 from capabilities import CapabilityRegistry
 from capability import Capability
+from execution_authorisation import ExecutionAuthorisationPort
 
 from bus import CapabilityReply, CapabilityRequest, EventBus
 from capability_deployment import CapabilityDeployment, ExecutionMode, Transport
@@ -25,11 +26,23 @@ logger = logging.getLogger("workflow-engine.runtime")
 class PatternRuntime:
     """Executes pattern steps as Capability invocations."""
 
-    def __init__(self, registry: CapabilityRegistry | None = None, bus: EventBus | None = None) -> None:
-        self._registry = registry or CapabilityRegistry()
+    def __init__(
+        self,
+        registry: CapabilityRegistry,
+        bus: EventBus | None = None,
+        authorisation_port: ExecutionAuthorisationPort | None = None,
+    ) -> None:
+        self._registry = registry
         self._bus = bus
+        self._authorisation_port = authorisation_port
 
-    def invoke_step(self, capability_id: str, inputs: dict[str, Any], deployment: CapabilityDeployment | None = None) -> dict[str, Any]:
+    def invoke_step(
+        self,
+        capability_id: str,
+        inputs: dict[str, Any],
+        deployment: CapabilityDeployment | None = None,
+        actor_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         cap = self._registry.get(capability_id)
         if cap is None:
             return {"status": "failed", "error": f"Capability not found: {capability_id}"}
@@ -37,7 +50,27 @@ class PatternRuntime:
         if deployment is None:
             return {"status": "failed", "error": "CapabilityDeployment required for execution. Pass deployment to invoke_step()."}
 
+        authorisation_error = self._check_authorisation(capability_id, actor_context)
+        if authorisation_error:
+            return authorisation_error
+
         return self._invoke_with_deployment(cap, deployment, inputs)
+
+    def _check_authorisation(self, capability_id: str, actor_context: dict[str, Any] | None) -> dict[str, Any] | None:
+        if self._authorisation_port is None or actor_context is None:
+            return None
+        actor_id = actor_context.get("actor_id")
+        actor_type = actor_context.get("actor_type", "agent")
+        if not actor_id:
+            return None
+        result = self._authorisation_port.is_authorised(actor_id, actor_type, capability_id)
+        if not result.authorised:
+            return {
+                "status": "failed",
+                "error": f"Execution not authorised: {result.reason}",
+                "telemetry": {"authorisation": result.reason},
+            }
+        return None
 
     def _invoke_with_deployment(self, cap: Capability, deployment: CapabilityDeployment, inputs: dict[str, Any]) -> dict[str, Any]:
         if deployment.transport == Transport.TIER2_INPROCESS:
@@ -97,10 +130,3 @@ class PatternRuntime:
             "artifacts": reply.artifacts,
             "telemetry": reply.telemetry,
         }
-
-
-_default_runtime = PatternRuntime()
-
-
-def invoke_step(capability_id: str, inputs: dict[str, Any]) -> dict[str, Any]:
-    return _default_runtime.invoke_step(capability_id, inputs)

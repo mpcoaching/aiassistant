@@ -21,8 +21,8 @@ from typing import Any
 
 from assistant import AssistantReasoningService, StrategyDecision
 from intent import Intent, IntentOrigin, ProblemFrame, recognise
-from organisation_control_plane import OrganisationControlPlane
-from ports.enterprise_information import EnterpriseInformationPort
+from contracts.organisational_context import OrganisationalContextPort
+from contracts.enterprise_information import EnterpriseInformationPort
 
 logger = logging.getLogger("ai.ceo")
 
@@ -32,12 +32,12 @@ class CEOAgent:
 
     def __init__(
         self,
-        org_plane: OrganisationControlPlane,
+        org_context: OrganisationalContextPort,
         reasoning_service: AssistantReasoningService | None = None,
         enterprise_information: EnterpriseInformationPort | None = None,
         confidence_threshold: float = 0.5,
     ) -> None:
-        self._org = org_plane
+        self._org = org_context
         self._reasoning = reasoning_service or AssistantReasoningService()
         self._enterprise_information = enterprise_information
         self._confidence_threshold = confidence_threshold
@@ -47,7 +47,11 @@ class CEOAgent:
         intent = self._build_intent(request)
         frame = recognise(intent)
 
-        self._org.get_organisational_context(request)
+        ctx = request.get("context", {})
+        self._org.get_context(
+            actor_id=ctx.get("actor_id"),
+            role_id=ctx.get("role_id"),
+        )
 
         if frame.confidence < self._confidence_threshold:
             return self._escalate_to_human(intent, frame, reason="low_confidence")

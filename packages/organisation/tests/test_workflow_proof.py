@@ -317,8 +317,8 @@ def test_ceo_does_not_coordinate_specialist_work() -> None:
     """CEO does not assign specialist tasks or coordinate projects."""
     from ceo import CEOAgent
 
-    org_plane = MagicMock()
-    ceo = CEOAgent(org_plane=org_plane)
+    org_context = MagicMock()
+    ceo = CEOAgent(org_context=org_context)
 
     assert not hasattr(ceo, "assign_work")
     assert not hasattr(ceo, "execute_work")
