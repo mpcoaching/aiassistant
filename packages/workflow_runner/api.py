@@ -590,6 +590,8 @@ class _ChatResponse(BaseModel):
     human_input_request: dict[str, Any] | None = None
     capability_candidates: list[dict[str, Any]] | None = None
     telemetry: dict[str, Any] = Field(default_factory=dict)
+    execution_outputs: dict[str, Any] | None = None
+    execution_artifacts: list[str] = Field(default_factory=list)
 
 
 
@@ -639,6 +641,8 @@ async def assistant_chat(body: _ChatRequest) -> _ChatResponse:
         human_input_request=response.human_input_request,
         capability_candidates=response.capability_candidates,
         telemetry=response.telemetry,
+        execution_outputs=response.execution_outputs,
+        execution_artifacts=response.execution_artifacts,
     )
 
 

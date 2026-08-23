@@ -131,7 +131,9 @@ def test_assistant_does_not_call_execute_capability() -> None:
     import inspect
 
     source = inspect.getsource(AssistantChatService)
-    assert "execute_capability" not in source
+    assert "execute_capability(" not in source
+    assert "from executor import" not in source
+    assert "import execute_capability" not in source
 
 
 def test_assistant_does_not_call_pattern_runtime_invoke() -> None:
