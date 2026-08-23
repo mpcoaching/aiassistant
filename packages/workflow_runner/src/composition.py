@@ -59,7 +59,7 @@ def create_application() -> dict[str, Any]:
     from adapters.capability_discovery_adapter import CapabilityDiscoveryAdapter
     from capabilities import CapabilityRegistry
     from capability import Capability
-    from capability_matcher import HumanSelectionMatcher
+    from capability_matcher import RelevanceMatcher
     from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
     from concepts import ConceptStore
     from contracts.capability_outcome_assessor import CapabilityOutcomeAssessor
@@ -83,7 +83,7 @@ def create_application() -> dict[str, Any]:
     repository = ConceptStoreCapabilityRepository(store)
     registry = CapabilityRegistry(repository)
 
-    matcher = HumanSelectionMatcher()
+    matcher = RelevanceMatcher()
     discovery = CapabilityDiscoveryAdapter(registry=registry, matcher=matcher)
 
     authorisation_port: ExecutionAuthorisationPort = InMemoryExecutionAuthorisationPort()
