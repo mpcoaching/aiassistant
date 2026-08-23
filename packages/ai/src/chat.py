@@ -32,6 +32,8 @@ from contracts.pattern_execution import PatternExecutionPort, PatternExecutionRe
 from contracts.session_factory import SessionFactoryPort, SessionReference
 from contracts.work_management import WorkManagementPort
 
+from capability_action import CapabilityActionPolicy, ExecuteCapability, AskUserToSelect
+
 logger = logging.getLogger("ai.chat")
 
 
@@ -57,6 +59,8 @@ class ChatResponse(BaseModel):
     human_input_request: dict[str, Any] | None = None
     capability_candidates: list[dict[str, Any]] | None = None
     telemetry: dict[str, Any] = Field(default_factory=dict)
+    execution_outputs: dict[str, Any] | None = None
+    execution_artifacts: list[str] = Field(default_factory=list)
 
 
 class AssistantChatService:
@@ -82,6 +86,7 @@ class AssistantChatService:
         self._session_factory = session_factory
         self._pattern_execution = pattern_execution
         self._sessions: dict[str, SessionReference] = {}
+        self._action_policy = CapabilityActionPolicy()
 
     def chat(self, request: ChatRequest) -> ChatResponse:
         """Process a chat message and return a response."""
@@ -112,8 +117,12 @@ class AssistantChatService:
                 request_text=request.message,
                 context=frame.context,
             )
-            if candidates:
-                return self._capability_selection_response(intent, frame, candidates)
+            action = self._action_policy.decide(candidates, request.context)
+            if isinstance(action, ExecuteCapability):
+                return self._execute_capability_response(intent, frame, action.candidate)
+            if isinstance(action, AskUserToSelect):
+                return self._capability_selection_response(intent, frame, action.candidates)
+            # NoCapabilityMatch falls through to pattern execution
 
         decision = self._reasoning.decide(intent)
 
@@ -234,6 +243,63 @@ class AssistantChatService:
         }
         return mapping.get((problem, activity), "research_to_synthesis")
 
+    def _execute_capability_response(
+        self,
+        intent: Intent,
+        frame: ProblemFrame,
+        candidate: CapabilityCandidate,
+    ) -> ChatResponse:
+        if self._capability_execution is None:
+            return ChatResponse(
+                message=f"I found a capability ({candidate.name}) but execution is not configured.",
+                session_id=f"ses-{intent.id}",
+                status="awaiting_capability_selection",
+                reasoning=f"Capability {candidate.name} identified but no execution port available.",
+                capability_candidates=[
+                    {
+                        "id": candidate.id,
+                        "name": candidate.name,
+                        "description": candidate.description,
+                        "kind": candidate.kind,
+                        "execution_mode": candidate.execution_mode,
+                        "tags": candidate.tags,
+                    }
+                ],
+                telemetry={"recognition_level": frame.recognition_level.value},
+            )
+
+        result = self.execute_selected_capability(
+            capability_id=candidate.id,
+            context={},
+        )
+
+        if result.telemetry.get("error"):
+            message = f"Execution failed: {result.outputs.get('error', result.telemetry['error'])}"
+            status = "failed"
+        else:
+            outputs = result.outputs
+            summary = outputs.get("summary") or outputs.get("result") or str(outputs)
+            message = f"Executed {candidate.name}. Result: {summary}"
+            if result.artifacts:
+                message += f" Artifacts: {', '.join(result.artifacts)}"
+            status = "completed"
+
+        return ChatResponse(
+            message=message,
+            session_id=f"ses-{intent.id}",
+            status=status,
+            reasoning=f"Executed capability {candidate.name} ({candidate.kind}, {candidate.execution_mode})",
+            telemetry={
+                "recognition_level": frame.recognition_level.value,
+                "capability_id": candidate.id,
+                "capability_name": candidate.name,
+                "execution_mode": candidate.execution_mode,
+                "execution_error": result.telemetry.get("error"),
+            },
+            execution_outputs=result.outputs,
+            execution_artifacts=result.artifacts,
+        )
+
     def _capability_selection_response(
         self,
         intent: Intent,
@@ -242,7 +308,7 @@ class AssistantChatService:
     ) -> ChatResponse:
         """Build a response that exposes capability candidates for human selection."""
         return ChatResponse(
-            message="I found capabilities that might help. Please select one to proceed.",
+            message=f"I found {len(candidates)} capabilities that might help. Please select one to proceed, or tell me which one to run.",
             session_id=f"ses-{intent.id}",
             status="awaiting_capability_selection",
             reasoning=(
