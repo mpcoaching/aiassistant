@@ -16,7 +16,7 @@ from capability_action import (
 from contracts.capability_discovery import CapabilityCandidate
 
 
-def _candidate(id: str, name: str) -> CapabilityCandidate:
+def _candidate(id: str, name: str, confidence: float = 1.0) -> CapabilityCandidate:
     return CapabilityCandidate(
         id=id,
         name=name,
@@ -24,6 +24,7 @@ def _candidate(id: str, name: str) -> CapabilityCandidate:
         kind="tool",
         tags=[],
         execution_mode="ai_mediated",
+        confidence=confidence,
     )
 
 
@@ -33,23 +34,23 @@ def test_no_candidates_returns_no_match() -> None:
     assert isinstance(action, NoCapabilityMatch)
 
 
-def test_single_candidate_returns_execute() -> None:
+def test_single_candidate_returns_ask_user() -> None:
     policy = CapabilityActionPolicy()
     candidates = [_candidate("cap-1", "create_test_artifact")]
     action = policy.decide(candidates)
-    assert isinstance(action, ExecuteCapability)
-    assert action.candidate.id == "cap-1"
-    assert action.candidate.name == "create_test_artifact"
-    assert action.context == {}
+    assert isinstance(action, AskUserToSelect)
+    assert len(action.candidates) == 1
+    assert action.candidates[0].id == "cap-1"
+    assert action.candidates[0].name == "create_test_artifact"
+    assert action.interaction == "confirm"
 
 
-def test_single_candidate_forwards_context() -> None:
+def test_single_candidate_context_not_required() -> None:
     policy = CapabilityActionPolicy()
     candidates = [_candidate("cap-1", "create_test_artifact")]
-    context = {"actor_id": "user-1", "session_id": "ses-1"}
-    action = policy.decide(candidates, context)
-    assert isinstance(action, ExecuteCapability)
-    assert action.context == context
+    action = policy.decide(candidates)
+    assert isinstance(action, AskUserToSelect)
+    assert action.interaction == "confirm"
 
 
 def test_multiple_candidates_returns_ask_user() -> None:
@@ -63,6 +64,7 @@ def test_multiple_candidates_returns_ask_user() -> None:
     assert len(action.candidates) == 2
     assert action.candidates[0].id == "cap-a"
     assert action.candidates[1].id == "cap-b"
+    assert action.interaction == "select"
 
 
 def test_three_candidates_returns_ask_user() -> None:
@@ -75,3 +77,20 @@ def test_three_candidates_returns_ask_user() -> None:
     action = policy.decide(candidates)
     assert isinstance(action, AskUserToSelect)
     assert len(action.candidates) == 3
+    assert action.interaction == "select"
+
+
+def test_single_weak_candidate_returns_ask_user() -> None:
+    policy = CapabilityActionPolicy()
+    candidates = [_candidate("cap-1", "create_test_artifact", confidence=0.1)]
+    action = policy.decide(candidates)
+    assert isinstance(action, AskUserToSelect)
+    assert len(action.candidates) == 1
+
+
+def test_legacy_candidate_with_zero_confidence_asks_user() -> None:
+    policy = CapabilityActionPolicy()
+    candidates = [_candidate("cap-1", "create_test_artifact", confidence=0.0)]
+    action = policy.decide(candidates)
+    assert isinstance(action, AskUserToSelect)
+    assert len(action.candidates) == 1

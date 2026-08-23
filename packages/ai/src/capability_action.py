@@ -26,10 +26,11 @@ class ExecuteCapability(CapabilityAction):
 
 
 class AskUserToSelect(CapabilityAction):
-    """Present candidates to the user for selection."""
+    """Present candidates to the user for selection or confirmation."""
 
-    def __init__(self, candidates: list[CapabilityCandidate]) -> None:
+    def __init__(self, candidates: list[CapabilityCandidate], interaction: str = "select") -> None:
         self.candidates = candidates
+        self.interaction = interaction
 
 
 class NoCapabilityMatch(CapabilityAction):
@@ -41,6 +42,9 @@ class CapabilityActionPolicy:
 
     This is a pure decision function. It does not call ports,
     execute capabilities, or manage state.
+
+    Note: autonomous execution is deferred until the relevance score
+    is calibrated. Any match is presented to the user for confirmation.
     """
 
     def decide(
@@ -50,6 +54,5 @@ class CapabilityActionPolicy:
     ) -> CapabilityAction:
         if not candidates:
             return NoCapabilityMatch()
-        if len(candidates) == 1:
-            return ExecuteCapability(candidate=candidates[0], context=context or {})
-        return AskUserToSelect(candidates=candidates)
+        interaction = "confirm" if len(candidates) == 1 else "select"
+        return AskUserToSelect(candidates=candidates, interaction=interaction)

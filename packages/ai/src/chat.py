@@ -121,7 +121,7 @@ class AssistantChatService:
             if isinstance(action, ExecuteCapability):
                 return self._execute_capability_response(intent, frame, action.candidate)
             if isinstance(action, AskUserToSelect):
-                return self._capability_selection_response(intent, frame, action.candidates)
+                return self._capability_selection_response(intent, frame, action.candidates, action.interaction)
             # NoCapabilityMatch falls through to pattern execution
 
         decision = self._reasoning.decide(intent)
@@ -305,10 +305,21 @@ class AssistantChatService:
         intent: Intent,
         frame: ProblemFrame,
         candidates: list[CapabilityCandidate],
+        interaction: str = "select",
     ) -> ChatResponse:
-        """Build a response that exposes capability candidates for human selection."""
+        """Build a response that exposes capability candidates for human selection or confirmation."""
+        if interaction == "confirm" and len(candidates) == 1:
+            message = (
+                f"I found {candidates[0].name}. "
+                f"Shall I proceed with this capability?"
+            )
+        else:
+            message = (
+                f"I found {len(candidates)} capabilities that might help. "
+                f"Please select one to proceed, or tell me which one to run."
+            )
         return ChatResponse(
-            message=f"I found {len(candidates)} capabilities that might help. Please select one to proceed, or tell me which one to run.",
+            message=message,
             session_id=f"ses-{intent.id}",
             status="awaiting_capability_selection",
             reasoning=(
@@ -331,5 +342,6 @@ class AssistantChatService:
                 "recognition_level": frame.recognition_level.value,
                 "matcher": "human_selection",
                 "candidate_count": len(candidates),
+                "interaction": interaction,
             },
         )

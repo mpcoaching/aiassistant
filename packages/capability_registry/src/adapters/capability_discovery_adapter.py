@@ -28,9 +28,12 @@ class CapabilityDiscoveryAdapter:
         capabilities = self._registry.list()
         ctx = ContextRecord(**context) if context else ContextRecord()
         match_result = self._matcher.match(request_text, ctx, capabilities)
-        return [self._to_candidate(cap) for cap in match_result.candidates]
+        return [
+            self._to_candidate(cap, match_result.candidate_confidences.get(cap.id, 0.0))
+            for cap in match_result.candidates
+        ]
 
-    def _to_candidate(self, capability: Capability) -> CapabilityCandidate:
+    def _to_candidate(self, capability: Capability, confidence: float = 0.0) -> CapabilityCandidate:
         return CapabilityCandidate(
             id=capability.id,
             name=capability.name,
@@ -38,4 +41,5 @@ class CapabilityDiscoveryAdapter:
             kind=capability.capability_kind.value,
             tags=list(capability.tags),
             execution_mode=capability.payload.get("execution_mode", "ai_mediated"),
+            confidence=confidence,
         )
