@@ -83,3 +83,25 @@ def test_execute_capability_endpoint_defaults_context_to_empty(client):
         mock_assistant.execute_selected_capability.assert_called_once_with(
             capability_id="cap-1", context={}
         )
+
+
+def test_capability_feedback_endpoint_records_action(client):
+    with patch("workflow_runner_api._assistant") as mock_assistant:
+        response = client.post(
+            "/assistant/capability/feedback",
+            json={
+                "match_event_id": "event-123",
+                "action": "confirm",
+                "selected_capability_id": "cap-a",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["match_event_id"] == "event-123"
+        assert data["action"] == "confirm"
+        assert data["status"] == "recorded"
+        mock_assistant.record_capability_feedback.assert_called_once_with(
+            match_event_id="event-123",
+            user_action="confirm",
+            selected_capability_id="cap-a",
+        )

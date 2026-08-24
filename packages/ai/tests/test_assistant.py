@@ -5,8 +5,11 @@ Contracts: SA-CONTRACTS-PHASES-2-5.md C3, C4, C9.
 """
 
 
+import pytest
+
 from assistant import AssistantReasoningService, StrategyDecision
 from chat import AssistantChatService, ChatRequest
+from capability_selection_telemetry import CapabilitySelectionTelemetry
 from enterprise_context import ContextRecord
 from intent import Intent, IntentOrigin, ProblemFrame, recognise
 from strategy import ReasoningStrategy, select_strategy
@@ -382,3 +385,172 @@ def test_chat_service_returns_previous_solution() -> None:
     assert response.previous_solution is not None
     assert response.previous_solution["invocation_count"] == 2
     assert response.previous_solution["summary"] == "Designed a task tracker with 3 interfaces"
+
+
+# ---- Capability Selection Telemetry (Increment 21K) ------------------------
+
+
+def test_chat_records_telemetry_for_single_candidate_confirm() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-a",
+            name="capability_a",
+            description="Does A",
+            kind="tool",
+            tags=["a"],
+            execution_mode="compiled",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    telemetry = CapabilitySelectionTelemetry()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        capability_selection_telemetry=telemetry,
+    )
+    request = ChatRequest(message="Do something")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_capability_selection"
+    events = telemetry.get_events()
+    assert len(events) == 1
+    assert events[0].candidate_count == 1
+    assert events[0].interaction_type == "confirm"
+    assert events[0].top_score == 0.9
+    assert events[0].score_gap == 0.0
+    assert events[0].candidate_ids == ["cap-a"]
+    assert response.telemetry.get("match_event_id") == events[0].event_id
+
+
+def test_chat_records_telemetry_for_multiple_candidates_select() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-a",
+            name="capability_a",
+            description="Does A",
+            kind="tool",
+            tags=["a"],
+            execution_mode="compiled",
+            confidence=0.9,
+        ),
+        CapabilityCandidate(
+            id="cap-b",
+            name="capability_b",
+            description="Does B",
+            kind="tool",
+            tags=["b"],
+            execution_mode="compiled",
+            confidence=0.7,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    telemetry = CapabilitySelectionTelemetry()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        capability_selection_telemetry=telemetry,
+    )
+    request = ChatRequest(message="Do something")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_capability_selection"
+    events = telemetry.get_events()
+    assert len(events) == 1
+    assert events[0].candidate_count == 2
+    assert events[0].interaction_type == "select"
+    assert events[0].top_score == 0.9
+    assert events[0].score_gap == pytest.approx(0.2)
+    assert events[0].candidate_ids == ["cap-a", "cap-b"]
+    assert response.telemetry.get("match_event_id") == events[0].event_id
+
+
+def test_chat_records_user_feedback() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-a",
+            name="capability_a",
+            description="Does A",
+            kind="tool",
+            tags=["a"],
+            execution_mode="compiled",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    telemetry = CapabilitySelectionTelemetry()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        capability_selection_telemetry=telemetry,
+    )
+    request = ChatRequest(message="Do something")
+    response = service.chat(request)
+
+    match_event_id = response.telemetry["match_event_id"]
+    service.record_capability_feedback(
+        match_event_id=match_event_id,
+        user_action="confirm",
+        selected_capability_id="cap-a",
+    )
+
+    events = telemetry.get_events()
+    assert len(events) == 1
+    assert events[0].user_action == "confirm"
+    assert events[0].selected_capability_id == "cap-a"
+
+
+def test_chat_without_telemetry_unchanged() -> None:
+    candidates = _make_capability_candidates()
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    service = AssistantChatService(capability_discovery=discovery)
+    request = ChatRequest(message="Create a test artifact")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_capability_selection"
+    assert response.capability_candidates is not None
+    assert len(response.capability_candidates) == 1
+    assert "match_event_id" not in response.telemetry
+
+
+def test_telemetry_records_correct_scores_and_gap() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-a",
+            name="capability_a",
+            description="Does A",
+            kind="tool",
+            tags=["a"],
+            execution_mode="compiled",
+            confidence=0.85,
+        ),
+        CapabilityCandidate(
+            id="cap-b",
+            name="capability_b",
+            description="Does B",
+            kind="tool",
+            tags=["b"],
+            execution_mode="compiled",
+            confidence=0.60,
+        ),
+        CapabilityCandidate(
+            id="cap-c",
+            name="capability_c",
+            description="Does C",
+            kind="tool",
+            tags=["c"],
+            execution_mode="compiled",
+            confidence=0.40,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    telemetry = CapabilitySelectionTelemetry()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        capability_selection_telemetry=telemetry,
+    )
+    request = ChatRequest(message="Do something")
+    service.chat(request)
+
+    events = telemetry.get_events()
+    assert len(events) == 1
+    assert events[0].top_score == 0.85
+    assert events[0].score_gap == 0.25
+    assert events[0].candidate_scores == [0.85, 0.60, 0.40]

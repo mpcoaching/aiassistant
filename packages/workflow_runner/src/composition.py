@@ -24,6 +24,7 @@ def create_assistant(
     work_management: Any | None = None,
     session_factory: Any | None = None,
     pattern_execution: Any | None = None,
+    capability_selection_telemetry: Any | None = None,
 ) -> Any:
     from chat import AssistantChatService
 
@@ -36,6 +37,7 @@ def create_assistant(
         work_management=work_management,
         session_factory=session_factory,
         pattern_execution=pattern_execution,
+        capability_selection_telemetry=capability_selection_telemetry,
     )
 
 
