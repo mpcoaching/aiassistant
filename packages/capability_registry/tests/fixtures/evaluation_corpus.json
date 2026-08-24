@@ -1,0 +1,164 @@
+{
+  "$schema": "increment-21g-evaluation-corpus",
+  "description": "Labelled evaluation corpus for RelevanceMatcher baseline measurement. Seeds from existing test fixtures. Do not modify corpus to improve scores.",
+  "capabilities": [
+    {
+      "id": "cap-create_test_artifact",
+      "name": "create_test_artifact",
+      "description": "Creates a test artifact record",
+      "tags": ["test", "artifact"]
+    },
+    {
+      "id": "cap-send_email",
+      "name": "send_email",
+      "description": "Sends an email notification",
+      "tags": ["email", "notification"]
+    },
+    {
+      "id": "cap-analyse_data",
+      "name": "analyse_data",
+      "description": "Analyse data",
+      "tags": ["data", "analysis"]
+    },
+    {
+      "id": "cap-create_lead",
+      "name": "create_lead",
+      "description": "Create a new lead record",
+      "tags": ["lead"]
+    },
+    {
+      "id": "cap-generate_report",
+      "name": "generate_report",
+      "description": "Generate a report",
+      "tags": ["report"]
+    }
+  ],
+  "examples": [
+    {
+      "request": "create test artifact",
+      "expected_capability_id": "cap-create_test_artifact",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match; highest relevance expected."
+    },
+    {
+      "request": "create artifact",
+      "expected_capability_id": "cap-create_test_artifact",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Partial name match; 'create_test_artifact' is the only 'create' capability with 'artifact' tag."
+    },
+    {
+      "request": "send email",
+      "expected_capability_id": "cap-send_email",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Name and description both contain 'send email'."
+    },
+    {
+      "request": "send email notification",
+      "expected_capability_id": "cap-send_email",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match plus description match."
+    },
+    {
+      "request": "analyse data",
+      "expected_capability_id": "cap-analyse_data",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Name and tag both match."
+    },
+    {
+      "request": "analyse the data",
+      "expected_capability_id": "cap-analyse_data",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Includes stop word 'the'. Relevance score may be diluted relative to 'analyse data'."
+    },
+    {
+      "request": "create a new lead",
+      "expected_capability_id": "cap-create_lead",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Partial name match; 'create_lead' is the only 'create' capability with 'lead' tag."
+    },
+    {
+      "request": "create lead",
+      "expected_capability_id": "cap-create_lead",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "generate report",
+      "expected_capability_id": "cap-generate_report",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "create something",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "generic",
+      "notes": "Vague request with generic verb. No specific capability should dominate."
+    },
+    {
+      "request": "do something",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "generic",
+      "notes": "Completely generic; no meaningful token overlap expected."
+    },
+    {
+      "request": "run something",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "generic",
+      "notes": "Generic verb 'run' matches no capability metadata."
+    },
+    {
+      "request": "data",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-analyse_data"],
+      "category": "generic",
+      "notes": "Single generic keyword. 'analyse_data' matches via tag, but the request is too vague to confidently assert a single intended capability."
+    },
+    {
+      "request": "cook dinner",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "negative",
+      "notes": "Completely unrelated to any capability in the catalogue."
+    },
+    {
+      "request": "write a novel",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "negative",
+      "notes": "Completely unrelated to any capability in the catalogue."
+    },
+    {
+      "request": "design a building",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "negative",
+      "notes": "Completely unrelated to any capability in the catalogue."
+    },
+    {
+      "request": "create",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-create_test_artifact", "cap-create_lead"],
+      "category": "ambiguous",
+      "notes": "Single keyword that legitimately matches two capabilities. The matcher may rank one above the other, but both are acceptable."
+    },
+    {
+      "request": "send notification",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-send_email"],
+      "category": "ambiguous",
+      "notes": "Partial match to 'send_email' via description. 'notification' is a generic term that could also appear in other contexts."
+    }
+  ]
+}
