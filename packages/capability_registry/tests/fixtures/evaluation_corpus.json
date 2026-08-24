@@ -1,7 +1,25 @@
 {
-  "$schema": "increment-21g-evaluation-corpus",
-  "description": "Labelled evaluation corpus for RelevanceMatcher baseline measurement. Seeds from existing test fixtures. Do not modify corpus to improve scores.",
+  "$schema": "increment-21j-evaluation-corpus",
+  "description": "Expanded evaluation corpus for RelevanceMatcher decision-boundary evidence. 16 capabilities with realistic verb/noun overlap. ~70 examples across specific, generic, ambiguous, and negative categories. Do not modify corpus to improve scores.",
   "capabilities": [
+    {
+      "id": "cap-create_lead",
+      "name": "create_lead",
+      "description": "Create a new lead record",
+      "tags": ["lead"]
+    },
+    {
+      "id": "cap-create_customer",
+      "name": "create_customer",
+      "description": "Create a new customer record",
+      "tags": ["customer"]
+    },
+    {
+      "id": "cap-create_report",
+      "name": "create_report",
+      "description": "Create a business report",
+      "tags": ["report", "business"]
+    },
     {
       "id": "cap-create_test_artifact",
       "name": "create_test_artifact",
@@ -15,73 +33,86 @@
       "tags": ["email", "notification"]
     },
     {
+      "id": "cap-send_sms",
+      "name": "send_sms",
+      "description": "Send SMS message",
+      "tags": ["sms"]
+    },
+    {
+      "id": "cap-send_notification",
+      "name": "send_notification",
+      "description": "Send a notification",
+      "tags": ["notification"]
+    },
+    {
       "id": "cap-analyse_data",
       "name": "analyse_data",
       "description": "Analyse data",
       "tags": ["data", "analysis"]
     },
     {
-      "id": "cap-create_lead",
-      "name": "create_lead",
-      "description": "Create a new lead record",
-      "tags": ["lead"]
+      "id": "cap-analyse_report",
+      "name": "analyse_report",
+      "description": "Analyse a report",
+      "tags": ["report", "analysis"]
+    },
+    {
+      "id": "cap-analyse_sentiment",
+      "name": "analyse_sentiment",
+      "description": "Analyse sentiment",
+      "tags": ["sentiment"]
+    },
+    {
+      "id": "cap-update_record",
+      "name": "update_record",
+      "description": "Update a record",
+      "tags": ["update", "record"]
+    },
+    {
+      "id": "cap-update_status",
+      "name": "update_status",
+      "description": "Update status",
+      "tags": ["status", "update"]
+    },
+    {
+      "id": "cap-update_profile",
+      "name": "update_profile",
+      "description": "Update profile",
+      "tags": ["profile", "update"]
     },
     {
       "id": "cap-generate_report",
       "name": "generate_report",
       "description": "Generate a report",
       "tags": ["report"]
+    },
+    {
+      "id": "cap-generate_summary",
+      "name": "generate_summary",
+      "description": "Generate a summary",
+      "tags": ["summary"]
+    },
+    {
+      "id": "cap-generate_insights",
+      "name": "generate_insights",
+      "description": "Generate insights",
+      "tags": ["insights"]
     }
   ],
   "examples": [
     {
-      "request": "create test artifact",
-      "expected_capability_id": "cap-create_test_artifact",
+      "request": "create a lead",
+      "expected_capability_id": "cap-create_lead",
       "acceptable_alternatives": [],
       "category": "specific",
-      "notes": "Exact name match; highest relevance expected."
-    },
-    {
-      "request": "create artifact",
-      "expected_capability_id": "cap-create_test_artifact",
-      "acceptable_alternatives": [],
-      "category": "specific",
-      "notes": "Partial name match; 'create_test_artifact' is the only 'create' capability with 'artifact' tag."
-    },
-    {
-      "request": "send email",
-      "expected_capability_id": "cap-send_email",
-      "acceptable_alternatives": [],
-      "category": "specific",
-      "notes": "Name and description both contain 'send email'."
-    },
-    {
-      "request": "send email notification",
-      "expected_capability_id": "cap-send_email",
-      "acceptable_alternatives": [],
-      "category": "specific",
-      "notes": "Exact name match plus description match."
-    },
-    {
-      "request": "analyse data",
-      "expected_capability_id": "cap-analyse_data",
-      "acceptable_alternatives": [],
-      "category": "specific",
-      "notes": "Name and tag both match."
-    },
-    {
-      "request": "analyse the data",
-      "expected_capability_id": "cap-analyse_data",
-      "acceptable_alternatives": [],
-      "category": "specific",
-      "notes": "Includes stop word 'the'. Relevance score may be diluted relative to 'analyse data'."
+      "notes": "Exact name match with article."
     },
     {
       "request": "create a new lead",
       "expected_capability_id": "cap-create_lead",
       "acceptable_alternatives": [],
       "category": "specific",
-      "notes": "Partial name match; 'create_lead' is the only 'create' capability with 'lead' tag."
+      "notes": "Partial name match with stop word."
     },
     {
       "request": "create lead",
@@ -91,8 +122,162 @@
       "notes": "Exact name match."
     },
     {
+      "request": "create a customer",
+      "expected_capability_id": "cap-create_customer",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match with article."
+    },
+    {
+      "request": "create customer record",
+      "expected_capability_id": "cap-create_customer",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Name and description match."
+    },
+    {
+      "request": "create a test artifact",
+      "expected_capability_id": "cap-create_test_artifact",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Partial name match with stop word and extra token."
+    },
+    {
+      "request": "create test artifact",
+      "expected_capability_id": "cap-create_test_artifact",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "create a business report",
+      "expected_capability_id": "cap-create_report",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Partial name match with description overlap."
+    },
+    {
+      "request": "create report",
+      "expected_capability_id": "cap-create_report",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "send an email",
+      "expected_capability_id": "cap-send_email",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match with article."
+    },
+    {
+      "request": "send email",
+      "expected_capability_id": "cap-send_email",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "send email notification",
+      "expected_capability_id": "cap-send_email",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match with description overlap."
+    },
+    {
+      "request": "send SMS message",
+      "expected_capability_id": "cap-send_sms",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "send a notification",
+      "expected_capability_id": "cap-send_notification",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match with article."
+    },
+    {
+      "request": "analyse data",
+      "expected_capability_id": "cap-analyse_data",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "analyse the data",
+      "expected_capability_id": "cap-analyse_data",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Name match with stop word."
+    },
+    {
+      "request": "analyse a report",
+      "expected_capability_id": "cap-analyse_report",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match with article."
+    },
+    {
+      "request": "analyse sentiment",
+      "expected_capability_id": "cap-analyse_sentiment",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "update a record",
+      "expected_capability_id": "cap-update_record",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match with article."
+    },
+    {
+      "request": "update record",
+      "expected_capability_id": "cap-update_record",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "update status",
+      "expected_capability_id": "cap-update_status",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "update profile",
+      "expected_capability_id": "cap-update_profile",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "generate a report",
+      "expected_capability_id": "cap-generate_report",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match with article."
+    },
+    {
       "request": "generate report",
       "expected_capability_id": "cap-generate_report",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "generate summary",
+      "expected_capability_id": "cap-generate_summary",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "generate insights",
+      "expected_capability_id": "cap-generate_insights",
       "acceptable_alternatives": [],
       "category": "specific",
       "notes": "Exact name match."
@@ -102,14 +287,91 @@
       "expected_capability_id": null,
       "acceptable_alternatives": [],
       "category": "generic",
-      "notes": "Vague request with generic verb. No specific capability should dominate."
+      "notes": "Vague request with generic object. Lexically relevant to multiple create_* capabilities but not discriminative."
+    },
+    {
+      "request": "send something",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "generic",
+      "notes": "Vague request with generic object. Lexically relevant to multiple send_* capabilities."
+    },
+    {
+      "request": "analyse something",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "generic",
+      "notes": "Vague request with generic object. Lexically relevant to multiple analyse_* capabilities."
+    },
+    {
+      "request": "generate something",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "generic",
+      "notes": "Vague request with generic object. Lexically relevant to multiple generate_* capabilities."
+    },
+    {
+      "request": "update something",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "generic",
+      "notes": "Vague request with generic object. Lexically relevant to multiple update_* capabilities."
+    },
+    {
+      "request": "create",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-create_lead", "cap-create_customer", "cap-create_report", "cap-create_test_artifact"],
+      "category": "generic",
+      "notes": "Single generic verb. Matches all create_* capabilities. Highly ambiguous."
+    },
+    {
+      "request": "send",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-send_email", "cap-send_sms", "cap-send_notification"],
+      "category": "generic",
+      "notes": "Single generic verb. Matches all send_* capabilities. Highly ambiguous."
+    },
+    {
+      "request": "analyse",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-analyse_data", "cap-analyse_report", "cap-analyse_sentiment"],
+      "category": "generic",
+      "notes": "Single generic verb. Matches all analyse_* capabilities. Highly ambiguous."
+    },
+    {
+      "request": "generate",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-generate_report", "cap-generate_summary", "cap-generate_insights"],
+      "category": "generic",
+      "notes": "Single generic verb. Matches all generate_* capabilities. Highly ambiguous."
+    },
+    {
+      "request": "update",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-update_record", "cap-update_status", "cap-update_profile"],
+      "category": "generic",
+      "notes": "Single generic verb. Matches all update_* capabilities. Highly ambiguous."
     },
     {
       "request": "do something",
       "expected_capability_id": null,
       "acceptable_alternatives": [],
       "category": "generic",
-      "notes": "Completely generic; no meaningful token overlap expected."
+      "notes": "Completely generic; no meaningful token overlap with capability metadata."
+    },
+    {
+      "request": "do a thing",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "generic",
+      "notes": "Completely generic; no meaningful token overlap with capability metadata."
+    },
+    {
+      "request": "make something",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "generic",
+      "notes": "Generic verb 'make' matches no capability metadata."
     },
     {
       "request": "run something",
@@ -119,11 +381,46 @@
       "notes": "Generic verb 'run' matches no capability metadata."
     },
     {
-      "request": "data",
+      "request": "create report",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-create_report", "cap-generate_report"],
+      "category": "ambiguous",
+      "notes": "Verb 'create' and noun 'report' match two capabilities: create_report and generate_report. Both are plausible."
+    },
+    {
+      "request": "analyse report",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-analyse_report", "cap-create_report", "cap-generate_report"],
+      "category": "ambiguous",
+      "notes": "Verb 'analyse' and noun 'report' match analyse_report, create_report, and generate_report. Three plausible interpretations."
+    },
+    {
+      "request": "update record",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-update_record", "cap-create_test_artifact"],
+      "category": "ambiguous",
+      "notes": "Verb 'update' and noun 'record' match update_record and create_test_artifact (description contains 'record')."
+    },
+    {
+      "request": "send notification",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-send_email", "cap-send_notification"],
+      "category": "ambiguous",
+      "notes": "Verb 'send' and noun 'notification' match send_email (tag) and send_notification (name)."
+    },
+    {
+      "request": "create notification",
+      "expected_capability_id": null,
+      "acceptable_alternatives": ["cap-send_notification"],
+      "category": "ambiguous",
+      "notes": "Verb 'create' matches create_* capabilities, but 'notification' strongly suggests send_notification. Mixed signal."
+    },
+    {
+      "request": "generate data",
       "expected_capability_id": null,
       "acceptable_alternatives": ["cap-analyse_data"],
-      "category": "generic",
-      "notes": "Single generic keyword. 'analyse_data' matches via tag, but the request is too vague to confidently assert a single intended capability."
+      "category": "ambiguous",
+      "notes": "Verb 'generate' matches generate_* capabilities, but 'data' strongly suggests analyse_data. Mixed signal."
     },
     {
       "request": "cook dinner",
@@ -147,18 +444,151 @@
       "notes": "Completely unrelated to any capability in the catalogue."
     },
     {
-      "request": "create",
+      "request": "play tennis",
       "expected_capability_id": null,
-      "acceptable_alternatives": ["cap-create_test_artifact", "cap-create_lead"],
-      "category": "ambiguous",
-      "notes": "Single keyword that legitimately matches two capabilities. The matcher may rank one above the other, but both are acceptable."
+      "acceptable_alternatives": [],
+      "category": "negative",
+      "notes": "Completely unrelated to any capability in the catalogue."
     },
     {
-      "request": "send notification",
+      "request": "buy groceries",
       "expected_capability_id": null,
-      "acceptable_alternatives": ["cap-send_email"],
-      "category": "ambiguous",
-      "notes": "Partial match to 'send_email' via description. 'notification' is a generic term that could also appear in other contexts."
+      "acceptable_alternatives": [],
+      "category": "negative",
+      "notes": "Completely unrelated to any capability in the catalogue."
+    },
+    {
+      "request": "walk the dog",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "negative",
+      "notes": "Completely unrelated to any capability in the catalogue."
+    },
+    {
+      "request": "paint a picture",
+      "expected_capability_id": null,
+      "acceptable_alternatives": [],
+      "category": "negative",
+      "notes": "Completely unrelated to any capability in the catalogue."
+    },
+    {
+      "request": "could you create a lead please",
+      "expected_capability_id": "cap-create_lead",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Polite form with filler. Core tokens 'create' and 'lead' match exactly."
+    },
+    {
+      "request": "I want to send an email",
+      "expected_capability_id": "cap-send_email",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Conversational form. Core tokens 'send' and 'email' match exactly."
+    },
+    {
+      "request": "create test artifact please",
+      "expected_capability_id": "cap-create_test_artifact",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Imperative with filler word."
+    },
+    {
+      "request": "analyse the data for me",
+      "expected_capability_id": "cap-analyse_data",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Request with stop word and filler phrase."
+    },
+    {
+      "request": "send email notification now",
+      "expected_capability_id": "cap-send_email",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Imperative with adverb."
+    },
+    {
+      "request": "create a new lead right now",
+      "expected_capability_id": "cap-create_lead",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Request with multiple filler tokens."
+    },
+    {
+      "request": "I need to generate a report",
+      "expected_capability_id": "cap-generate_report",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Conversational form. Core tokens 'generate' and 'report' match exactly."
+    },
+    {
+      "request": "please update the record",
+      "expected_capability_id": "cap-update_record",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Polite form with stop word."
+    },
+    {
+      "request": "let's analyse the data",
+      "expected_capability_id": "cap-analyse_data",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Conversational form with stop word."
+    },
+    {
+      "request": "create a customer record immediately",
+      "expected_capability_id": "cap-create_customer",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Request with adverb. Core tokens 'create' and 'customer' match exactly."
+    },
+    {
+      "request": "send an SMS message",
+      "expected_capability_id": "cap-send_sms",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Polite form. Core tokens 'send' and 'SMS' match exactly."
+    },
+    {
+      "request": "analyse customer sentiment",
+      "expected_capability_id": "cap-analyse_sentiment",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Two-word request with exact name match."
+    },
+    {
+      "request": "update user profile",
+      "expected_capability_id": "cap-update_profile",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Two-word request with exact name match."
+    },
+    {
+      "request": "generate executive summary",
+      "expected_capability_id": "cap-generate_summary",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Two-word request with exact name match."
+    },
+    {
+      "request": "create business report",
+      "expected_capability_id": "cap-create_report",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "generate actionable insights",
+      "expected_capability_id": "cap-generate_insights",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
+    },
+    {
+      "request": "update customer status",
+      "expected_capability_id": "cap-update_status",
+      "acceptable_alternatives": [],
+      "category": "specific",
+      "notes": "Exact name match."
     }
   ]
 }

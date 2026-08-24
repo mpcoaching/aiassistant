@@ -1,5 +1,5 @@
 """
-Increment 21G — RelevanceMatcher evaluation corpus.
+Increment 21G/21J — RelevanceMatcher evaluation corpus.
 
 Loads a labelled evaluation corpus and computes baseline metrics
 against the existing RelevanceMatcher without changing production behaviour.
@@ -10,6 +10,10 @@ Metrics:
   - No-match precision
   - Average candidate-set size
   - Median candidate-set size
+  - Score distributions by category
+  - Score-gap distributions
+  - Token coverage distributions
+  - Match-source distributions
 
 This file is measurement-only. It does not modify the matcher,
 the action policy, contracts, or any production code.
@@ -18,7 +22,9 @@ the action policy, contracts, or any production code.
 from __future__ import annotations
 
 import json
+import re
 import statistics
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +35,8 @@ from relevance_matcher import RelevanceMatcher
 
 
 _CORPUS_PATH = Path(__file__).resolve().parent / "fixtures" / "evaluation_corpus.json"
+
+_STOP_WORDS = RelevanceMatcher._STOP_WORDS
 
 
 def _load_corpus() -> dict[str, Any]:
@@ -52,6 +60,32 @@ def _build_capabilities(corpus: dict[str, Any]) -> list[Capability]:
             )
         )
     return capabilities
+
+
+def _meaningful_tokens(text: str) -> list[str]:
+    tokens = re.findall(r"[a-z0-9]+", text.lower())
+    filtered = [token for token in tokens if token not in _STOP_WORDS]
+    return list(dict.fromkeys(filtered))
+
+
+def _matched_tokens(meaningful: list[str], candidate: Capability) -> list[str]:
+    name_tokens = set(re.findall(r"[a-z0-9]+", candidate.name.lower()))
+    desc_tokens = set(re.findall(r"[a-z0-9]+", candidate.description.lower()))
+    tag_tokens = set(re.findall(r"[a-z0-9]+", " ".join(candidate.tags).lower()))
+    field_tokens = name_tokens | desc_tokens | tag_tokens
+    return [token for token in meaningful if token in field_tokens]
+
+
+def _match_sources(meaningful: list[str], candidate: Capability) -> dict[str, bool]:
+    name_tokens = set(re.findall(r"[a-z0-9]+", candidate.name.lower()))
+    desc_tokens = set(re.findall(r"[a-z0-9]+", candidate.description.lower()))
+    tag_tokens = set(re.findall(r"[a-z0-9]+", " ".join(candidate.tags).lower()))
+    matched = set(_matched_tokens(meaningful, candidate))
+    return {
+        "name": bool(matched & name_tokens),
+        "description": bool(matched & desc_tokens),
+        "tags": bool(matched & tag_tokens),
+    }
 
 
 def _is_correct_top(
@@ -96,6 +130,30 @@ def test_relevance_matcher_evaluation() -> None:
     no_match_evaluable = 0
     candidate_set_sizes: list[int] = []
 
+    top_scores: list[float] = []
+    second_scores: list[float] = []
+    score_gaps: list[float] = []
+    meaningful_token_counts: list[int] = []
+    token_coverages: list[float] = []
+
+    category_metrics: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {
+            "count": 0,
+            "top1_correct": 0,
+            "top1_evaluable": 0,
+            "top3_correct": 0,
+            "top3_evaluable": 0,
+            "no_match_correct": 0,
+            "no_match_evaluable": 0,
+            "candidate_set_sizes": [],
+            "top_scores": [],
+            "score_gaps": [],
+            "meaningful_token_counts": [],
+            "token_coverages": [],
+            "match_sources": {"name": 0, "description": 0, "tags": 0},
+        }
+    )
+
     failures: list[dict[str, Any]] = []
 
     for example in examples:
@@ -105,12 +163,23 @@ def test_relevance_matcher_evaluation() -> None:
         category = example.get("category", "unknown")
         notes = example.get("notes", "")
 
+        meaningful = _meaningful_tokens(request)
         result: MatchResult = matcher.match(request, ContextRecord(), capabilities)
         top3_ids = [cap.id for cap in result.candidates[:3]]
         candidate_set_sizes.append(len(result.candidates))
 
+        top_candidate = result.candidates[0] if result.candidates else None
+        top_score = result.confidence
+        second_candidate = result.candidates[1] if len(result.candidates) > 1 else None
+        second_score = result.candidate_confidences.get(second_candidate.id, 0.0) if second_candidate else 0.0
+        score_gap = top_score - second_score if second_candidate else 0.0
+
+        matched = _matched_tokens(meaningful, top_candidate) if top_candidate else []
+        token_coverage = len(matched) / len(meaningful) if meaningful else 0.0
+        sources = _match_sources(meaningful, top_candidate) if top_candidate else {}
+
         top1_ok = _is_correct_top(
-            result.candidates[0].id if result.candidates else None,
+            top_candidate.id if top_candidate else None,
             expected_id,
             acceptable_alternatives,
         )
@@ -139,13 +208,50 @@ def test_relevance_matcher_evaluation() -> None:
                 "category": category,
                 "expected_id": expected_id,
                 "acceptable_alternatives": acceptable_alternatives,
-                "top_candidate_id": result.candidates[0].id if result.candidates else None,
-                "top_candidate_name": result.candidates[0].name if result.candidates else None,
-                "top_score": result.confidence,
+                "top_candidate_id": top_candidate.id if top_candidate else None,
+                "top_candidate_name": top_candidate.name if top_candidate else None,
+                "top_score": top_score,
+                "second_candidate_id": second_candidate.id if second_candidate else None,
+                "second_score": second_score,
+                "score_gap": score_gap,
                 "candidate_count": len(result.candidates),
                 "candidate_ids": [cap.id for cap in result.candidates],
+                "meaningful_tokens": meaningful,
+                "matched_tokens": matched,
+                "token_coverage": token_coverage,
+                "match_sources": sources,
                 "notes": notes,
             })
+
+        top_scores.append(top_score)
+        if second_candidate:
+            second_scores.append(second_score)
+            score_gaps.append(score_gap)
+        meaningful_token_counts.append(len(meaningful))
+        token_coverages.append(token_coverage)
+
+        cm = category_metrics[category]
+        cm["count"] += 1
+        if evaluable_for_top:
+            cm["top1_evaluable"] += 1
+            cm["top3_evaluable"] += 1
+            if top1_ok:
+                cm["top1_correct"] += 1
+            if top3_ok:
+                cm["top3_correct"] += 1
+        if evaluable_for_no_match:
+            cm["no_match_evaluable"] += 1
+            if no_match_ok:
+                cm["no_match_correct"] += 1
+        cm["candidate_set_sizes"].append(len(result.candidates))
+        cm["top_scores"].append(top_score)
+        if second_candidate:
+            cm["score_gaps"].append(score_gap)
+        cm["meaningful_token_counts"].append(len(meaningful))
+        cm["token_coverages"].append(token_coverage)
+        for key, present in sources.items():
+            if present:
+                cm["match_sources"][key] += 1
 
     top1_accuracy = (top1_correct / top1_evaluable) if top1_evaluable else 0.0
     top3_recall = (top3_correct / top3_evaluable) if top3_evaluable else 0.0
@@ -155,25 +261,78 @@ def test_relevance_matcher_evaluation() -> None:
 
     print("\n=== RelevanceMatcher Evaluation Baseline ===")
     print(f"Corpus size        : {len(examples)} examples")
-    print(f"Specific           : {sum(1 for e in examples if e.get('category') == 'specific')}")
-    print(f"Generic            : {sum(1 for e in examples if e.get('category') == 'generic')}")
-    print(f"Negative           : {sum(1 for e in examples if e.get('category') == 'negative')}")
-    print(f"Ambiguous          : {sum(1 for e in examples if e.get('category') == 'ambiguous')}")
+    for cat in ["specific", "generic", "ambiguous", "negative"]:
+        cm = category_metrics[cat]
+        print(f"{cat.capitalize():<15}: {cm['count']} examples")
     print(f"Top-1 accuracy     : {top1_accuracy:.2%} ({top1_correct}/{top1_evaluable})")
     print(f"Top-3 recall       : {top3_recall:.2%} ({top3_correct}/{top3_evaluable})")
     print(f"No-match precision : {no_match_precision:.2%} ({no_match_correct}/{no_match_evaluable})")
     print(f"Avg candidate set  : {avg_candidate_set_size:.2f}")
     print(f"Median candidate set: {median_candidate_set_size:.1f}")
 
+    print("\n--- Score distributions by category ---")
+    for cat in ["specific", "generic", "ambiguous", "negative"]:
+        cm = category_metrics[cat]
+        scores = cm["top_scores"]
+        if scores:
+            print(
+                f"  {cat:<10}: min={min(scores):.3f} max={max(scores):.3f} "
+                f"mean={sum(scores)/len(scores):.3f} count={len(scores)}"
+            )
+        else:
+            print(f"  {cat:<10}: no data")
+
+    print("\n--- Score-gap distributions (multi-candidate) ---")
+    for cat in ["specific", "generic", "ambiguous"]:
+        cm = category_metrics[cat]
+        gaps = cm["score_gaps"]
+        if gaps:
+            print(
+                f"  {cat:<10}: min={min(gaps):.3f} max={max(gaps):.3f} "
+                f"mean={sum(gaps)/len(gaps):.3f} count={len(gaps)}"
+            )
+        else:
+            print(f"  {cat:<10}: no multi-candidate examples")
+
+    print("\n--- Candidate-count distributions ---")
+    for cat in ["specific", "generic", "ambiguous", "negative"]:
+        cm = category_metrics[cat]
+        sizes = cm["candidate_set_sizes"]
+        avg = sum(sizes) / len(sizes) if sizes else 0.0
+        print(f"  {cat:<10}: avg={avg:.2f} sizes={sizes}")
+
+    print("\n--- Token coverage distributions ---")
+    for cat in ["specific", "generic", "ambiguous"]:
+        cm = category_metrics[cat]
+        coverages = cm["token_coverages"]
+        if coverages:
+            print(
+                f"  {cat:<10}: min={min(coverages):.2f} max={max(coverages):.2f} "
+                f"mean={sum(coverages)/len(coverages):.2f}"
+            )
+        else:
+            print(f"  {cat:<10}: no data")
+
+    print("\n--- Match-source breakdown (top candidate) ---")
+    for cat in ["specific", "generic", "ambiguous"]:
+        cm = category_metrics[cat]
+        total = sum(cm["match_sources"].values())
+        if total:
+            parts = [f"{k}={v}" for k, v in sorted(cm["match_sources"].items())]
+            print(f"  {cat:<10}: {' '.join(parts)}")
+        else:
+            print(f"  {cat:<10}: no data")
+
     if failures:
         print(f"\n--- Failures ({len(failures)}) ---")
         for failure in failures:
             print(
-                f"  request={failure['request']!r:<30} "
+                f"  request={failure['request']!r:<40} "
                 f"category={failure['category']:<10} "
                 f"expected={failure['expected_id']!r:<30} "
-                f"top={failure['top_candidate_id']!r:<30} "
+                f"top={failure['top_candidate_name']!r:<25} "
                 f"score={failure['top_score']:.3f} "
+                f"gap={failure['score_gap']:.3f} "
                 f"count={failure['candidate_count']}"
             )
             if failure["notes"]:
