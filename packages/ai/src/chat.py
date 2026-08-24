@@ -33,6 +33,7 @@ from contracts.session_factory import SessionFactoryPort, SessionReference
 from contracts.work_management import WorkManagementPort
 
 from capability_action import CapabilityActionPolicy, ExecuteCapability, AskUserToSelect
+from capability_selection_telemetry import CapabilitySelectionTelemetry
 
 logger = logging.getLogger("ai.chat")
 
@@ -76,6 +77,7 @@ class AssistantChatService:
         work_management: WorkManagementPort | None = None,
         session_factory: SessionFactoryPort | None = None,
         pattern_execution: PatternExecutionPort | None = None,
+        capability_selection_telemetry: Any | None = None,
     ) -> None:
         self._reasoning = reasoning_service or AssistantReasoningService()
         self._capability_discovery = capability_discovery
@@ -87,6 +89,7 @@ class AssistantChatService:
         self._pattern_execution = pattern_execution
         self._sessions: dict[str, SessionReference] = {}
         self._action_policy = CapabilityActionPolicy()
+        self._capability_selection_telemetry = capability_selection_telemetry
 
     def chat(self, request: ChatRequest) -> ChatResponse:
         """Process a chat message and return a response."""
@@ -225,6 +228,20 @@ class AssistantChatService:
             actor_context={},
         )
 
+    def record_capability_feedback(
+        self,
+        match_event_id: str,
+        user_action: str,
+        selected_capability_id: str | None = None,
+    ) -> None:
+        """Record user feedback on a previously presented capability candidate set."""
+        if self._capability_selection_telemetry is not None:
+            self._capability_selection_telemetry.record_user_action(
+                event_id=match_event_id,
+                user_action=user_action,
+                selected_capability_id=selected_capability_id,
+            )
+
     def _strategy_from_frame(self, frame: ProblemFrame) -> str:
         problem = frame.context.problem_context.value
         activity = frame.context.activity_purpose.value
@@ -249,7 +266,24 @@ class AssistantChatService:
         frame: ProblemFrame,
         candidate: CapabilityCandidate,
     ) -> ChatResponse:
+        match_event = None
+        if self._capability_selection_telemetry is not None:
+            match_event = self._capability_selection_telemetry.record_match_event(
+                request_text=intent.raw.get("text", ""),
+                session_id=None,
+                candidates=[candidate],
+                interaction_type="confirm",
+            )
+
         if self._capability_execution is None:
+            telemetry = {
+                "recognition_level": frame.recognition_level.value,
+                "capability_id": candidate.id,
+                "capability_name": candidate.name,
+                "execution_mode": candidate.execution_mode,
+            }
+            if match_event is not None:
+                telemetry["match_event_id"] = match_event.event_id
             return ChatResponse(
                 message=f"I found a capability ({candidate.name}) but execution is not configured.",
                 session_id=f"ses-{intent.id}",
@@ -265,7 +299,7 @@ class AssistantChatService:
                         "tags": candidate.tags,
                     }
                 ],
-                telemetry={"recognition_level": frame.recognition_level.value},
+                telemetry=telemetry,
             )
 
         result = self.execute_selected_capability(
@@ -295,6 +329,7 @@ class AssistantChatService:
                 "capability_name": candidate.name,
                 "execution_mode": candidate.execution_mode,
                 "execution_error": result.telemetry.get("error"),
+                **({"match_event_id": match_event.event_id} if match_event is not None else {}),
             },
             execution_outputs=result.outputs,
             execution_artifacts=result.artifacts,
@@ -318,6 +353,25 @@ class AssistantChatService:
                 f"I found {len(candidates)} capabilities that might help. "
                 f"Please select one to proceed, or tell me which one to run."
             )
+
+        match_event = None
+        if self._capability_selection_telemetry is not None:
+            match_event = self._capability_selection_telemetry.record_match_event(
+                request_text=intent.raw.get("text", ""),
+                session_id=None,
+                candidates=candidates,
+                interaction_type=interaction,
+            )
+
+        telemetry = {
+            "recognition_level": frame.recognition_level.value,
+            "matcher": "human_selection",
+            "candidate_count": len(candidates),
+            "interaction": interaction,
+        }
+        if match_event is not None:
+            telemetry["match_event_id"] = match_event.event_id
+
         return ChatResponse(
             message=message,
             session_id=f"ses-{intent.id}",
@@ -338,10 +392,5 @@ class AssistantChatService:
                 }
                 for cap in candidates
             ],
-            telemetry={
-                "recognition_level": frame.recognition_level.value,
-                "matcher": "human_selection",
-                "candidate_count": len(candidates),
-                "interaction": interaction,
-            },
+            telemetry=telemetry,
         )

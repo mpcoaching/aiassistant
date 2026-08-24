@@ -617,8 +617,10 @@ class _ExecutionResultResponse(BaseModel):
     telemetry: dict[str, Any] = Field(default_factory=dict)
 
 from composition import create_assistant
+from capability_selection_telemetry import CapabilitySelectionTelemetry
 
-_assistant = create_assistant()
+_capability_selection_telemetry = CapabilitySelectionTelemetry()
+_assistant = create_assistant(capability_selection_telemetry=_capability_selection_telemetry)
 
 
 @app.post("/assistant/chat", response_model=_ChatResponse)
@@ -768,6 +770,31 @@ async def assistant_capability_execute(
         outputs=result.outputs,
         artifacts=result.artifacts,
         telemetry=result.telemetry,
+    )
+
+
+class _CapabilityFeedbackRequest(BaseModel):
+    match_event_id: str
+    action: str
+    selected_capability_id: str | None = None
+
+
+class _CapabilityFeedbackResponse(BaseModel):
+    match_event_id: str
+    action: str
+    status: str = "recorded"
+
+
+@app.post("/assistant/capability/feedback", response_model=_CapabilityFeedbackResponse)
+async def assistant_capability_feedback(body: _CapabilityFeedbackRequest) -> _CapabilityFeedbackResponse:
+    _assistant.record_capability_feedback(
+        match_event_id=body.match_event_id,
+        user_action=body.action,
+        selected_capability_id=body.selected_capability_id,
+    )
+    return _CapabilityFeedbackResponse(
+        match_event_id=body.match_event_id,
+        action=body.action,
     )
 
 
