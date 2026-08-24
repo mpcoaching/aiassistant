@@ -177,3 +177,99 @@ def test_candidate_confidences_excludes_unmatched() -> None:
     for cap in result.candidates:
         assert cap.id in result.candidate_confidences
         assert result.candidate_confidences[cap.id] > 0.0
+
+
+def test_stop_words_are_filtered_from_request() -> None:
+    matcher = RelevanceMatcher()
+    caps = [_capability("send_email", description="Sends an email notification", tags=["email"])]
+    result_with_stop = matcher.match("send the email", ContextRecord(), caps)
+    result_without_stop = matcher.match("send email", ContextRecord(), caps)
+    assert result_with_stop.confidence == result_without_stop.confidence
+
+
+def test_stop_words_do_not_affect_ranking() -> None:
+    matcher = RelevanceMatcher()
+    caps = [
+        _capability("create_test_artifact", description="Creates a test artifact", tags=["test"]),
+        _capability("send_email", description="Sends an email notification", tags=["email"]),
+    ]
+    result_with_stop = matcher.match("create a test artifact", ContextRecord(), caps)
+    result_without_stop = matcher.match("create test artifact", ContextRecord(), caps)
+    assert [c.name for c in result_with_stop.candidates] == [
+        c.name for c in result_without_stop.candidates
+    ]
+
+
+def test_duplicate_request_tokens_do_not_change_score() -> None:
+    matcher = RelevanceMatcher()
+    caps = [_capability("create_test_artifact", description="Creates a test artifact", tags=["test"])]
+    result_unique = matcher.match("create test artifact", ContextRecord(), caps)
+    result_duplicate = matcher.match("create create test artifact", ContextRecord(), caps)
+    assert result_unique.confidence == result_duplicate.confidence
+
+
+def test_duplicate_request_tokens_do_not_change_ranking() -> None:
+    matcher = RelevanceMatcher()
+    caps = [
+        _capability("create_test_artifact", description="Creates a test artifact", tags=["test"]),
+        _capability("create_lead", description="Create a new lead record", tags=["lead"]),
+    ]
+    result_unique = matcher.match("create test artifact", ContextRecord(), caps)
+    result_duplicate = matcher.match("create create test artifact", ContextRecord(), caps)
+    assert [c.name for c in result_unique.candidates] == [
+        c.name for c in result_duplicate.candidates
+    ]
+
+
+def test_meaningful_capability_terms_are_not_stop_words() -> None:
+    matcher = RelevanceMatcher()
+    stop_words = RelevanceMatcher._STOP_WORDS
+    meaningful_terms = [
+        "create", "send", "analyse", "generate", "data", "email", "report",
+        "lead", "artifact", "test", "notification", "record",
+    ]
+    for term in meaningful_terms:
+        assert term not in stop_words, f"Meaningful term '{term}' incorrectly classified as stop word"
+
+
+def test_matching_remains_deterministic() -> None:
+    matcher = RelevanceMatcher()
+    caps = [
+        _capability("alpha", description="alpha", tags=["alpha"]),
+        _capability("beta", description="beta", tags=["beta"]),
+        _capability("gamma", description="gamma", tags=["gamma"]),
+    ]
+    results = [
+        matcher.match("alpha beta gamma", ContextRecord(), caps)
+        for _ in range(5)
+    ]
+    names_sets = [[c.name for c in r.candidates] for r in results]
+    assert all(names == names_sets[0] for names in names_sets)
+
+
+def test_candidate_ordering_remains_deterministic() -> None:
+    matcher = RelevanceMatcher()
+    caps = [
+        _capability("create_test_artifact", description="Creates a test artifact", tags=["test"]),
+        _capability("send_email", description="Sends an email notification", tags=["email"]),
+        _capability("analyse_data", description="Analyse data", tags=["data", "analysis"]),
+    ]
+    results = [
+        matcher.match("create test artifact email data", ContextRecord(), caps)
+        for _ in range(5)
+    ]
+    names_sets = [[c.name for c in r.candidates] for r in results]
+    assert all(names == names_sets[0] for names in names_sets)
+
+
+def test_specific_matches_remain_correctly_ranked() -> None:
+    matcher = RelevanceMatcher()
+    caps = [
+        _capability("create_test_artifact", description="Creates a test artifact", tags=["test"]),
+        _capability("send_email", description="Sends an email notification", tags=["email"]),
+        _capability("analyse_data", description="Analyse data", tags=["data", "analysis"]),
+    ]
+    result = matcher.match("create test artifact email data", ContextRecord(), caps)
+    assert result.candidates[0].name == "create_test_artifact"
+    assert result.candidates[1].name == "analyse_data"
+    assert result.candidates[2].name == "send_email"

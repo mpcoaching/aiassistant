@@ -1,5 +1,5 @@
 """
-Relevance matcher (Increment 21B).
+Relevance matcher (Increment 21B, 21H).
 
 Deterministic keyword-based capability matcher. Replaces HumanSelectionMatcher
 with a matcher that scores candidates by keyword relevance to the request text
@@ -19,15 +19,94 @@ from enterprise_context import ContextRecord
 from pydantic import BaseModel
 
 
+_STOP_WORDS: frozenset[str] = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "can",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "as",
+        "by",
+        "at",
+        "from",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "out",
+        "off",
+        "over",
+        "under",
+        "again",
+        "further",
+        "then",
+        "once",
+    }
+)
+
+_STOP_WORDS_RATIONALE = """
+Stop words are functional English words that carry little semantic content
+for capability matching. They are removed only from the request/query side,
+not from capability metadata. The set is intentionally small and conservative:
+
+- Articles: a, an, the
+- Auxiliary verbs: is, are, was, were, be, been, being, have, has, had,
+  do, does, did, will, would, could, should, may, might, must, shall, can
+- Common prepositions/conjunctions: to, of, in, for, on, with, as, by, at,
+  from, through, during, before, after, above, below, between, out, off,
+  over, under, again, further, then, once
+
+Words that could legitimately appear in capability names, descriptions, or
+tags (nouns, content verbs, adjectives) are deliberately excluded. For
+example, "create", "send", "analyse", "data", "email", "report", "lead",
+"artifact", "test", "notification", "generate" are NOT stop words.
+"""
+
+
 class RelevanceMatcher:
     """Deterministic keyword-based capability matcher.
 
     Scores capabilities by keyword overlap between the request text and
     the capability's name, description, and tags. Returns ranked candidates
     with a confidence score representing the highest relevance found.
+
+    Request tokens are normalised by removing a small, explicit stop-word set
+    and deduplicating repeated terms before scoring. Capability metadata is
+    not normalised.
     """
 
     matcher_id = "relevance"
+    _STOP_WORDS = _STOP_WORDS
 
     def match(
         self,
@@ -80,7 +159,9 @@ class RelevanceMatcher:
     @staticmethod
     def _tokenise(text: str) -> list[str]:
         lowered = text.lower()
-        return re.findall(r"[a-z0-9]+", lowered)
+        tokens = re.findall(r"[a-z0-9]+", lowered)
+        filtered = [token for token in tokens if token not in RelevanceMatcher._STOP_WORDS]
+        return list(dict.fromkeys(filtered))
 
     @staticmethod
     def _overlap(request_tokens: list[str], field_tokens: list[str]) -> float:
