@@ -110,6 +110,15 @@ class OrganisationControlPlane(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def query_capability(self, capability_id: str) -> Any | None:
+        """Query whether a capability is currently available.
+
+        Returns minimal availability information: whether the capability
+        exists, whether it is currently available, and a simple ETA.
+        """
+        raise NotImplementedError
+
 
 class InMemoryOrganisationControlPlane(OrganisationControlPlane):
     """Reference implementation using in-memory storage.
@@ -209,3 +218,38 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
             work.updated_at = datetime.now(UTC)
             self._work[work.id] = work
         return work
+
+    def query_capability(self, capability_id: str) -> dict[str, Any] | None:
+        """Query whether a capability is currently available.
+
+        Returns minimal availability information.
+        """
+        has_capability = any(
+            capability_id in role.required_capability_ids
+            for role in self._roles.values()
+        )
+        if not has_capability:
+            return None
+
+        in_progress = [
+            work for work in self._work.values()
+            if capability_id in work.required_capability_ids
+            and work.status == WorkStatus.IN_PROGRESS
+        ]
+
+        if in_progress:
+            return {
+                "capability_id": capability_id,
+                "available": False,
+                "eta_seconds": None,
+                "assignee": in_progress[0].assignee_agent_id or in_progress[0].assignee_role_id,
+                "reason": "Capability is currently in use",
+            }
+
+        return {
+            "capability_id": capability_id,
+            "available": True,
+            "eta_seconds": 5,
+            "assignee": None,
+            "reason": "Capability is available",
+        }

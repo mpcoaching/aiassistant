@@ -25,6 +25,7 @@ def create_assistant(
     session_factory: Any | None = None,
     pattern_execution: Any | None = None,
     capability_selection_telemetry: Any | None = None,
+    enterprise_capability_query: Any | None = None,
 ) -> Any:
     from chat import AssistantChatService
 
@@ -38,11 +39,13 @@ def create_assistant(
         session_factory=session_factory,
         pattern_execution=pattern_execution,
         capability_selection_telemetry=capability_selection_telemetry,
+        enterprise_capability_query=enterprise_capability_query,
     )
 
 
 def create_application(capability_selection_telemetry: Any | None = None) -> dict[str, Any]:
     from adapters.capability_discovery_adapter import CapabilityDiscoveryAdapter
+    from adapters.enterprise_capability_query_adapter import EnterpriseCapabilityQueryAdapter
     from adapters.organisational_context_adapter import OrganisationalContextAdapter
     from adapters.work_management_adapter import WorkManagementAdapter
     from capability_registry.src.adapters.execution_authorisation_adapter import InMemoryExecutionAuthorisationPort
@@ -53,6 +56,7 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     from capability_matcher import RelevanceMatcher
     from concepts import ConceptStore
     from contracts.capability_outcome_assessor import CapabilityOutcomeAssessor
+    from contracts.enterprise_capability_query import EnterpriseCapabilityQueryPort
     from contracts.organisational_context import OrganisationalContextPort
     from contracts.work_management import WorkManagementPort
     from execution_authorisation import ExecutionAuthorisationPort
@@ -122,6 +126,7 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     org_plane.register_role(Role(id="researcher", name="Researcher", authority_ids=[]))
     org_context_port: OrganisationalContextPort = OrganisationalContextAdapter(org_plane)
     work_management_port: WorkManagementPort = WorkManagementAdapter(org_plane)
+    enterprise_capability_query_port: EnterpriseCapabilityQueryPort = EnterpriseCapabilityQueryAdapter(org_plane)
 
     assistant = create_assistant(
         capability_discovery=discovery,
@@ -130,6 +135,7 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
         pattern_execution=pattern_execution,
         organisational_context=org_context_port,
         work_management=work_management_port,
+        enterprise_capability_query=enterprise_capability_query_port,
         capability_selection_telemetry=capability_selection_telemetry,
     )
 

@@ -557,3 +557,82 @@ def test_end_to_end_delegation_worker_result(client, tmp_path):
     assert work_response.outcome["summary"].startswith("# Work Summary: Research X")
     assert work_response.status == "completed"
     assert "Research X and report back" in work_response.outcome["summary"]
+
+
+# ---- Enterprise Capability Query API Tests -----------------------------------
+
+
+def test_query_capability_availability_returns_available(client):
+    with patch("workflow_runner_api._org_plane") as mock_org:
+        mock_org.query_capability.return_value = {
+            "capability_id": "cap-1",
+            "available": True,
+            "eta_seconds": 5,
+            "assignee": None,
+            "reason": "Available now",
+        }
+        response = client.get("/capabilities/cap-1/availability")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["capability_id"] == "cap-1"
+        assert data["available"] is True
+        assert data["eta_seconds"] == 5
+        assert data["reason"] == "Available now"
+
+
+def test_query_capability_availability_returns_404_when_not_found(client):
+    with patch("workflow_runner_api._org_plane") as mock_org:
+        mock_org.query_capability.return_value = None
+        response = client.get("/capabilities/cap-missing/availability")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["capability_id"] == "cap-missing"
+        assert data["available"] is False
+        assert "not found" in data["reason"]
+
+
+def test_query_capability_availability_501_when_org_plane_not_configured(client):
+    with patch("workflow_runner_api._org_plane", None):
+        response = client.get("/capabilities/cap-1/availability")
+        assert response.status_code == 501
+
+
+# ---- OrganisationControlPlane query_capability tests -------------------------
+
+
+def test_query_capability_returns_none_when_no_role_has_capability():
+    from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
+
+    org_plane = InMemoryOrganisationControlPlane()
+    result = org_plane.query_capability("cap-missing")
+    assert result is None
+
+
+def test_query_capability_returns_available_when_role_has_capability():
+    from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.role import Role, Work, WorkStatus
+
+    org_plane = InMemoryOrganisationControlPlane()
+    org_plane.register_role(Role(id="r1", name="Researcher", authority_ids=[], required_capability_ids=["cap-1"]))
+    result = org_plane.query_capability("cap-1")
+    assert result is not None
+    assert result["available"] is True
+    assert result["eta_seconds"] == 5
+    assert result["reason"] == "Capability is available"
+
+
+def test_query_capability_returns_unavailable_when_in_progress():
+    from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.role import Role, Work, WorkStatus
+
+    org_plane = InMemoryOrganisationControlPlane()
+    org_plane.register_role(Role(id="r1", name="Researcher", authority_ids=[], required_capability_ids=["cap-1"]))
+    work = Work(id="w1", title="Busy work", accountable_role_id="r1", required_capability_ids=["cap-1"])
+    work.status = WorkStatus.IN_PROGRESS
+    org_plane._work[work.id] = work
+
+    result = org_plane.query_capability("cap-1")
+    assert result is not None
+    assert result["available"] is False
+    assert result["eta_seconds"] is None
+    assert "in use" in result["reason"]

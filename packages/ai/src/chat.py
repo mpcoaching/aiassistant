@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 
 from contracts.capability_discovery import CapabilityCandidate, CapabilityDiscoveryPort
 from contracts.capability_execution import CapabilityExecutionPort, ExecutionResult
+from contracts.enterprise_capability_query import CapabilityAvailability, EnterpriseCapabilityQueryPort
 from contracts.enterprise_information import EnterpriseInformationPort, SolutionRecord
 from contracts.organisational_context import OrganisationalContextPort
 from contracts.pattern_execution import PatternExecutionPort, PatternExecutionRequest
@@ -78,6 +79,7 @@ class AssistantChatService:
         session_factory: SessionFactoryPort | None = None,
         pattern_execution: PatternExecutionPort | None = None,
         capability_selection_telemetry: Any | None = None,
+        enterprise_capability_query: EnterpriseCapabilityQueryPort | None = None,
     ) -> None:
         self._reasoning = reasoning_service or AssistantReasoningService()
         self._capability_discovery = capability_discovery
@@ -90,6 +92,7 @@ class AssistantChatService:
         self._sessions: dict[str, SessionReference] = {}
         self._action_policy = CapabilityActionPolicy()
         self._capability_selection_telemetry = capability_selection_telemetry
+        self._enterprise_capability_query = enterprise_capability_query
 
     def chat(self, request: ChatRequest) -> ChatResponse:
         """Process a chat message and return a response."""
@@ -121,6 +124,11 @@ class AssistantChatService:
                 request_text=request.message,
                 context=frame.context,
             )
+
+            enterprise_response = self._evaluate_enterprise_action(candidates, intent, frame, session_id)
+            if enterprise_response is not None:
+                return enterprise_response
+
             action = self._action_policy.decide(candidates, request.context)
             if isinstance(action, ExecuteCapability):
                 return self._execute_capability_response(intent, frame, action.candidate, session_id)
@@ -407,6 +415,7 @@ class AssistantChatService:
         intent: Intent,
         frame: ProblemFrame,
         session_id: str,
+        required_capability_ids: list[str] | None = None,
     ) -> ChatResponse:
         """Delegate work to the enterprise plane via WorkManagementPort."""
         request_text = intent.raw.get("text", "")
@@ -417,6 +426,7 @@ class AssistantChatService:
                 accountable_role_id="default",
                 work_type="project",
                 priority="normal",
+                required_capability_ids=required_capability_ids or [],
             )
         )
         return ChatResponse(
@@ -433,5 +443,138 @@ class AssistantChatService:
                 "work_id": work_ref.work_id,
                 "work_status": work_ref.status,
                 "delegated": True,
+                "required_capability_ids": required_capability_ids or [],
+            },
+        )
+
+    def _evaluate_enterprise_action(
+        self,
+        candidates: list[CapabilityCandidate],
+        intent: Intent,
+        frame: ProblemFrame,
+        session_id: str,
+    ) -> ChatResponse | None:
+        """Evaluate whether the enterprise plane can handle this request.
+
+        Returns a ChatResponse if the enterprise should act, otherwise None
+        to allow fallback to pattern execution or other paths.
+        """
+        if self._enterprise_capability_query is None or not candidates:
+            return None
+
+        best_candidate = candidates[0]
+        availability = self._enterprise_capability_query.query_capability(best_candidate.id)
+
+        if availability is None:
+            return self._handle_capability_gap(intent, frame, session_id, best_candidate)
+
+        if not availability.available:
+            return self._handle_unavailable_capability(intent, frame, session_id, availability)
+
+        eta = availability.eta_seconds or 0
+        if eta <= 60:
+            return self._handle_fast_capability(best_candidate.id, intent, frame, session_id)
+
+        return self._handle_slow_capability(best_candidate.id, intent, frame, session_id, eta)
+
+    def _handle_fast_capability(
+        self,
+        capability_id: str,
+        intent: Intent,
+        frame: ProblemFrame,
+        session_id: str,
+    ) -> ChatResponse:
+        """Fast enterprise capability: delegate immediately."""
+        return self._delegate_work_response(
+            intent, frame, session_id, required_capability_ids=[capability_id]
+        )
+
+    def _handle_slow_capability(
+        self,
+        capability_id: str,
+        intent: Intent,
+        frame: ProblemFrame,
+        session_id: str,
+        eta_seconds: int,
+    ) -> ChatResponse:
+        """Slow enterprise capability: provide interim answer and delegate."""
+        self._delegate_work_response(
+            intent, frame, session_id, required_capability_ids=[capability_id]
+        )
+        return ChatResponse(
+            message=(
+                f"The enterprise can produce the proper answer for this, "
+                f"but it will take approximately {eta_seconds} seconds. "
+                f"I can give you a preliminary answer now while the enterprise work continues. "
+                f"Work has been delegated to the enterprise plane."
+            ),
+            session_id=session_id,
+            status="delegated_with_interim",
+            reasoning=(
+                f"Enterprise capability {capability_id} available but ETA {eta_seconds}s exceeds threshold. "
+                f"Providing interim response while enterprise work proceeds."
+            ),
+            telemetry={
+                "recognition_level": frame.recognition_level.value,
+                "capability_id": capability_id,
+                "eta_seconds": eta_seconds,
+                "delegated": True,
+                "interim": True,
+            },
+        )
+
+    def _handle_unavailable_capability(
+        self,
+        intent: Intent,
+        frame: ProblemFrame,
+        session_id: str,
+        availability: CapabilityAvailability,
+    ) -> ChatResponse:
+        """Capability exists but is currently unavailable."""
+        return ChatResponse(
+            message=(
+                f"The enterprise has this capability, but it is currently unavailable. "
+                f"{availability.reason}. "
+                f"I can queue this work for when it becomes available."
+            ),
+            session_id=session_id,
+            status="capability_unavailable",
+            reasoning=(
+                f"Capability exists but unavailable: {availability.reason}. "
+                f"Assignee: {availability.assignee}."
+            ),
+            telemetry={
+                "recognition_level": frame.recognition_level.value,
+                "capability_id": availability.capability_id,
+                "available": False,
+                "assignee": availability.assignee,
+                "reason": availability.reason,
+            },
+        )
+
+    def _handle_capability_gap(
+        self,
+        intent: Intent,
+        frame: ProblemFrame,
+        session_id: str,
+        candidate: CapabilityCandidate,
+    ) -> ChatResponse:
+        """Capability does not exist in the enterprise."""
+        return ChatResponse(
+            message=(
+                f"The enterprise does not currently have a capability for '{candidate.name}'. "
+                f"I can provide a best-effort response, or I can initiate work to develop this capability."
+            ),
+            session_id=session_id,
+            status="capability_gap",
+            reasoning=(
+                f"No enterprise capability found for {candidate.id}. "
+                f"This represents a capability gap."
+            ),
+            telemetry={
+                "recognition_level": frame.recognition_level.value,
+                "capability_id": candidate.id,
+                "capability_name": candidate.name,
+                "gap": True,
             },
         )

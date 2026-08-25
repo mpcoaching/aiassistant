@@ -13,6 +13,7 @@ Endpoints:
   POST /schedules                    — create a schedule
   DELETE /schedules/{id}             — remove a schedule
   GET  /schedules                    — list active schedules
+  GET  /capabilities/{capability_id}/availability — query enterprise capability availability
   GET  /roles                        — list enterprise-plane roles
   GET  /work                         — list enterprise-plane work items
   GET  /work/{work_id}               — inspect a work item
@@ -636,8 +637,69 @@ try:
     from role import Role
     _org_plane = InMemoryOrganisationControlPlane()
     _org_plane.register_role(Role(id="researcher", name="Researcher", authority_ids=[]))
+    _work_management = WorkManagementAdapter(_org_plane)
+    _assistant = create_assistant(
+        capability_selection_telemetry=_capability_selection_telemetry,
+        work_management=_work_management,
+    )
+
+    from capability import Capability, CapabilityKind
+    from capability_deployment import (
+        CapabilityDeployment,
+        CompiledRef,
+        ExecutionMode,
+        Transport,
+    )
+    from capability_registry.src.capabilities import CapabilityRegistry
+    from capability_registry.src.concept_store_adapter import (
+        ConceptStoreCapabilityRepository,
+    )
+    from deployment_resolver import DeploymentResolver
+    from workflow_runner.src.adapters.capability_execution_adapter import (
+        CapabilityExecutionAdapter,
+    )
+
+    _capability_store = ConceptStore()
+    _capability_repository = ConceptStoreCapabilityRepository(_capability_store)
+    _capability_registry = CapabilityRegistry(_capability_repository)
+
+    _real_capability = Capability(
+        id="real-capability",
+        name="Real Capability",
+        description="A real executable capability for Increment 21T proof",
+        owner="core",
+        created_by="api-setup",
+        capability_kind=CapabilityKind.SKILL,
+        tags=["skill"],
+    )
+    _capability_registry.register(_real_capability)
+
+    _capability_deployment = CapabilityDeployment(
+        capability_id="real-capability",
+        environment="default",
+        execution_mode=ExecutionMode.COMPILED,
+        transport=Transport.TIER2_INPROCESS,
+        compiled_ref=CompiledRef(
+            module_path="tests.real_capability",
+            entrypoint="run",
+        ),
+    )
+    _capability_resolver = DeploymentResolver([_capability_deployment])
+
+    def _capability_deployment_factory(capability: Capability) -> CapabilityDeployment | None:
+        try:
+            return _capability_resolver.resolve(capability.id, "default")
+        except Exception:
+            return None
+
+    _capability_execution = CapabilityExecutionAdapter(
+        registry=_capability_registry,
+        deployment_factory=_capability_deployment_factory,
+    )
 except Exception:
     _org_plane = None
+    _work_management = None
+    _capability_execution = None
 
 
 @app.post("/assistant/chat", response_model=_ChatResponse)
@@ -988,8 +1050,37 @@ class _WorkResponse(BaseModel):
     assignee_role_id: str | None = None
     assignee_person_id: str | None = None
     assignee_agent_id: str | None = None
+    required_capability_ids: list[str] = []
     outcome: dict[str, Any] | None = None
     output_path: str | None = None
+
+
+class _CapabilityAvailabilityResponse(BaseModel):
+    capability_id: str
+    available: bool
+    eta_seconds: int | None = None
+    assignee: str | None = None
+    reason: str = ""
+
+
+@app.get("/capabilities/{capability_id}/availability", response_model=_CapabilityAvailabilityResponse)
+async def query_capability_availability(capability_id: str) -> _CapabilityAvailabilityResponse:
+    if _org_plane is None:
+        raise HTTPException(status_code=501, detail="Organisation plane not configured")
+    result = _org_plane.query_capability(capability_id)
+    if result is None:
+        return _CapabilityAvailabilityResponse(
+            capability_id=capability_id,
+            available=False,
+            reason="Capability not found in enterprise plane",
+        )
+    return _CapabilityAvailabilityResponse(
+        capability_id=result["capability_id"],
+        available=result["available"],
+        eta_seconds=result.get("eta_seconds"),
+        assignee=result.get("assignee"),
+        reason=result.get("reason", ""),
+    )
 
 
 @app.get("/roles", response_model=list[_RoleResponse])
@@ -1025,6 +1116,7 @@ async def list_work() -> list[_WorkResponse]:
             assignee_role_id=work.assignee_role_id,
             assignee_person_id=work.assignee_person_id,
             assignee_agent_id=work.assignee_agent_id,
+            required_capability_ids=list(work.required_capability_ids),
             outcome=work.outcome,
             output_path=work.outcome.get("output_path") if work.outcome else None,
         ))
@@ -1049,6 +1141,7 @@ async def get_work(work_id: str) -> _WorkResponse:
         assignee_role_id=work.assignee_role_id,
         assignee_person_id=work.assignee_person_id,
         assignee_agent_id=work.assignee_agent_id,
+        required_capability_ids=list(work.required_capability_ids),
         outcome=work.outcome,
         output_path=work.outcome.get("output_path") if work.outcome else None,
     )
@@ -1061,7 +1154,7 @@ async def process_work(work_id: str) -> dict[str, Any]:
     work = _org_plane.get_work(work_id)
     if work is None:
         raise HTTPException(status_code=404, detail="Work not found")
-    worker = Worker()
+    worker = Worker(capability_execution=_capability_execution)
     result = worker.execute(work, _org_plane)
     return {"work_id": work_id, "status": result.get("status", "completed"), "outcome": result}
 
@@ -1070,7 +1163,7 @@ async def process_work(work_id: str) -> dict[str, Any]:
 async def run_worker() -> dict[str, Any]:
     if _org_plane is None:
         raise HTTPException(status_code=501, detail="Organisation plane not configured")
-    worker = Worker()
+    worker = Worker(capability_execution=_capability_execution)
     work = worker.pickup(_org_plane)
     if work is None:
         raise HTTPException(status_code=404, detail="No work available for worker")
