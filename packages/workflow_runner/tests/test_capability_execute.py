@@ -278,7 +278,7 @@ def test_telemetry_export_endpoint_exports_events(client):
 
 def test_list_work_returns_empty_when_no_work(client):
     with patch("workflow_runner_api._org_plane") as mock_org:
-        mock_org.list_roles.return_value = []
+        mock_org.list_work.return_value = []
         response = client.get("/work")
         assert response.status_code == 200
         assert response.json() == []
@@ -330,6 +330,106 @@ def test_work_endpoints_501_when_org_plane_not_configured(client):
 
         response = client.post("/work/w1/process")
         assert response.status_code == 501
+
+        response = client.post("/worker/run")
+        assert response.status_code == 501
+
+        response = client.get("/roles")
+        assert response.status_code == 501
+
+
+# ---- Role Visibility --------------------------------------------------------
+
+
+def test_list_roles_returns_empty_when_no_roles(client):
+    with patch("workflow_runner_api._org_plane") as mock_org:
+        mock_org.list_roles.return_value = []
+        response = client.get("/roles")
+        assert response.status_code == 200
+        assert response.json() == []
+
+
+def test_list_roles_returns_registered_roles(client):
+    with patch("workflow_runner_api._org_plane") as mock_org:
+        from organisation.src.role import Role, RoleStatus
+        mock_org.list_roles.return_value = [
+            Role(id="r1", name="Researcher", status=RoleStatus.ACTIVE, authority_ids=["auth-1"]),
+            Role(id="r2", name="Writer", status=RoleStatus.ACTIVE, authority_ids=["auth-2"]),
+        ]
+        response = client.get("/roles")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["role_id"] == "r1"
+        assert data[0]["name"] == "Researcher"
+        assert data[1]["role_id"] == "r2"
+
+
+# ---- Worker Pickup ---------------------------------------------------------
+
+
+def test_worker_pickup_returns_assigned_work(tmp_path):
+    from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.role import Agent, Work, WorkStatus
+    from organisation.src.worker import Worker
+
+    org_plane = InMemoryOrganisationControlPlane()
+    work = Work(id="w1", title="Pickup task", accountable_role_id="default", description="Test")
+    worker_agent = Agent(id=Worker.DEFAULT_AGENT_ID, name="Worker")
+    org_plane.assign_work(work, worker_agent)
+
+    worker = Worker()
+    picked = worker.pickup(org_plane)
+    assert picked is not None
+    assert picked.id == "w1"
+    assert picked.status == WorkStatus.ASSIGNED
+
+
+def test_worker_pickup_returns_none_when_no_assigned_work(tmp_path):
+    from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.worker import Worker
+
+    org_plane = InMemoryOrganisationControlPlane()
+    worker = Worker()
+    assert worker.pickup(org_plane) is None
+
+
+def test_worker_run_endpoint_processes_assigned_work(client, tmp_path):
+    with patch("workflow_runner_api._org_plane") as mock_org:
+        from organisation.src.role import Work, WorkStatus
+        work = Work(id="w1", title="Worker task", accountable_role_id="default", assignee_agent_id="worker-agent")
+        mock_org.list_work.return_value = [work]
+        mock_org.get_work.return_value = work
+        mock_org._work = {"w1": work}
+
+        with patch("workflow_runner_api.Worker") as MockWorker:
+            mock_worker = MockWorker.return_value
+            mock_worker.pickup.return_value = work
+            mock_worker.execute.return_value = {
+                "status": "completed",
+                "summary": "Worker pickup complete",
+                "output_path": "worker_outputs/w1.md",
+                "output_type": "markdown",
+                "work_id": "w1",
+            }
+
+            response = client.post("/worker/run")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["work_id"] == "w1"
+            assert data["status"] == "completed"
+            mock_worker.pickup.assert_called_once_with(mock_org)
+            mock_worker.execute.assert_called_once_with(work, mock_org)
+
+
+def test_worker_run_returns_404_when_no_work(client):
+    with patch("workflow_runner_api._org_plane") as mock_org:
+        with patch("workflow_runner_api.Worker") as MockWorker:
+            mock_worker = MockWorker.return_value
+            mock_worker.pickup.return_value = None
+
+            response = client.post("/worker/run")
+            assert response.status_code == 404
 
 
 # ---- Worker Tests ---------------------------------------------------------
