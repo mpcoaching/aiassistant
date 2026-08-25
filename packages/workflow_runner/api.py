@@ -63,7 +63,7 @@ from db import (
 )
 from loader import load_workflow, resolve_workflow_path
 from models import Step, WorkflowDefinition
-from organisation.src.role import WorkStatus
+from organisation.src.worker import Worker
 from runtime_client import configure as _configure_runtime_client
 from scheduler import (
     _build_scheduler,
@@ -976,6 +976,8 @@ class _WorkResponse(BaseModel):
     assignee_role_id: str | None = None
     assignee_person_id: str | None = None
     assignee_agent_id: str | None = None
+    outcome: dict[str, Any] | None = None
+    output_path: str | None = None
 
 
 @app.get("/work", response_model=list[_WorkResponse])
@@ -1001,6 +1003,8 @@ async def list_work() -> list[_WorkResponse]:
                 assignee_role_id=work.assignee_role_id,
                 assignee_person_id=work.assignee_person_id,
                 assignee_agent_id=work.assignee_agent_id,
+                outcome=work.outcome,
+                output_path=work.outcome.get("output_path") if work.outcome else None,
             ))
     return work_items
 
@@ -1023,6 +1027,8 @@ async def get_work(work_id: str) -> _WorkResponse:
         assignee_role_id=work.assignee_role_id,
         assignee_person_id=work.assignee_person_id,
         assignee_agent_id=work.assignee_agent_id,
+        outcome=work.outcome,
+        output_path=work.outcome.get("output_path") if work.outcome else None,
     )
 
 
@@ -1033,10 +1039,9 @@ async def process_work(work_id: str) -> dict[str, Any]:
     work = _org_plane.get_work(work_id)
     if work is None:
         raise HTTPException(status_code=404, detail="Work not found")
-    work.status = WorkStatus.COMPLETED
-    work.outcome = {"result": f"Processed: {work.title}", "status": "completed"}
-    _org_plane._work[work_id] = work
-    return {"work_id": work_id, "status": "completed", "outcome": work.outcome}
+    worker = Worker()
+    result = worker.execute(work, _org_plane)
+    return {"work_id": work_id, "status": result.get("status", "completed"), "outcome": result}
 
 
 # ---- Internal helpers ----
