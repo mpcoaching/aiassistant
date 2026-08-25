@@ -41,45 +41,45 @@ def create_assistant(
     )
 
 
-def create_ceo(
-    org_context: Any,
-    reasoning_service: Any | None = None,
-    enterprise_information: Any | None = None,
-    confidence_threshold: float = 0.5,
-) -> Any:
-    from ceo import CEOAgent
-
-    return CEOAgent(
-        org_context=org_context,
-        reasoning_service=reasoning_service,
-        enterprise_information=enterprise_information,
-        confidence_threshold=confidence_threshold,
-    )
-
-
-def create_application() -> dict[str, Any]:
+def create_application(capability_selection_telemetry: Any | None = None) -> dict[str, Any]:
     from adapters.capability_discovery_adapter import CapabilityDiscoveryAdapter
+    from adapters.organisational_context_adapter import OrganisationalContextAdapter
+    from adapters.work_management_adapter import WorkManagementAdapter
+    from capability_registry.src.adapters.execution_authorisation_adapter import InMemoryExecutionAuthorisationPort
+    from capability_registry.src.capabilities import ConceptKind
+    from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
     from capabilities import CapabilityRegistry
     from capability import Capability
     from capability_matcher import RelevanceMatcher
-    from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
     from concepts import ConceptStore
     from contracts.capability_outcome_assessor import CapabilityOutcomeAssessor
+    from contracts.organisational_context import OrganisationalContextPort
+    from contracts.work_management import WorkManagementPort
     from execution_authorisation import ExecutionAuthorisationPort
-    from execution_authorisation_adapter import InMemoryExecutionAuthorisationPort
     from invocation_recorder import InvocationRecorder
     from langgraph_runtime import LangGraphRuntime
-
-    from adapters.capability_execution_adapter import CapabilityExecutionAdapter
-    from adapters.invocation_recorder_adapter import InvocationRecorderAdapter
-    from adapters.pattern_execution_adapter import PatternExecutionAdapter
-    from adapters.session_factory_adapter import SessionFactoryAdapter
-    from capability_deployment import CapabilityDeployment
-    from deployment_resolver import DeploymentNotFoundError, DeploymentResolver
+    from organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.adapters.capability_outcome_assessor_adapter import (
+        CapabilityOutcomeAssessorAdapter,
+    )
     from runtime import PatternRuntime
+    from workflow_runner.src.adapters.capability_execution_adapter import (
+        CapabilityExecutionAdapter,
+    )
     from workflow_runner.src.adapters.capability_outcome_assessor_adapter import (
         CapabilityOutcomeAssessorAdapter,
     )
+    from workflow_runner.src.adapters.invocation_recorder_adapter import (
+        InvocationRecorderAdapter,
+    )
+    from workflow_runner.src.adapters.pattern_execution_adapter import (
+        PatternExecutionAdapter,
+    )
+    from workflow_runner.src.adapters.session_factory_adapter import (
+        SessionFactoryAdapter,
+    )
+    from capability_deployment import CapabilityDeployment
+    from deployment_resolver import DeploymentNotFoundError, DeploymentResolver
 
     store = ConceptStore()
     repository = ConceptStoreCapabilityRepository(store)
@@ -118,11 +118,23 @@ def create_application() -> dict[str, Any]:
     pattern_execution = PatternExecutionAdapter(runtime=langgraph_runtime)
     session_factory = SessionFactoryAdapter()
 
+    org_plane = InMemoryOrganisationControlPlane()
+    org_plane.register_role(Role(id="researcher", name="Researcher", authority_ids=[]))
+    org_context_port: OrganisationalContextPort = OrganisationalContextAdapter(org_plane)
+    work_management_port: WorkManagementPort = WorkManagementAdapter(org_plane)
+
     assistant = create_assistant(
         capability_discovery=discovery,
         capability_execution=execution_adapter,
         session_factory=session_factory,
         pattern_execution=pattern_execution,
+        organisational_context=org_context_port,
+        work_management=work_management_port,
+        capability_selection_telemetry=capability_selection_telemetry,
     )
 
-    return {"assistant": assistant}
+    return {
+        "assistant": assistant,
+        "org_plane": org_plane,
+        "work_management": work_management_port,
+    }

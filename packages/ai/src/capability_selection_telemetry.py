@@ -10,9 +10,12 @@ decision policy, execution, or response behaviour.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import threading
 import uuid
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -45,9 +48,73 @@ class CapabilitySelectionTelemetry:
     do not affect matching, decision policy, or execution behaviour.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, persistence_path: str | None = None) -> None:
         self._events: list[CapabilitySelectionEvent] = []
         self._lock = threading.Lock()
+        self._persistence_path = persistence_path
+        self._session_events: dict[str, list[CapabilitySelectionEvent]] = defaultdict(list)
+        self._reformulation_candidates: dict[str, list[CapabilitySelectionEvent]] = defaultdict(list)
+
+        if persistence_path:
+            self._load_from_disk()
+
+    def _load_from_disk(self) -> None:
+        """Load events from persistent storage."""
+        if not self._persistence_path or not os.path.exists(self._persistence_path):
+            return
+
+        try:
+            with open(self._persistence_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    data = json.loads(line)
+                    event = CapabilitySelectionEvent(
+                        event_id=data["event_id"],
+                        timestamp=datetime.fromisoformat(data["timestamp"]),
+                        request_text=data.get("request_text", ""),
+                        session_id=data.get("session_id"),
+                        candidate_ids=data.get("candidate_ids", []),
+                        candidate_scores=data.get("candidate_scores", []),
+                        top_score=data.get("top_score", 0.0),
+                        score_gap=data.get("score_gap", 0.0),
+                        candidate_count=data.get("candidate_count", 0),
+                        interaction_type=data.get("interaction_type", "select"),
+                        user_action=data.get("user_action"),
+                        selected_capability_id=data.get("selected_capability_id"),
+                    )
+                    self._events.append(event)
+                    if event.session_id:
+                        self._session_events[event.session_id].append(event)
+        except Exception as exc:
+            logger.warning("Failed to load telemetry from disk: %s", exc)
+
+    def _persist_event(self, event: CapabilitySelectionEvent) -> None:
+        """Append event to persistent storage."""
+        if not self._persistence_path:
+            return
+
+        try:
+            os.makedirs(os.path.dirname(self._persistence_path), exist_ok=True)
+            with open(self._persistence_path, "a", encoding="utf-8") as f:
+                data = {
+                    "event_id": event.event_id,
+                    "timestamp": event.timestamp.isoformat(),
+                    "request_text": event.request_text,
+                    "session_id": event.session_id,
+                    "candidate_ids": event.candidate_ids,
+                    "candidate_scores": event.candidate_scores,
+                    "top_score": event.top_score,
+                    "score_gap": event.score_gap,
+                    "candidate_count": event.candidate_count,
+                    "interaction_type": event.interaction_type,
+                    "user_action": event.user_action,
+                    "selected_capability_id": event.selected_capability_id,
+                }
+                f.write(json.dumps(data) + "\n")
+        except Exception as exc:
+            logger.warning("Failed to persist telemetry event: %s", exc)
 
     def record_match_event(
         self,
@@ -76,6 +143,10 @@ class CapabilitySelectionTelemetry:
 
         with self._lock:
             self._events.append(event)
+            if session_id:
+                self._session_events[session_id].append(event)
+
+        self._persist_event(event)
 
         logger.info(
             "capability_match_event",
@@ -101,12 +172,17 @@ class CapabilitySelectionTelemetry:
         selected_capability_id: str | None = None,
     ) -> None:
         """Record the user's eventual action on a previously presented candidate set."""
+        updated_event = None
         with self._lock:
             for event in self._events:
                 if event.event_id == event_id:
                     event.user_action = user_action
                     event.selected_capability_id = selected_capability_id
+                    updated_event = event
                     break
+
+        if updated_event is not None:
+            self._persist_event(updated_event)
 
         logger.info(
             "capability_user_action",
@@ -122,7 +198,51 @@ class CapabilitySelectionTelemetry:
         with self._lock:
             return list(self._events)
 
+    def get_events_by_session(self, session_id: str) -> list[CapabilitySelectionEvent]:
+        """Return events for a specific session."""
+        with self._lock:
+            return list(self._session_events.get(session_id, []))
+
+    def get_reformulation_candidates(self) -> list[CapabilitySelectionEvent]:
+        """Return events that are potential reformulations.
+        
+        A reformulation candidate is an event in a session that has multiple
+        capability selection events, suggesting the user re-queried after
+        seeing candidates.
+        """
+        with self._lock:
+            reformulations = []
+            for session_id, events in self._session_events.items():
+                if len(events) > 1:
+                    reformulations.extend(events)
+            return reformulations
+
     def clear(self) -> None:
         """Clear all recorded events. Primarily for testing."""
         with self._lock:
             self._events.clear()
+            self._session_events.clear()
+            self._reformulation_candidates.clear()
+
+    def export_to_json(self, output_path: str) -> None:
+        """Export all events to a JSON file."""
+        with self._lock:
+            events_data = []
+            for event in self._events:
+                events_data.append({
+                    "event_id": event.event_id,
+                    "timestamp": event.timestamp.isoformat(),
+                    "request_text": event.request_text,
+                    "session_id": event.session_id,
+                    "candidate_ids": event.candidate_ids,
+                    "candidate_scores": event.candidate_scores,
+                    "top_score": event.top_score,
+                    "score_gap": event.score_gap,
+                    "candidate_count": event.candidate_count,
+                    "interaction_type": event.interaction_type,
+                    "user_action": event.user_action,
+                    "selected_capability_id": event.selected_capability_id,
+                })
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(events_data, f, indent=2)
