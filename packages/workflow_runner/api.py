@@ -63,6 +63,7 @@ from db import (
 )
 from loader import load_workflow, resolve_workflow_path
 from models import Step, WorkflowDefinition
+from organisation.src.role import WorkStatus
 from runtime_client import configure as _configure_runtime_client
 from scheduler import (
     _build_scheduler,
@@ -619,8 +620,19 @@ class _ExecutionResultResponse(BaseModel):
 from composition import create_assistant
 from capability_selection_telemetry import CapabilitySelectionTelemetry
 
-_capability_selection_telemetry = CapabilitySelectionTelemetry()
+_telemetry_persistence_path = os.environ.get("CAPABILITY_TELEMETRY_PATH", "data/capability_selection_telemetry.jsonl")
+_capability_selection_telemetry = CapabilitySelectionTelemetry(persistence_path=_telemetry_persistence_path)
+
 _assistant = create_assistant(capability_selection_telemetry=_capability_selection_telemetry)
+
+try:
+    from organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
+    from role import Role
+    _org_plane = InMemoryOrganisationControlPlane()
+    _org_plane.register_role(Role(id="researcher", name="Researcher", authority_ids=[]))
+except Exception:
+    _org_plane = None
 
 
 @app.post("/assistant/chat", response_model=_ChatResponse)
@@ -796,6 +808,235 @@ async def assistant_capability_feedback(body: _CapabilityFeedbackRequest) -> _Ca
         match_event_id=body.match_event_id,
         action=body.action,
     )
+
+
+class _TelemetryEventResponse(BaseModel):
+    event_id: str
+    timestamp: str
+    request_text: str
+    session_id: str | None = None
+    candidate_ids: list[str] = Field(default_factory=list)
+    candidate_scores: list[float] = Field(default_factory=list)
+    top_score: float = 0.0
+    score_gap: float = 0.0
+    candidate_count: int = 0
+    interaction_type: str = "select"
+    user_action: str | None = None
+    selected_capability_id: str | None = None
+
+
+class _TelemetryStatsResponse(BaseModel):
+    total_events: int
+    total_sessions: int
+    reformulation_candidates: int
+    outcomes: dict[str, int] = Field(default_factory=dict)
+    gap_distribution: dict[str, int] = Field(default_factory=dict)
+    score_distribution: dict[str, int] = Field(default_factory=dict)
+    count_distribution: dict[str, int] = Field(default_factory=dict)
+
+
+@app.get("/assistant/telemetry/events", response_model=list[_TelemetryEventResponse])
+async def assistant_telemetry_events() -> list[_TelemetryEventResponse]:
+    events = _capability_selection_telemetry.get_events()
+    return [
+        _TelemetryEventResponse(
+            event_id=event.event_id,
+            timestamp=event.timestamp.isoformat(),
+            request_text=event.request_text,
+            session_id=event.session_id,
+            candidate_ids=event.candidate_ids,
+            candidate_scores=event.candidate_scores,
+            top_score=event.top_score,
+            score_gap=event.score_gap,
+            candidate_count=event.candidate_count,
+            interaction_type=event.interaction_type,
+            user_action=event.user_action,
+            selected_capability_id=event.selected_capability_id,
+        )
+        for event in events
+    ]
+
+
+@app.get("/assistant/telemetry/sessions/{session_id}", response_model=list[_TelemetryEventResponse])
+async def assistant_telemetry_session(session_id: str) -> list[_TelemetryEventResponse]:
+    events = _capability_selection_telemetry.get_events_by_session(session_id)
+    return [
+        _TelemetryEventResponse(
+            event_id=event.event_id,
+            timestamp=event.timestamp.isoformat(),
+            request_text=event.request_text,
+            session_id=event.session_id,
+            candidate_ids=event.candidate_ids,
+            candidate_scores=event.candidate_scores,
+            top_score=event.top_score,
+            score_gap=event.score_gap,
+            candidate_count=event.candidate_count,
+            interaction_type=event.interaction_type,
+            user_action=event.user_action,
+            selected_capability_id=event.selected_capability_id,
+        )
+        for event in events
+    ]
+
+
+@app.get("/assistant/telemetry/reformulations", response_model=list[_TelemetryEventResponse])
+async def assistant_telemetry_reformulations() -> list[_TelemetryEventResponse]:
+    events = _capability_selection_telemetry.get_reformulation_candidates()
+    return [
+        _TelemetryEventResponse(
+            event_id=event.event_id,
+            timestamp=event.timestamp.isoformat(),
+            request_text=event.request_text,
+            session_id=event.session_id,
+            candidate_ids=event.candidate_ids,
+            candidate_scores=event.candidate_scores,
+            top_score=event.top_score,
+            score_gap=event.score_gap,
+            candidate_count=event.candidate_count,
+            interaction_type=event.interaction_type,
+            user_action=event.user_action,
+            selected_capability_id=event.selected_capability_id,
+        )
+        for event in events
+    ]
+
+
+@app.post("/assistant/telemetry/export")
+async def assistant_telemetry_export(body: dict[str, Any]) -> dict[str, str]:
+    output_path = body.get("output_path", "data/telemetry_export.json")
+    _capability_selection_telemetry.export_to_json(output_path)
+    return {"status": "exported", "path": output_path}
+
+
+@app.get("/assistant/telemetry/stats", response_model=_TelemetryStatsResponse)
+async def assistant_telemetry_stats() -> _TelemetryStatsResponse:
+    events = _capability_selection_telemetry.get_events()
+    sessions = _capability_selection_telemetry.get_reformulation_candidates()
+
+    outcomes: dict[str, int] = {}
+    gap_distribution: dict[str, int] = {}
+    score_distribution: dict[str, int] = {}
+    count_distribution: dict[str, int] = {}
+
+    for event in events:
+        if event.user_action:
+            outcomes[event.user_action] = outcomes.get(event.user_action, 0) + 1
+
+        if event.score_gap == 0.0:
+            bucket = "gap=0.0"
+        elif event.score_gap <= 0.1:
+            bucket = "0<gap<=0.1"
+        elif event.score_gap <= 0.2:
+            bucket = "0.1<gap<=0.2"
+        elif event.score_gap <= 0.5:
+            bucket = "0.2<gap<=0.5"
+        else:
+            bucket = "gap>0.5"
+        gap_distribution[bucket] = gap_distribution.get(bucket, 0) + 1
+
+        if event.top_score <= 0.5:
+            bucket = "0<score<=0.5"
+        elif event.top_score <= 0.75:
+            bucket = "0.5<score<=0.75"
+        else:
+            bucket = "score>0.75"
+        score_distribution[bucket] = score_distribution.get(bucket, 0) + 1
+
+        if event.candidate_count <= 2:
+            bucket = "count<=2"
+        elif event.candidate_count == 3:
+            bucket = "count=3"
+        elif event.candidate_count == 4:
+            bucket = "count=4"
+        else:
+            bucket = "count>=5"
+        count_distribution[bucket] = count_distribution.get(bucket, 0) + 1
+
+    total_sessions = len(set(event.session_id for event in events if event.session_id))
+
+    return _TelemetryStatsResponse(
+        total_events=len(events),
+        total_sessions=total_sessions,
+        reformulation_candidates=len(sessions),
+        outcomes=outcomes,
+        gap_distribution=gap_distribution,
+        score_distribution=score_distribution,
+        count_distribution=count_distribution,
+    )
+
+
+class _WorkResponse(BaseModel):
+    work_id: str
+    title: str
+    description: str
+    status: str
+    priority: str
+    work_type: str
+    accountable_role_id: str
+    assignee_role_id: str | None = None
+    assignee_person_id: str | None = None
+    assignee_agent_id: str | None = None
+
+
+@app.get("/work", response_model=list[_WorkResponse])
+async def list_work() -> list[_WorkResponse]:
+    if _org_plane is None:
+        raise HTTPException(status_code=501, detail="Organisation plane not configured")
+    roles = _org_plane.list_roles()
+    all_work = []
+    for role in roles:
+        pass
+    work_items = []
+    for work_id in getattr(_org_plane, '_work', {}):
+        work = _org_plane.get_work(work_id)
+        if work:
+            work_items.append(_WorkResponse(
+                work_id=work.id,
+                title=work.title,
+                description=work.description,
+                status=work.status.value,
+                priority=work.priority,
+                work_type=work.work_type,
+                accountable_role_id=work.accountable_role_id,
+                assignee_role_id=work.assignee_role_id,
+                assignee_person_id=work.assignee_person_id,
+                assignee_agent_id=work.assignee_agent_id,
+            ))
+    return work_items
+
+
+@app.get("/work/{work_id}", response_model=_WorkResponse)
+async def get_work(work_id: str) -> _WorkResponse:
+    if _org_plane is None:
+        raise HTTPException(status_code=501, detail="Organisation plane not configured")
+    work = _org_plane.get_work(work_id)
+    if work is None:
+        raise HTTPException(status_code=404, detail="Work not found")
+    return _WorkResponse(
+        work_id=work.id,
+        title=work.title,
+        description=work.description,
+        status=work.status.value,
+        priority=work.priority,
+        work_type=work.work_type,
+        accountable_role_id=work.accountable_role_id,
+        assignee_role_id=work.assignee_role_id,
+        assignee_person_id=work.assignee_person_id,
+        assignee_agent_id=work.assignee_agent_id,
+    )
+
+
+@app.post("/work/{work_id}/process")
+async def process_work(work_id: str) -> dict[str, Any]:
+    if _org_plane is None:
+        raise HTTPException(status_code=501, detail="Organisation plane not configured")
+    work = _org_plane.get_work(work_id)
+    if work is None:
+        raise HTTPException(status_code=404, detail="Work not found")
+    work.status = WorkStatus.COMPLETED
+    work.outcome = {"result": f"Processed: {work.title}", "status": "completed"}
+    _org_plane._work[work_id] = work
+    return {"work_id": work_id, "status": "completed", "outcome": work.outcome}
 
 
 # ---- Internal helpers ----

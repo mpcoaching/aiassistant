@@ -554,3 +554,191 @@ def test_telemetry_records_correct_scores_and_gap() -> None:
     assert events[0].top_score == 0.85
     assert events[0].score_gap == 0.25
     assert events[0].candidate_scores == [0.85, 0.60, 0.40]
+
+
+def test_chat_records_session_id_in_telemetry() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-a",
+            name="capability_a",
+            description="Does A",
+            kind="tool",
+            tags=["a"],
+            execution_mode="compiled",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    telemetry = CapabilitySelectionTelemetry()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        capability_selection_telemetry=telemetry,
+    )
+    request = ChatRequest(message="Do something", session_id="ses-explicit-123")
+    response = service.chat(request)
+
+    events = telemetry.get_events()
+    assert len(events) == 1
+    assert events[0].session_id == "ses-explicit-123"
+    assert response.session_id == "ses-explicit-123"
+
+
+def test_chat_generates_session_id_when_not_provided() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-a",
+            name="capability_a",
+            description="Does A",
+            kind="tool",
+            tags=["a"],
+            execution_mode="compiled",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    telemetry = CapabilitySelectionTelemetry()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        capability_selection_telemetry=telemetry,
+    )
+    request = ChatRequest(message="Do something")
+    response = service.chat(request)
+
+    events = telemetry.get_events()
+    assert len(events) == 1
+    assert events[0].session_id == response.session_id
+    assert events[0].session_id is not None
+    assert events[0].session_id.startswith("ses-")
+
+
+def test_telemetry_session_correlation() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-a",
+            name="capability_a",
+            description="Does A",
+            kind="tool",
+            tags=["a"],
+            execution_mode="compiled",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    telemetry = CapabilitySelectionTelemetry()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        capability_selection_telemetry=telemetry,
+    )
+
+    session_id = "ses-correlation-123"
+    request1 = ChatRequest(message="First request", session_id=session_id)
+    service.chat(request1)
+    request2 = ChatRequest(message="Second request", session_id=session_id)
+    service.chat(request2)
+
+    session_events = telemetry.get_events_by_session(session_id)
+    assert len(session_events) == 2
+    assert all(e.session_id == session_id for e in session_events)
+
+
+def test_telemetry_reformulation_detection() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-a",
+            name="capability_a",
+            description="Does A",
+            kind="tool",
+            tags=["a"],
+            execution_mode="compiled",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    telemetry = CapabilitySelectionTelemetry()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        capability_selection_telemetry=telemetry,
+    )
+
+    session_id = "ses-reformulation-123"
+    request1 = ChatRequest(message="First request", session_id=session_id)
+    service.chat(request1)
+    request2 = ChatRequest(message="Second request", session_id=session_id)
+    service.chat(request2)
+
+    reformulations = telemetry.get_reformulation_candidates()
+    assert len(reformulations) == 2
+    assert all(e.session_id == session_id for e in reformulations)
+
+
+# ---- Work Delegation (Enterprise Plane Integration) -----------------------
+
+
+class InMemoryWorkManagementPort:
+    def __init__(self) -> None:
+        self.created_work: list[dict[str, Any]] = []
+
+    def create_work(self, request: Any) -> Any:
+        from contracts.work_management import WorkReference
+        work_id = f"work-{len(self.created_work) + 1}"
+        self.created_work.append({
+            "work_id": work_id,
+            "title": request.title,
+            "description": request.description,
+            "work_type": request.work_type,
+            "priority": request.priority,
+            "accountable_role_id": request.accountable_role_id,
+        })
+        return WorkReference(work_id=work_id, status="draft")
+
+    def mark_ready(self, work_id: str) -> Any:
+        from contracts.work_management import WorkReference
+        return WorkReference(work_id=work_id, status="in_progress")
+
+    def get_work(self, work_id: str) -> Any:
+        return None
+
+
+def test_chat_delegates_to_enterprise_plane_when_no_capability_match() -> None:
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=[])
+    work_management = InMemoryWorkManagementPort()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        work_management=work_management,
+    )
+    request = ChatRequest(message="Create a capability that researches X")
+    response = service.chat(request)
+
+    assert response.status == "delegated"
+    assert len(work_management.created_work) == 1
+    assert work_management.created_work[0]["title"] == "Create a capability that researches X"
+    assert "work_id" in response.telemetry
+    assert response.telemetry["delegated"] is True
+
+
+def test_chat_falls_through_to_pattern_execution_when_no_work_management() -> None:
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=[])
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        work_management=None,
+    )
+    request = ChatRequest(message="Do something without capabilities")
+    response = service.chat(request)
+
+    assert response.status == "pending"
+    assert "Strategy:" in response.message
+
+
+def test_chat_delegation_uses_session_id() -> None:
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=[])
+    work_management = InMemoryWorkManagementPort()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        work_management=work_management,
+    )
+    request = ChatRequest(message="Research task", session_id="ses-delegation-123")
+    response = service.chat(request)
+
+    assert response.session_id == "ses-delegation-123"
+    assert response.status == "delegated"
+    assert len(work_management.created_work) == 1

@@ -30,7 +30,7 @@ from contracts.enterprise_information import EnterpriseInformationPort, Solution
 from contracts.organisational_context import OrganisationalContextPort
 from contracts.pattern_execution import PatternExecutionPort, PatternExecutionRequest
 from contracts.session_factory import SessionFactoryPort, SessionReference
-from contracts.work_management import WorkManagementPort
+from contracts.work_management import WorkCreateRequest, WorkManagementPort, WorkReference
 
 from capability_action import CapabilityActionPolicy, ExecuteCapability, AskUserToSelect
 from capability_selection_telemetry import CapabilitySelectionTelemetry
@@ -101,6 +101,7 @@ class AssistantChatService:
         )
 
         frame = recognise(intent)
+        session_id = request.session_id or f"ses-{intent.id}"
 
         if self._enterprise_information is not None:
             strategy_tag = f"strategy:{self._strategy_from_frame(frame)}"
@@ -108,7 +109,7 @@ class AssistantChatService:
             if previous is not None:
                 return ChatResponse(
                     message=f"I've done this before. Last time: {previous.summary}. Want me to reuse that?",
-                    session_id=request.session_id or f"ses-{intent.id}",
+                    session_id=session_id,
                     status="awaiting_confirmation",
                     reasoning=f"Found previous solution for {strategy_tag}",
                     previous_solution=previous.model_dump(),
@@ -122,9 +123,9 @@ class AssistantChatService:
             )
             action = self._action_policy.decide(candidates, request.context)
             if isinstance(action, ExecuteCapability):
-                return self._execute_capability_response(intent, frame, action.candidate)
+                return self._execute_capability_response(intent, frame, action.candidate, session_id)
             if isinstance(action, AskUserToSelect):
-                return self._capability_selection_response(intent, frame, action.candidates, action.interaction)
+                return self._capability_selection_response(intent, frame, action.candidates, action.interaction, session_id)
             # NoCapabilityMatch falls through to pattern execution
 
         decision = self._reasoning.decide(intent)
@@ -186,6 +187,10 @@ class AssistantChatService:
                     reasoning=decision.rationale,
                     telemetry={"runtime": "pattern_execution_port"},
                 )
+
+        # No pattern execution path available — delegate to enterprise plane if possible
+        if self._work_management is not None:
+            return self._delegate_work_response(intent, frame, session_id)
 
         return ChatResponse(
             message=f"I'll help with that. Strategy: {decision.chosen_strategy.value}. Pipeline: {', '.join(decision.pattern_pipeline)}.",
@@ -265,12 +270,13 @@ class AssistantChatService:
         intent: Intent,
         frame: ProblemFrame,
         candidate: CapabilityCandidate,
+        session_id: str,
     ) -> ChatResponse:
         match_event = None
         if self._capability_selection_telemetry is not None:
             match_event = self._capability_selection_telemetry.record_match_event(
                 request_text=intent.raw.get("text", ""),
-                session_id=None,
+                session_id=session_id,
                 candidates=[candidate],
                 interaction_type="confirm",
             )
@@ -341,6 +347,7 @@ class AssistantChatService:
         frame: ProblemFrame,
         candidates: list[CapabilityCandidate],
         interaction: str = "select",
+        session_id: str | None = None,
     ) -> ChatResponse:
         """Build a response that exposes capability candidates for human selection or confirmation."""
         if interaction == "confirm" and len(candidates) == 1:
@@ -358,7 +365,7 @@ class AssistantChatService:
         if self._capability_selection_telemetry is not None:
             match_event = self._capability_selection_telemetry.record_match_event(
                 request_text=intent.raw.get("text", ""),
-                session_id=None,
+                session_id=session_id,
                 candidates=candidates,
                 interaction_type=interaction,
             )
@@ -374,7 +381,7 @@ class AssistantChatService:
 
         return ChatResponse(
             message=message,
-            session_id=f"ses-{intent.id}",
+            session_id=session_id or f"ses-{intent.id}",
             status="awaiting_capability_selection",
             reasoning=(
                 f"Recognised as {frame.context.problem_context.value} / "
@@ -393,4 +400,38 @@ class AssistantChatService:
                 for cap in candidates
             ],
             telemetry=telemetry,
+        )
+
+    def _delegate_work_response(
+        self,
+        intent: Intent,
+        frame: ProblemFrame,
+        session_id: str,
+    ) -> ChatResponse:
+        """Delegate work to the enterprise plane via WorkManagementPort."""
+        request_text = intent.raw.get("text", "")
+        work_ref = self._work_management.create_work(
+            WorkCreateRequest(
+                title=request_text[:100],
+                description=request_text,
+                accountable_role_id="default",
+                work_type="project",
+                priority="normal",
+            )
+        )
+        return ChatResponse(
+            message=f"I've delegated this to the enterprise plane. Work ID: {work_ref.work_id}. Status: {work_ref.status}.",
+            session_id=session_id,
+            status="delegated",
+            reasoning=(
+                f"No capability match. Delegated to enterprise plane as work "
+                f"({frame.context.problem_context.value} / "
+                f"{frame.context.activity_purpose.value})."
+            ),
+            telemetry={
+                "recognition_level": frame.recognition_level.value,
+                "work_id": work_ref.work_id,
+                "work_status": work_ref.status,
+                "delegated": True,
+            },
         )
