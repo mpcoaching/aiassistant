@@ -99,6 +99,10 @@ class InMemoryWorkManagementPort:
             return None
         return WorkReference(work_id=work_id, status=work.get("status", "unknown"))
 
+    @property
+    def created_work(self) -> list[dict[str, Any]]:
+        return [{"work_id": k, **v} for k, v in self._work.items()]
+
 
 class InMemorySessionFactoryPort:
     def __init__(self) -> None:

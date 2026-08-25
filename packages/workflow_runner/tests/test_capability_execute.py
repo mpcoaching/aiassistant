@@ -19,6 +19,10 @@ for _pkg in ["bus", "capability_registry", "ai", "workflow_runner", "langgraph"]
     if _src.exists() and str(_src) not in sys.path:
         sys.path.insert(0, str(_src))
 
+_ai_tests_fixtures = _packages_root / "ai" / "tests" / "fixtures"
+if str(_ai_tests_fixtures) not in sys.path:
+    sys.path.insert(0, str(_ai_tests_fixtures))
+
 _api_path = _packages_root / "workflow_runner" / "api.py"
 _spec = importlib.util.spec_from_file_location("workflow_runner_api", _api_path)
 _api_mod = importlib.util.module_from_spec(_spec)
@@ -287,19 +291,33 @@ def test_get_work_returns_404_when_missing(client):
         assert response.status_code == 404
 
 
-def test_process_work_marks_completed(client):
+def test_process_work_executes_real_worker_and_creates_output(client, tmp_path):
     with patch("workflow_runner_api._org_plane") as mock_org:
         from organisation.src.role import Work, WorkStatus
-        work = Work(id="w1", title="Test task", accountable_role_id="r1")
+        work = Work(id="w1", title="Test task", accountable_role_id="r1", description="Test description")
         mock_org.get_work.return_value = work
         mock_org._work = {"w1": work}
 
-        response = client.post("/work/w1/process")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["work_id"] == "w1"
-        assert data["status"] == "completed"
-        assert work.status == WorkStatus.COMPLETED
+        with patch("workflow_runner_api.Worker") as MockWorker:
+            mock_worker = MockWorker.return_value
+            mock_worker.execute.return_value = {
+                "status": "completed",
+                "summary": "Worker processed: Test task",
+                "output_path": "worker_outputs/w1-test-task.md",
+                "output_type": "markdown",
+                "work_id": "w1",
+                "title": "Test task",
+                "description": "Test description",
+            }
+
+            response = client.post("/work/w1/process")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["work_id"] == "w1"
+            assert data["status"] == "completed"
+            assert data["outcome"]["summary"] == "Worker processed: Test task"
+            assert data["outcome"]["output_path"] == "worker_outputs/w1-test-task.md"
+            mock_worker.execute.assert_called_once_with(work, mock_org)
 
 
 def test_work_endpoints_501_when_org_plane_not_configured(client):
@@ -312,3 +330,130 @@ def test_work_endpoints_501_when_org_plane_not_configured(client):
 
         response = client.post("/work/w1/process")
         assert response.status_code == 501
+
+
+# ---- Worker Tests ---------------------------------------------------------
+
+
+def test_worker_creates_output_file(tmp_path):
+    from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.role import Work, WorkStatus
+    from organisation.src.worker import Worker
+
+    org_plane = InMemoryOrganisationControlPlane()
+    work = Work(id="w1", title="Research task", accountable_role_id="r1", description="Research X")
+
+    worker = Worker(output_dir=str(tmp_path))
+    result = worker.execute(work, org_plane)
+
+    assert result["status"] == "completed"
+    assert result["output_type"] == "markdown"
+    assert result["work_id"] == "w1"
+    assert Path(result["output_path"]).exists()
+    content = Path(result["output_path"]).read_text(encoding="utf-8")
+    assert "Research task" in content
+    assert "Work Summary" in content
+    assert work.outcome == result
+    assert work.status == WorkStatus.COMPLETED
+    assert work.assignee_agent_id == "worker-agent"
+
+
+def test_worker_handles_failure(tmp_path):
+    from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.role import Work, WorkStatus
+    from organisation.src.worker import Worker
+
+    org_plane = InMemoryOrganisationControlPlane()
+    work = Work(id="w1", title="Failing task", accountable_role_id="r1", description="Will fail")
+
+    worker = Worker(output_dir=str(tmp_path))
+    original_do_work = worker._do_work
+    worker._do_work = lambda w: (_ for _ in ()).throw(RuntimeError("Simulated failure"))
+
+    result = worker.execute(work, org_plane)
+
+    assert result["status"] == "failed"
+    assert "error" in result
+    assert work.status == WorkStatus.FAILED
+    assert work.outcome == result
+
+
+def test_worker_preserves_session_correlation(tmp_path):
+    from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.role import Work, WorkStatus
+    from organisation.src.worker import Worker
+
+    org_plane = InMemoryOrganisationControlPlane()
+    work = Work(
+        id="w1",
+        title="Session task",
+        accountable_role_id="r1",
+        context={"session_id": "ses-123"},
+    )
+
+    worker = Worker(output_dir=str(tmp_path))
+    result = worker.execute(work, org_plane)
+
+    assert result["status"] == "completed"
+    assert work.context.get("session_id") == "ses-123"
+    assert work.outcome is not None
+
+
+# ---- End-to-End Integration Test ------------------------------------------
+
+
+def test_end_to_end_delegation_worker_result(client, tmp_path):
+    from chat import ChatRequest
+    from chat import AssistantChatService
+    from in_memory_ports import InMemoryCapabilityDiscoveryPort, InMemoryWorkManagementPort
+    from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
+    from organisation.src.role import Role, Work, WorkStatus
+    from organisation.src.worker import Worker
+
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=[])
+    work_management = InMemoryWorkManagementPort()
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        work_management=work_management,
+    )
+
+    response = service.chat(ChatRequest(message="Research X and report back", session_id="ses-e2e-1"))
+    assert response.status == "delegated"
+    assert len(work_management.created_work) == 1
+    work_id = work_management.created_work[0]["work_id"]
+
+    org_plane = InMemoryOrganisationControlPlane()
+    work = Work(
+        id=work_id,
+        title=response.telemetry.get("work_title", "Research X"),
+        accountable_role_id="default",
+        description="Research X and report back",
+        context={"session_id": "ses-e2e-1"},
+    )
+    org_plane.register_role(Role(id="default", name="Default", authority_ids=[]))
+    org_plane.assign_work(work, org_plane.get_role("default"))
+
+    worker = Worker(output_dir=str(tmp_path))
+    result = worker.execute(work, org_plane)
+
+    assert result["status"] == "completed"
+    assert Path(result["output_path"]).exists()
+
+    from api import _WorkResponse
+    work_response = _WorkResponse(
+        work_id=work.id,
+        title=work.title,
+        description=work.description,
+        status=work.status.value,
+        priority=work.priority,
+        work_type=work.work_type,
+        accountable_role_id=work.accountable_role_id,
+        assignee_role_id=work.assignee_role_id,
+        assignee_person_id=work.assignee_person_id,
+        assignee_agent_id=work.assignee_agent_id,
+        outcome=work.outcome,
+        output_path=work.outcome.get("output_path") if work.outcome else None,
+    )
+    assert work_response.outcome["summary"].startswith("# Work Summary: Research X")
+    assert work_response.status == "completed"
+    assert "Research X and report back" in work_response.outcome["summary"]

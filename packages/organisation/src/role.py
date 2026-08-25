@@ -33,6 +33,7 @@ class WorkStatus(str, Enum):
     ASSIGNED = "assigned"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    FAILED = "failed"
     CANCELLED = "cancelled"
     ESCALATED = "escalated"
 
