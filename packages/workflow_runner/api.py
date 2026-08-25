@@ -13,6 +13,11 @@ Endpoints:
   POST /schedules                    — create a schedule
   DELETE /schedules/{id}             — remove a schedule
   GET  /schedules                    — list active schedules
+  GET  /roles                        — list enterprise-plane roles
+  GET  /work                         — list enterprise-plane work items
+  GET  /work/{work_id}               — inspect a work item
+  POST /work/{work_id}/process       — execute a specific work item
+  POST /worker/run                   — worker picks up and executes its assigned work
 """
 
 from __future__ import annotations
@@ -965,6 +970,13 @@ async def assistant_telemetry_stats() -> _TelemetryStatsResponse:
     )
 
 
+class _RoleResponse(BaseModel):
+    role_id: str
+    name: str
+    status: str
+    authority_ids: list[str] = []
+
+
 class _WorkResponse(BaseModel):
     work_id: str
     title: str
@@ -980,32 +992,42 @@ class _WorkResponse(BaseModel):
     output_path: str | None = None
 
 
+@app.get("/roles", response_model=list[_RoleResponse])
+async def list_roles() -> list[_RoleResponse]:
+    if _org_plane is None:
+        raise HTTPException(status_code=501, detail="Organisation plane not configured")
+    roles = _org_plane.list_roles()
+    return [
+        _RoleResponse(
+            role_id=role.id,
+            name=role.name,
+            status=role.status.value,
+            authority_ids=list(role.authority_ids),
+        )
+        for role in roles
+    ]
+
+
 @app.get("/work", response_model=list[_WorkResponse])
 async def list_work() -> list[_WorkResponse]:
     if _org_plane is None:
         raise HTTPException(status_code=501, detail="Organisation plane not configured")
-    roles = _org_plane.list_roles()
-    all_work = []
-    for role in roles:
-        pass
     work_items = []
-    for work_id in getattr(_org_plane, '_work', {}):
-        work = _org_plane.get_work(work_id)
-        if work:
-            work_items.append(_WorkResponse(
-                work_id=work.id,
-                title=work.title,
-                description=work.description,
-                status=work.status.value,
-                priority=work.priority,
-                work_type=work.work_type,
-                accountable_role_id=work.accountable_role_id,
-                assignee_role_id=work.assignee_role_id,
-                assignee_person_id=work.assignee_person_id,
-                assignee_agent_id=work.assignee_agent_id,
-                outcome=work.outcome,
-                output_path=work.outcome.get("output_path") if work.outcome else None,
-            ))
+    for work in _org_plane.list_work():
+        work_items.append(_WorkResponse(
+            work_id=work.id,
+            title=work.title,
+            description=work.description,
+            status=work.status.value,
+            priority=work.priority,
+            work_type=work.work_type,
+            accountable_role_id=work.accountable_role_id,
+            assignee_role_id=work.assignee_role_id,
+            assignee_person_id=work.assignee_person_id,
+            assignee_agent_id=work.assignee_agent_id,
+            outcome=work.outcome,
+            output_path=work.outcome.get("output_path") if work.outcome else None,
+        ))
     return work_items
 
 
@@ -1042,6 +1064,18 @@ async def process_work(work_id: str) -> dict[str, Any]:
     worker = Worker()
     result = worker.execute(work, _org_plane)
     return {"work_id": work_id, "status": result.get("status", "completed"), "outcome": result}
+
+
+@app.post("/worker/run")
+async def run_worker() -> dict[str, Any]:
+    if _org_plane is None:
+        raise HTTPException(status_code=501, detail="Organisation plane not configured")
+    worker = Worker()
+    work = worker.pickup(_org_plane)
+    if work is None:
+        raise HTTPException(status_code=404, detail="No work available for worker")
+    result = worker.execute(work, _org_plane)
+    return {"work_id": work.id, "status": result.get("status", "completed"), "outcome": result}
 
 
 # ---- Internal helpers ----

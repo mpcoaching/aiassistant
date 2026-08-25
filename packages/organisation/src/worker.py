@@ -30,11 +30,30 @@ from role import Agent, Work, WorkStatus
 
 
 class Worker:
-    """Minimal worker that executes a work item and produces a tangible artifact."""
+    """Minimal worker that executes assigned work from the enterprise plane."""
 
-    def __init__(self, output_dir: str = "worker_outputs") -> None:
+    DEFAULT_AGENT_ID = "worker-agent"
+    DEFAULT_AGENT_NAME = "Default Worker"
+
+    def __init__(self, output_dir: str = "worker_outputs", agent_id: str = DEFAULT_AGENT_ID) -> None:
         self._output_dir = Path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
+        self._agent_id = agent_id
+
+    def pickup(self, org_plane: Any) -> Work | None:
+        """Pick up work assigned to this worker from the enterprise plane.
+
+        Returns the first pending/assigned work item assigned to this worker's agent_id,
+        or None if no work is available.
+        """
+        all_work = org_plane.list_work()
+        for work in all_work:
+            if work.assignee_agent_id == self._agent_id and work.status in (
+                WorkStatus.PENDING,
+                WorkStatus.ASSIGNED,
+            ):
+                return work
+        return None
 
     def execute(self, work: Work, org_plane: Any) -> dict[str, Any]:
         """Execute a work item and store the result.
@@ -47,7 +66,7 @@ class Worker:
             Result dict containing status, output_path, and summary
         """
         if work.assignee_agent_id is None:
-            worker_agent = Agent(id="worker-agent", name="Default Worker")
+            worker_agent = Agent(id=self._agent_id, name=self.DEFAULT_AGENT_NAME)
             org_plane.assign_work(work, worker_agent)
 
         work.status = WorkStatus.IN_PROGRESS

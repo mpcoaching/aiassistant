@@ -88,6 +88,11 @@ class OrganisationControlPlane(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_work(self) -> list[Work]:
+        """List all work items."""
+        raise NotImplementedError
+
+    @abstractmethod
     def delegate_authority(
         self, from_role: Role, to_role: Role, authority: Authority
     ) -> Delegation:
@@ -169,6 +174,9 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
 
     def get_work(self, work_id: str) -> Work | None:
         return self._work.get(work_id)
+
+    def list_work(self) -> list[Work]:
+        return list(self._work.values())
 
     def delegate_authority(
         self, from_role: Role, to_role: Role, authority: Authority
