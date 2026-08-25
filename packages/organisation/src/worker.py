@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from role import Agent, Work, WorkStatus
+from contracts.capability_execution import CapabilityExecutionPort, ExecutionResult
 
 
 class Worker:
@@ -35,10 +36,16 @@ class Worker:
     DEFAULT_AGENT_ID = "worker-agent"
     DEFAULT_AGENT_NAME = "Default Worker"
 
-    def __init__(self, output_dir: str = "worker_outputs", agent_id: str = DEFAULT_AGENT_ID) -> None:
+    def __init__(
+        self,
+        output_dir: str = "worker_outputs",
+        agent_id: str = DEFAULT_AGENT_ID,
+        capability_execution: CapabilityExecutionPort | None = None,
+    ) -> None:
         self._output_dir = Path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
         self._agent_id = agent_id
+        self._capability_execution = capability_execution
 
     def pickup(self, org_plane: Any) -> Work | None:
         """Pick up work assigned to this worker from the enterprise plane.
@@ -74,7 +81,10 @@ class Worker:
         org_plane._work[work.id] = work
 
         try:
-            result = self._do_work(work)
+            if work.required_capability_ids and self._capability_execution is not None:
+                result = self._execute_capability(work)
+            else:
+                result = self._do_work(work)
             work.status = WorkStatus.COMPLETED
             work.outcome = result
             work.updated_at = datetime.now(UTC)
@@ -91,16 +101,40 @@ class Worker:
             org_plane._work[work.id] = work
             return work.outcome
 
+    def _execute_capability(self, work: Work) -> dict[str, Any]:
+        """Execute the capability referenced by the work item.
+
+        Invokes CapabilityExecutionPort with the first required_capability_id
+        and stores the real ExecutionResult.
+        """
+        capability_id = work.required_capability_ids[0]
+        actor_context = {
+            "actor_id": self._agent_id,
+            "actor_type": "agent",
+        }
+        execution_result: ExecutionResult = self._capability_execution.execute(
+            capability_id=capability_id,
+            context=work.context or {},
+            actor_context=actor_context,
+        )
+        result = {
+            "status": "completed",
+            "execution_mode": "capability_execution_port",
+            "capability_id": capability_id,
+            "outputs": dict(execution_result.outputs),
+            "artifacts": list(execution_result.artifacts),
+            "telemetry": dict(execution_result.telemetry),
+            "work_id": work.id,
+            "title": work.title,
+            "description": work.description,
+        }
+        return result
+
     def _do_work(self, work: Work) -> dict[str, Any]:
         """Perform the actual work.
 
-        For this increment, the worker creates a simple markdown summary document.
-        This is the smallest real task that produces a tangible, inspectable artifact.
-
-        Future increments can replace this with:
-        - Capability execution via CapabilityExecutionPort
-        - Paperclip agent dispatch
-        - More sophisticated task handling
+        Fallback when no capability is specified. Creates a simple markdown
+        summary document as a tangible artifact.
         """
         summary = self._generate_summary(work)
         output_path = self._write_output(work.id, work.title, summary)

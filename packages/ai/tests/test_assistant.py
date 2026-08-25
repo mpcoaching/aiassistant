@@ -22,6 +22,7 @@ from ai.tests.fixtures.in_memory_ports import (
 )
 from contracts.capability_discovery import CapabilityCandidate
 from contracts.capability_execution import ExecutionResult
+from contracts.enterprise_capability_query import CapabilityAvailability
 from contracts.enterprise_information import PreviousSolution
 
 # ---- Intent / recognise (C3) ----------------------------------------------
@@ -688,6 +689,7 @@ class InMemoryWorkManagementPort:
             "work_type": request.work_type,
             "priority": request.priority,
             "accountable_role_id": request.accountable_role_id,
+            "required_capability_ids": list(request.required_capability_ids),
         })
         return WorkReference(work_id=work_id, status="draft")
 
@@ -742,3 +744,164 @@ def test_chat_delegation_uses_session_id() -> None:
     assert response.session_id == "ses-delegation-123"
     assert response.status == "delegated"
     assert len(work_management.created_work) == 1
+
+
+# ---- Enterprise Capability Query Decision Tests ---------------------------------
+
+
+class FakeQueryPort:
+    def __init__(self, availability: CapabilityAvailability | None) -> None:
+        self._availability = availability
+        self.queried: list[str] = []
+
+    def query_capability(self, capability_id: str) -> CapabilityAvailability | None:
+        self.queried.append(capability_id)
+        return self._availability
+
+
+def test_chat_delegates_when_enterprise_capability_fast() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-fast",
+            name="fast_cap",
+            description="Fast capability",
+            kind="tool",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    work_management = InMemoryWorkManagementPort()
+    query = FakeQueryPort(
+        CapabilityAvailability(
+            capability_id="cap-fast",
+            available=True,
+            eta_seconds=5,
+            reason="Available now",
+        )
+    )
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        work_management=work_management,
+        enterprise_capability_query=query,
+    )
+    response = service.chat(ChatRequest(message="Do something fast"))
+
+    assert response.status == "delegated"
+    assert len(work_management.created_work) == 1
+    assert work_management.created_work[0]["required_capability_ids"] == ["cap-fast"]
+    assert query.queried == ["cap-fast"]
+
+
+def test_chat_provides_interim_when_enterprise_capability_slow() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-slow",
+            name="slow_cap",
+            description="Slow capability",
+            kind="tool",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    work_management = InMemoryWorkManagementPort()
+    query = FakeQueryPort(
+        CapabilityAvailability(
+            capability_id="cap-slow",
+            available=True,
+            eta_seconds=300,
+            reason="Busy",
+        )
+    )
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        work_management=work_management,
+        enterprise_capability_query=query,
+    )
+    response = service.chat(ChatRequest(message="Do something slow"))
+
+    assert response.status == "delegated_with_interim"
+    assert "preliminary answer" in response.message
+    assert len(work_management.created_work) == 1
+    assert work_management.created_work[0]["required_capability_ids"] == ["cap-slow"]
+    assert query.queried == ["cap-slow"]
+
+
+def test_chat_reports_gap_when_enterprise_capability_absent() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-missing",
+            name="missing_cap",
+            description="Missing capability",
+            kind="tool",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    work_management = InMemoryWorkManagementPort()
+    query = FakeQueryPort(None)
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        work_management=work_management,
+        enterprise_capability_query=query,
+    )
+    response = service.chat(ChatRequest(message="Do something missing"))
+
+    assert response.status == "capability_gap"
+    assert "does not currently have" in response.message
+    assert len(work_management.created_work) == 0
+    assert query.queried == ["cap-missing"]
+
+
+def test_chat_reports_unavailable_when_enterprise_capability_busy() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-busy",
+            name="busy_cap",
+            description="Busy capability",
+            kind="tool",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    work_management = InMemoryWorkManagementPort()
+    query = FakeQueryPort(
+        CapabilityAvailability(
+            capability_id="cap-busy",
+            available=False,
+            eta_seconds=None,
+            assignee="worker-agent",
+            reason="Currently in use",
+        )
+    )
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        work_management=work_management,
+        enterprise_capability_query=query,
+    )
+    response = service.chat(ChatRequest(message="Do something busy"))
+
+    assert response.status == "capability_unavailable"
+    assert "currently unavailable" in response.message
+    assert len(work_management.created_work) == 0
+    assert query.queried == ["cap-busy"]
+
+
+def test_chat_preserves_existing_behavior_without_enterprise_query() -> None:
+    candidates = [
+        CapabilityCandidate(
+            id="cap-a",
+            name="capability_a",
+            description="Does A",
+            kind="tool",
+            confidence=0.9,
+        ),
+    ]
+    discovery = InMemoryCapabilityDiscoveryPort(candidates=candidates)
+    service = AssistantChatService(
+        capability_discovery=discovery,
+        enterprise_capability_query=None,
+    )
+    request = ChatRequest(message="Do something")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_capability_selection"

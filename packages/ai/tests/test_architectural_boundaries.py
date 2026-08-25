@@ -107,6 +107,7 @@ def test_assistant_chat_service_depends_on_ports() -> None:
         "session_factory",
         "pattern_execution",
         "capability_selection_telemetry",
+        "enterprise_capability_query",
     }
     assert param_names == expected, f"Unexpected constructor parameters: {param_names}"
 
