@@ -2,11 +2,11 @@
 
 **Date:** 2026-08-25  
 **Author:** Kilo  
-**Status:** Complete (integration deferred; enterprise-plane usability improved)
+**Status:** Complete (integration deferred; Organisation usability improved)
 
 ## Objective
 
-Connect the system to Paperclip if the existing architecture allows it, while preserving the enterprise-plane boundary. If Paperclip is not yet available, identify what is missing and implement only the adapter/interface work necessary to make the next integration step straightforward.
+Connect the system to Paperclip if the existing architecture allows it, while preserving the Organisation boundary. If Paperclip is not yet available, identify what is missing and implement only the adapter/interface work necessary to make the next integration step straightforward.
 
 ## Key Finding: Paperclip Is Not Available
 
@@ -24,13 +24,13 @@ After exhaustive search of the repository, installed packages, running container
 |-----|--------|---------|
 | ADR-023 | Accepted (deferred) | Paperclip will implement `OrganisationControlPlane` in a future increment |
 | ADR-005 | Rejected | Paperclip is not adopted as a runtime substrate |
-| Architecture Assessment | Rejected | Paperclip maps to `PathwayRuntime` adapter, not the enterprise plane |
+| Architecture Assessment | Rejected | Paperclip maps to `PathwayRuntime` adapter, not the Organisation |
 
 **Conclusion:** Paperclip cannot be connected today because it is not present. Faking it would violate the architectural boundary and provide no real integration value.
 
 ## What Was Implemented Instead
 
-Since Paperclip is unavailable, this increment improves the **existing enterprise plane** (`InMemoryOrganisationControlPlane`) to make it usable for team experimentation, and prepares the interface so that a future Paperclip adapter can be added without changing the Assistant.
+Since Paperclip is unavailable, this increment improves the **existing Organisation** (`InMemoryOrganisationControlPlane`) to make it usable for team experimentation, and prepares the interface so that a future Paperclip adapter can be added without changing the Assistant.
 
 ### 1. `list_work()` added to `OrganisationControlPlane`
 
@@ -41,14 +41,14 @@ Added `list_work()` to the abstract interface and implemented it in `InMemoryOrg
 - Workers to discover their assigned work
 - A future Paperclip adapter to expose Paperclip tasks
 
-### 2. Worker becomes enterprise-plane-aware
+### 2. Worker becomes Organisation-aware
 
 **File:** `packages/organisation/src/worker.py`
 
-The worker now has a `pickup(org_plane)` method that queries the enterprise plane for work assigned to its agent ID (`worker-agent`). This means:
+The worker now has a `pickup(org_plane)` method that queries the Organisation for work assigned to its agent ID (`worker-agent`). This means:
 
-- The worker receives work **from the enterprise plane**, not from direct API invocation
-- The worker is now an **enterprise-plane citizen** rather than a utility function
+- The worker receives work **from the Organisation**, not from direct API invocation
+- The worker is now an **Organisation citizen** rather than a utility function
 - The API triggers the worker, but the worker decides what work to execute
 
 ### 3. New API endpoints
@@ -57,7 +57,7 @@ The worker now has a `pickup(org_plane)` method that queries the enterprise plan
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/roles` | GET | List all roles in the enterprise plane (team members) |
+| `/roles` | GET | List all roles in the Organisation (team members) |
 | `/worker/run` | POST | Trigger the worker to pick up and execute its assigned work |
 
 ### 4. Improved work visibility
@@ -76,7 +76,7 @@ The worker now has a `pickup(org_plane)` method that queries the enterprise plan
 
 ### What does the Assistant actually delegate to?
 
-The Assistant delegates to **`WorkManagementPort`**. It knows nothing about the enterprise plane implementation. The `WorkManagementAdapter` translates `WorkCreateRequest` into `OrganisationControlPlane` operations.
+The Assistant delegates to **`WorkManagementPort`**. It knows nothing about the Organisation implementation. The `WorkManagementAdapter` translates `WorkCreateRequest` into `OrganisationControlPlane` operations.
 
 ### Where does the work live?
 
@@ -88,22 +88,22 @@ Work is assigned through **`OrganisationControlPlane.assign_work(work, assignee)
 
 ### How does a worker/agent receive it?
 
-The worker uses **`Worker.pickup(org_plane)`** to query the enterprise plane for work assigned to its agent ID (`worker-agent`). The API endpoint `POST /worker/run` triggers this pickup. The worker:
+The worker uses **`Worker.pickup(org_plane)`** to query the Organisation for work assigned to its agent ID (`worker-agent`). The API endpoint `POST /worker/run` triggers this pickup. The worker:
 1. Queries `org_plane.list_work()`
 2. Filters for work where `assignee_agent_id == "worker-agent"` and status is `PENDING` or `ASSIGNED`
 3. Executes the work
-4. Updates the enterprise plane with the result
+4. Updates the Organisation with the result
 
 ### How does the result get back?
 
-The worker stores the result in **`work.outcome`** (a `dict[str, Any]`) and updates `work.status` via the enterprise plane. The API can retrieve this via `GET /work` or `GET /work/{work_id}`.
+The worker stores the result in **`work.outcome`** (a `dict[str, Any]`) and updates `work.status` via the Organisation. The API can retrieve this via `GET /work` or `GET /work/{work_id}`.
 
 ### What remains in-memory?
 
 - **Enterprise plane state:** `InMemoryOrganisationControlPlane` stores roles, work, assignments, and delegations in Python dicts. Data is lost on process exit.
 - **Worker output:** Artifacts are written to a local filesystem directory (`worker_outputs/`).
 - **No event bus:** Work state changes are not published as events.
-- **No persistence:** There is no database backing the enterprise plane.
+- **No persistence:** There is no database backing the Organisation.
 
 ### What remains simulated?
 
@@ -125,7 +125,7 @@ This would prove the full path: delegated work → capability lookup → executi
 
 After that, the natural next steps are:
 
-1. **Persist enterprise plane state** (replace in-memory with a database-backed implementation)
+1. **Persist Organisation state** (replace in-memory with a database-backed implementation)
 2. **Add event emission** on work lifecycle transitions
 3. **Introduce a Paperclip-backed `OrganisationControlPlane` adapter** when Paperclip becomes available
 
@@ -135,12 +135,12 @@ After that, the natural next steps are:
 |---|-----------|--------|
 | 1 | Existing 21R behaviour remains intact | Verified — all 21R tests pass |
 | 2 | `AssistantChatService` still only knows about `WorkManagementPort` | Verified — no Paperclip or org-plane imports in `chat.py` |
-| 3 | Paperclip accessed only behind enterprise-plane boundary | Verified — Paperclip is not present; boundary is preserved |
+| 3 | Paperclip accessed only behind Organisation boundary | Verified — Paperclip is not present; boundary is preserved |
 | 4 | Real path for creating and inspecting work | Verified — `POST /assistant/chat` delegates; `GET /work` inspects |
-| 5 | Assignment represented by enterprise plane | Verified — `assign_work()` in `OrganisationControlPlane` |
-| 6 | Worker does not become a second orchestration system | Verified — worker queries enterprise plane, executes one task |
+| 5 | Assignment represented by Organisation | Verified — `assign_work()` in `OrganisationControlPlane` |
+| 6 | Worker does not become a second orchestration system | Verified — worker queries Organisation, executes one task |
 | 7 | Existing tests continue to pass | Verified — 206 passed in workflow_runner, 115 in organisation+ai |
-| 8 | Focused integration tests for enterprise-plane integration | Added — 6 new tests in `test_capability_execute.py` |
+| 8 | Focused integration tests for Organisation integration | Added — 6 new tests in `test_capability_execute.py` |
 | 9 | Manual test demonstrating interaction | Documented below |
 | 10 | Clear documentation of real vs simulated | This report |
 
@@ -162,7 +162,7 @@ uvicorn api:app --reload --port 8000
 ### Test the team interaction
 
 ```bash
-# 1. Send a request with no matching capability (delegates to enterprise plane)
+# 1. Send a request with no matching capability (delegates to Organisation)
 curl -X POST http://localhost:8000/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Research X and produce a report", "session_id": "ses-team-1"}'
@@ -174,7 +174,7 @@ curl http://localhost:8000/roles
 
 # Expected: JSON array with registered roles (may be empty initially)
 
-# 3. List all work in the enterprise plane
+# 3. List all work in the Organisation
 curl http://localhost:8000/work
 
 # Expected: JSON array with the delegated work item
@@ -227,7 +227,7 @@ Total                                            321 passed
 | File | Change |
 |------|--------|
 | `packages/organisation/src/organisation_control_plane.py` | Added `list_work()` to abstract interface and implementation |
-| `packages/organisation/src/worker.py` | Added `pickup()` method; worker is now enterprise-plane-aware |
+| `packages/organisation/src/worker.py` | Added `pickup()` method; worker is now Organisation-aware |
 | `packages/workflow_runner/api.py` | Added `/roles`, `/worker/run` endpoints; updated `/work` to use `list_work()`; added `_RoleResponse` model |
 | `packages/workflow_runner/tests/test_capability_execute.py` | Added 6 new tests for roles, worker pickup, and worker run endpoint |
 
@@ -243,7 +243,7 @@ InMemoryOrganisationControlPlane  (current)
 PaperclipOrganisationControlPlane (future, not yet implemented)
 ```
 
-The Assistant never knows which implementation is active. It delegates to `WorkManagementPort.create_work()`, and the adapter translates that to the enterprise plane.
+The Assistant never knows which implementation is active. It delegates to `WorkManagementPort.create_work()`, and the adapter translates that to the Organisation.
 
 ## What Would Need to Change to Connect Paperclip
 
@@ -252,4 +252,4 @@ The Assistant never knows which implementation is active. It delegates to `WorkM
 3. **No changes to `AssistantChatService` or `WorkManagementPort`** — the boundary is already preserved.
 4. **Potentially enrich `Work.outcome`** — Paperclip may need structured fields (logs, traces, token usage). This would be a schema evolution, not a breaking change.
 
-These changes can be made **entirely within the enterprise-plane package** without touching the AI or workflow-runner packages.
+These changes can be made **entirely within the Organisation package** without touching the AI or workflow-runner packages.

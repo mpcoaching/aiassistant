@@ -9,7 +9,7 @@
 Replace the manual `/work/{work_id}/process` completion stub with the smallest real worker/agent execution path that proves:
 
 ```
-User → Chat → Assistant → Enterprise Plane → Worker/Agent → actual work → result → Enterprise Plane → Assistant/User
+User → Chat → Assistant (inside Organisation) → Organisation Control Plane → Worker/Agent → actual work → result → Organisation Control Plane → Assistant → User
 ```
 
 ## What Changed
@@ -21,7 +21,7 @@ A new `Worker` class was added. It is deliberately simple:
 - Receives a `Work` item and an `OrganisationControlPlane`
 - Transitions the work through `IN_PROGRESS` → `COMPLETED` or `FAILED`
 - Produces a tangible markdown artifact as the proof task
-- Stores the result in `work.outcome` via the enterprise plane
+- Stores the result in `work.outcome` via the Organisation
 - Preserves `work.context` (session correlation)
 - Assigns itself as `worker-agent` when no assignee exists
 
@@ -46,9 +46,9 @@ Added a `created_work` property to `InMemoryWorkManagementPort` so tests can ins
 - **End-to-end integration test:** chat → delegation → enterprise work → worker → result
 
 ## What Is Now Genuinely Functional
+1. **Assistant delegates to the Organisation** when no capability matches. This was already present in 21Q; the tests confirm it still works.
 
-1. **Assistant delegates to the enterprise plane** when no capability matches. This was already present in 21Q; the tests confirm it still works.
-2. **Work is created in the enterprise plane** with `draft` status.
+2. **Work is created in the Organisation** with `draft` status.
 3. **A real worker can execute the work** and transition it through `IN_PROGRESS` → `COMPLETED`.
 4. **The worker produces a tangible artifact** (a markdown file in `worker_outputs/`).
 5. **The result is stored against the work item** in `work.outcome`.
@@ -76,9 +76,9 @@ Added a `created_work` property to `InMemoryWorkManagementPort` so tests can ins
 1. **Replace `Worker` with a Paperclip-backed implementation.** The `Worker` class lives in `packages/organisation/src/worker.py`. A future Paperclip adapter would implement the same interface (or a slightly richer one) but delegate execution to Paperclip.
 2. **Enrich `Work.outcome` schema.** Currently it is a free-form `dict[str, Any]`. Paperclip will likely need structured fields (logs, traces, token usage, intermediate steps). The `outcome` field should be typed or at least documented as a contract.
 3. **Add a worker registry or dispatch policy.** The current architecture has one hardcoded worker agent (`worker-agent`). Paperclip will need a way to map work types to agent configurations. The `assignee_agent_id` field already exists on `Work`, but there is no mechanism to resolve it to a runtime.
-4. **Add event publication.** When work transitions to `COMPLETED` or `FAILED`, the enterprise plane should publish an event so downstream systems (including Paperclip) can react without polling.
-5. **Persist the enterprise plane state.** Paperclip will need durable work state. The `OrganisationControlPlane` abstraction already supports this; only the implementation needs to change from in-memory to a database or Paperclip-backed store.
+4. **Add event publication.** When work transitions to `COMPLETED` or `FAILED`, the Organisation should publish an event so downstream systems (including Paperclip) can react without polling.
 
+5. **Persist the Organisation state.** Paperclip will need durable work state. The `OrganisationControlPlane` abstraction already supports this; only the implementation needs to change from in-memory to a database or Paperclip-backed store.
 These changes can be made **without modifying `AssistantChatService` or `WorkManagementPort`**, satisfying the architectural seam established in 21Q.
 
 ## Next Smallest Useful Increment
@@ -90,7 +90,7 @@ Currently the worker writes a markdown summary. The next step is to make it exec
 1. Prove the full path: delegated work → capability lookup → execution → result storage.
 2. Keep the worker simple (no planner, no multi-agent loop).
 3. Reuse existing `CapabilityExecutionPort` contracts.
-4. Remain behind the enterprise-plane boundary.
+4. Remain behind the Organisation boundary.
 
 After that, the following small increments would follow naturally:
 
@@ -104,7 +104,7 @@ After that, the following small increments would follow naturally:
 |---|-----------|--------|
 | 1 | Send request through `/assistant/chat` with no matching capability | Verified in `test_chat_delegates_to_enterprise_plane_when_no_capability_match` |
 | 2 | Verify Assistant delegates via `WorkManagementPort` | Verified in e2e test (`work_management.create_work` called) |
-| 3 | Verify enterprise plane contains the work item | Verified in e2e test (`work_management.created_work`) |
+| 3 | Verify Organisation contains the work item | Verified in e2e test (`work_management.created_work`) |
 | 4 | Make work available to the worker | Verified in e2e test (worker receives `Work` object) |
 | 5 | Run the worker | Verified in e2e test (`worker.execute(work, org_plane)`) |
 | 6 | Verify worker performs the proof task | Verified (`output_path` file exists with expected content) |

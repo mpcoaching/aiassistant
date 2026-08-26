@@ -28,7 +28,7 @@ The Assistant (as an organisational role) now handles three distinct interaction
 - Decision logic routes to four handlers: fast, slow, unavailable, gap
 - Capability gap handler creates enterprise work for capability development via `WorkManagementPort`
 
-### 3. Enterprise Plane Is Source of Truth
+### 3. Organisation Is Source of Truth
 
 **File:** `packages/organisation/src/organisation_control_plane.py`
 - `query_capability(capability_id)` returns availability information
@@ -45,7 +45,7 @@ New and enhanced endpoints:
 |----------|---------|
 | `GET /capabilities` | List all registered capabilities with enterprise availability |
 | `GET /capabilities/{id}/availability` | Query availability for a specific capability |
-| `GET /roles` | List enterprise-plane roles |
+| `GET /roles` | List organisational roles |
 | `GET /work` | List all work with assignees, capabilities, status, outcomes |
 | `GET /work/{id}` | Inspect individual work lifecycle |
 
@@ -59,7 +59,7 @@ New and enhanced endpoints:
 
 **File:** `packages/workflow_runner/api.py`
 - Split monolithic `try/except` into two blocks
-- Core enterprise plane setup (org plane, work management, assistant recreation) is isolated from optional capability registry setup
+- Core Organisation setup (org plane, work management, assistant recreation) is isolated from optional capability registry setup
 - If capability registry imports fail, core enterprise functionality still works
 - `_capability_registry` initialized to `None` before try blocks to prevent `NameError`
 
@@ -84,7 +84,7 @@ ETA (5s) ≤ threshold (60s)
     ↓
 WorkManagementPort.create_work(required_capability_ids=["real-capability"])
     ↓
-Enterprise Plane assigns and executes
+Organisation assigns and executes
     ↓
 Response: status="delegated", work_id="work-run-the-real-capabil"
 ```
@@ -105,7 +105,7 @@ Returns: {available: True, eta_seconds: 300, ...}
 ETA (300s) > threshold (60s)
     ↓
 _handle_slow_capability():
-  1. Delegates work to enterprise plane
+  1. Delegates work to Organisation
   2. Returns interim response
     ↓
 Response: status="delegated_with_interim",
@@ -163,7 +163,11 @@ curl -X POST http://localhost:8000/assistant/chat \
 
 ## Final Architectural Test
 
-**Question:** If I replaced the current Enterprise Plane implementation tomorrow, what code in the Assistant would have to change?
+**Question:** Where does the Assistant sit relative to the Organisation?
+
+**Answer:** The Assistant is **inside** the Organisation. It is one role/agent within the organisation, not the organisation's interface to the user. The Chat/API/UI/Voice layer is outside the Organisation and is simply the interaction mechanism through which the user communicates with the Assistant.
+
+**Question:** If I replaced the current Organisation implementation tomorrow, what code in the Assistant would have to change?
 
 **Answer:** None.
 
@@ -172,6 +176,8 @@ The Assistant depends only on ports:
 - `WorkManagementPort`
 
 It never imports or references `InMemoryOrganisationControlPlane` or any other concrete implementation. A future `PaperclipOrganisationControlPlane` would implement the same ports. The Assistant would continue to delegate through the same interfaces, unaware of the underlying implementation.
+
+The Assistant expresses intent; the Organisation Control Plane determines the operational mechanism.
 
 ## Files Changed
 
@@ -197,7 +203,7 @@ Total                                            167 passed
 
 | Test | Purpose |
 |------|---------|
-| `test_fast_capability_end_to_end_via_api` | User asks → Assistant delegates → Work created in enterprise plane → retrievable via API |
+| `test_fast_capability_end_to_end_via_api` | User asks → Assistant delegates → Work created in Organisation → retrievable via API |
 | `test_slow_capability_produces_interim_via_api` | User asks → Enterprise reports slow ETA → Assistant provides interim answer + delegates |
 | `test_capability_gap_creates_development_work_via_api` | User asks → No capability exists → Assistant reports gap + creates development work |
 | `test_capabilities_list_endpoint_returns_capabilities` | API exposes capabilities with availability information |
@@ -220,9 +226,9 @@ Total                                            167 passed
 
 ## The Smallest Next Increment
 
-**Persist enterprise plane state and add event emission.**
+**Persist Organisation state and add event emission.**
 
-Currently the enterprise plane is in-memory. The next step is to:
+Currently the Organisation is in-memory. The next step is to:
 1. Replace `InMemoryOrganisationControlPlane` with a database-backed implementation
 2. Publish events when work transitions states (created, assigned, in_progress, completed, failed)
 3. This enables reactive worker triggering and audit trails

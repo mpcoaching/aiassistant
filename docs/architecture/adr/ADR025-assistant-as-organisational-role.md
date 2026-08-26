@@ -26,6 +26,10 @@ Intended Future Architecture
 
   Human
     |
+  Chat / API / UI / Voice
+    |
+  Organisation
+    |
     Assistant role/interface
     |
     OrganisationControlPlane

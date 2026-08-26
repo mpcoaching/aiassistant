@@ -4,7 +4,7 @@ Status: Proposed
 
 ## Decision
 
-Assistant is an application-layer translation service, not a domain service. It translates natural language user intent into structured requests for domain planes (Organisation/Control, People/Capability, Operations, Enterprise). It does NOT own capability matching, EIMS access, session creation, runtime invocation, or execution.
+Assistant is an application-layer translation service within the Organisation, not a domain service. It translates natural language user intent into structured requests for the Organisation Control Plane. The Chat/API/UI/Voice layer is outside the Organisation and is simply the interaction mechanism. The Assistant does NOT own capability matching, EIMS access, session creation, runtime invocation, or execution.
 
 ## Context
 

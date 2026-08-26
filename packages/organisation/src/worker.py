@@ -1,9 +1,9 @@
 """
-Minimal worker for the enterprise plane (Increment 21R).
+Minimal worker for the Organisation (Increment 21R).
 
 Executes a work item and produces a tangible artifact.
 This is the simplest real worker capable of demonstrating the end-to-end path:
-  User → Chat → Assistant → Enterprise Plane → Worker → result → Enterprise Plane → Assistant/User
+  User → Chat → Assistant (inside Organisation) → Organisation Control Plane → Worker → result → Organisation Control Plane → Assistant → User
 
 The worker is deliberately simple:
 - No general-purpose agent runtime
@@ -14,8 +14,8 @@ The worker is deliberately simple:
 
 Design constraints:
 - Worker obtains work from OrganisationControlPlane
-- Work lifecycle is managed by the enterprise plane
-- Results are stored against the work item in the enterprise plane
+- Work lifecycle is managed by the Organisation
+- Results are stored against the work item in the Organisation
 - Paperclip remains behind the OrganisationControlPlane boundary (future)
 """
 
@@ -31,7 +31,7 @@ from contracts.capability_execution import CapabilityExecutionPort, ExecutionRes
 
 
 class Worker:
-    """Minimal worker that executes assigned work from the enterprise plane."""
+    """Minimal worker that executes assigned work from the Organisation."""
 
     DEFAULT_AGENT_ID = "worker-agent"
     DEFAULT_AGENT_NAME = "Default Worker"
@@ -50,7 +50,7 @@ class Worker:
         self._capability_registry = capability_registry
 
     def pickup(self, org_plane: Any) -> Work | None:
-        """Pick up work assigned to this worker from the enterprise plane.
+        """Pick up work assigned to this worker from the Organisation.
 
         Returns the first pending/assigned work item assigned to this worker's agent_id,
         or any unassigned work item if none is specifically assigned to this worker.
@@ -280,7 +280,7 @@ class Worker:
             work.description or "No description provided.",
             "",
             "## Result",
-            "This work item was processed by the minimal enterprise-plane worker.",
+            "This work item was processed by the minimal Organisation worker.",
             f"The result has been written to `worker_outputs/{work.id}.md`.",
             "",
             "---",

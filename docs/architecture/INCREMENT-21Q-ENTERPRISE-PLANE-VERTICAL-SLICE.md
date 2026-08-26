@@ -1,7 +1,7 @@
-# Increment 21Q — Enterprise Plane Vertical Slice
+# Increment 21Q — Organisation Vertical Slice
 
 **Status:** Implementation complete.  
-**Objective:** Prove the end-to-end path: User → Chat → Assistant → Enterprise Plane → delegated task → worker/agent → result → Assistant → User.
+**Objective:** Prove the end-to-end path: User → Chat → Assistant (inside Organisation) → Organisation Control Plane → delegated task → worker/agent → result → Assistant → User.
 
 ---
 
@@ -24,7 +24,7 @@
 1. **No `WorkManagementAdapter`** — `OrganisationControlPlane` had no adapter implementing `WorkManagementPort`.
 2. **Assistant never delegates** — `AssistantChatService` accepted `work_management` but never called it.
 3. **No wiring in composition** — `create_application()` did not wire `work_management` or `organisational_context`.
-4. **No work visibility endpoints** — The API had no way to inspect work in the enterprise plane.
+4. **No work visibility endpoints** — The API had no way to inspect work in the Organisation.
 5. **No worker/agent** — No component to process delegated work.
 
 ---
@@ -66,7 +66,7 @@ The Assistant creates work via `WorkManagementPort.create_work()` and returns a 
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/work` | GET | List all work items from enterprise plane |
+| `/work` | GET | List all work items from Organisation |
 | `/work/{work_id}` | GET | Get specific work item |
 | `/work/{work_id}/process` | POST | Minimal worker stub — marks work as completed |
 
@@ -75,7 +75,7 @@ The Assistant creates work via `WorkManagementPort.create_work()` and returns a 
 **File:** `packages/workflow_runner/api.py` (`POST /work/{work_id}/process`)
 
 A manual worker trigger that:
-1. Retrieves work from the enterprise plane
+1. Retrieves work from the Organisation
 2. Sets status to `COMPLETED`
 3. Records an outcome dict
 4. Returns the result
@@ -122,7 +122,7 @@ OrganisationControlPlane.assign_work(work, role)
        ↓
  ChatResponse({
      status: "delegated",
-     message: "I've delegated this to the enterprise plane. Work ID: work-... Status: draft.",
+     message: "I've delegated this to the Organisation. Work ID: work-... Status: draft.",
      telemetry: {work_id: "...", work_status: "draft", delegated: true}
    })
        ↓
@@ -166,7 +166,7 @@ curl -X POST http://localhost:8000/assistant/chat \
 
 # Expected: status="delegated", message mentions work ID, telemetry contains work_id
 
-# 2. List all work in the enterprise plane
+# 2. List all work in the Organisation
 curl http://localhost:8000/work
 
 # Expected: JSON array with the delegated work item
@@ -234,7 +234,7 @@ All relevant tests pass.
 - `packages/workflow_runner/tests/test_capability_execute.py` — 9 passed (including 4 new work endpoint tests)
 - `packages/organisation/tests/` — 51 passed
 
-**Note:** `packages/workflow_runner/tests/test_telemetry_lifecycle.py` has pre-existing module-reload issues that cause failures when run alongside other tests. This is unrelated to the enterprise-plane changes.
+**Note:** `packages/workflow_runner/tests/test_telemetry_lifecycle.py` has pre-existing module-reload issues that cause failures when run alongside other tests. This is unrelated to the Organisation changes.
 
 ---
 
@@ -257,7 +257,7 @@ All relevant tests pass.
 2. **Enterprise plane state** — `GET /work` shows all work items created by the Assistant
 3. **Work lifecycle** — Create → inspect → process → complete
 4. **Session correlation** — Delegated work preserves the session ID from the chat request
-5. **No capability selection** — The Assistant does NOT build its own orchestration; it uses the enterprise plane interface
+5. **No capability selection** — The Assistant does NOT build its own orchestration; it uses the Organisation interface
 
 ---
 

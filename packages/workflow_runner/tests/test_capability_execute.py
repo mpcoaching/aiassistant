@@ -273,7 +273,7 @@ def test_telemetry_export_endpoint_exports_events(client):
         mock_telemetry.export_to_json.assert_called_once_with("data/telemetry_export.json")
 
 
-# ---- Work Management / Enterprise Plane Integration -----------------------
+# ---- Work Management / Organisation Integration -----------------------
 
 
 def test_list_work_returns_empty_when_no_work(client):

@@ -2,7 +2,7 @@
 
 This module provides a simple executable capability that the worker can
 invoke through CapabilityExecutionPort to prove the real end-to-end path:
-  User → Assistant → Enterprise Plane → Worker → CapabilityExecutionPort → Capability → Result
+  User → Chat → Assistant (inside Organisation) → Organisation Control Plane → Worker → CapabilityExecutionPort → Capability → Result
 """
 
 
