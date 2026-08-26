@@ -848,8 +848,12 @@ def test_chat_reports_gap_when_enterprise_capability_absent() -> None:
 
     assert response.status == "capability_gap"
     assert "does not currently have" in response.message
-    assert len(work_management.created_work) == 0
+    assert len(work_management.created_work) == 1
+    assert work_management.created_work[0]["title"] == "Develop capability: missing_cap"
     assert query.queried == ["cap-missing"]
+    assert response.telemetry["gap"] is True
+    assert response.telemetry["work_created"] is True
+    assert response.telemetry["work_id"] is not None
 
 
 def test_chat_reports_unavailable_when_enterprise_capability_busy() -> None:

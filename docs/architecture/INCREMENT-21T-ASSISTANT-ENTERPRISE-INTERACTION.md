@@ -278,22 +278,30 @@ curl http://localhost:8000/work
 
 **Is the Assistant inside or outside the enterprise plane?**
 
-The Assistant is **outside** the enterprise plane. It is the user-facing interface that queries the enterprise plane and makes decisions based on the response. The enterprise plane owns organisational truth: people, roles, agents, capabilities, skills, tools, work, assignments, availability, execution state, and results.
+The Assistant is **inside** the Organisation. It is one role/agent within the organisation, not the organisation's interface to the user. The Chat/API/UI/Voice layer is outside the Organisation and is simply the interaction mechanism through which the user communicates with the Assistant (and other organisational members).
+
+The Organisation owns organisational truth: people, roles, agents, capabilities, skills, tools, work, assignments, availability, execution state, and results.
 
 **The exact boundary:**
 
-| Assistant (AI Plane) | Enterprise Plane |
-|---------------------|------------------|
-| Receives user request | Owns capability catalog |
-| Queries availability | Owns role/agent assignments |
-| Makes timing decisions | Owns work lifecycle |
-| Provides interim answers | Owns execution results |
-| Delegates via ports | Implements ports |
-| Never duplicates state | Is the source of truth |
+| Interaction Layer (Outside Organisation) | Organisation (Inside) |
+|------------------------------------------|-----------------------|
+| Chat / API / UI / Voice | Assistant role |
+| Receives raw user input | Understands intent |
+| | Queries organisational capability |
+| | Delegates to appropriate organisational role |
+| | Provides interim answers when appropriate |
+| | Returns outcomes to user |
+| | Organisation Control Plane |
+| | Owns capability catalog |
+| | Owns role/agent assignments |
+| | Owns work lifecycle |
+| | Owns execution results |
+| | Is the source of truth |
 
 **What the Assistant actually delegates to:**
 
-`WorkManagementPort` and `EnterpriseCapabilityQueryPort`. It never imports or depends on `OrganisationControlPlane` implementations.
+The Organisation Control Plane via ports (`WorkManagementPort`, `EnterpriseCapabilityQueryPort`). The Assistant never imports or depends on `OrganisationControlPlane` implementations. It expresses intent; the organisation determines the operational mechanism.
 
 **Where the work lives:**
 
@@ -301,7 +309,7 @@ In the `OrganisationControlPlane` abstraction. Currently `InMemoryOrganisationCo
 
 **How work is assigned:**
 
-Through `OrganisationControlPlane.assign_work(work, assignee)`. The enterprise plane determines assignment based on roles, agents, and availability.
+Through `OrganisationControlPlane.assign_work(work, assignee)`. The organisation determines assignment based on roles, agents, and availability. The Assistant does not decide who should perform work — it expresses intent and the organisation routes it.
 
 **How a worker/agent receives it:**
 

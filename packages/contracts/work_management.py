@@ -10,6 +10,7 @@ class WorkCreateRequest(BaseModel):
     required_capability_ids: list[str] = []
     work_type: str = "bau"
     priority: str = "normal"
+    organisation_id: str = "default"
 
 
 class WorkReference(BaseModel):

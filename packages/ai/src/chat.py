@@ -38,6 +38,10 @@ from capability_selection_telemetry import CapabilitySelectionTelemetry
 
 logger = logging.getLogger("ai.chat")
 
+# TODO: Replace with a user-facing response policy abstraction.
+# This is a temporary proof value for the fast/slow capability decision.
+_FAST_ENTERPRISE_ETA_THRESHOLD_SECONDS = 60
+
 
 class ChatMessage(BaseModel):
     role: str
@@ -426,6 +430,7 @@ class AssistantChatService:
                 accountable_role_id="default",
                 work_type="project",
                 priority="normal",
+                organisation_id="default",
                 required_capability_ids=required_capability_ids or [],
             )
         )
@@ -472,7 +477,7 @@ class AssistantChatService:
             return self._handle_unavailable_capability(intent, frame, session_id, availability)
 
         eta = availability.eta_seconds or 0
-        if eta <= 60:
+        if eta <= _FAST_ENTERPRISE_ETA_THRESHOLD_SECONDS:
             return self._handle_fast_capability(best_candidate.id, intent, frame, session_id)
 
         return self._handle_slow_capability(best_candidate.id, intent, frame, session_id, eta)
@@ -560,21 +565,50 @@ class AssistantChatService:
         candidate: CapabilityCandidate,
     ) -> ChatResponse:
         """Capability does not exist in the enterprise."""
+        work_ref = None
+        if self._work_management is not None:
+            request_text = intent.raw.get("text", "")
+            work_ref = self._work_management.create_work(
+                WorkCreateRequest(
+                    title=f"Develop capability: {candidate.name}",
+                    description=(
+                        f"Investigate and develop a capability for: {request_text}\n"
+                        f"Missing capability: {candidate.name} ({candidate.id})"
+                    ),
+                    accountable_role_id="default",
+                    work_type="capability_development",
+                    priority="normal",
+                    organisation_id="default",
+                    required_capability_ids=[],
+                )
+            )
+
+        message = (
+            f"The enterprise does not currently have a capability for '{candidate.name}'. "
+            f"I can provide a best-effort response"
+        )
+        if work_ref is not None:
+            message += (
+                f", and I've initiated work to develop this capability "
+                f"(Work ID: {work_ref.work_id})"
+            )
+        message += "."
+
         return ChatResponse(
-            message=(
-                f"The enterprise does not currently have a capability for '{candidate.name}'. "
-                f"I can provide a best-effort response, or I can initiate work to develop this capability."
-            ),
+            message=message,
             session_id=session_id,
             status="capability_gap",
             reasoning=(
                 f"No enterprise capability found for {candidate.id}. "
-                f"This represents a capability gap."
+                f"This represents a capability gap. "
+                f"{'Capability development work created: ' + work_ref.work_id if work_ref else 'No work management available.'}"
             ),
             telemetry={
                 "recognition_level": frame.recognition_level.value,
                 "capability_id": candidate.id,
                 "capability_name": candidate.name,
                 "gap": True,
+                "work_created": work_ref is not None,
+                "work_id": work_ref.work_id if work_ref else None,
             },
         )
