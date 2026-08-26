@@ -200,7 +200,7 @@ class AssistantChatService:
                     telemetry={"runtime": "pattern_execution_port"},
                 )
 
-        # No pattern execution path available — delegate to enterprise plane if possible
+        # No pattern execution path available — delegate to the Organisation if possible
         if self._work_management is not None:
             return self._delegate_work_response(intent, frame, session_id)
 
@@ -421,7 +421,7 @@ class AssistantChatService:
         session_id: str,
         required_capability_ids: list[str] | None = None,
     ) -> ChatResponse:
-        """Delegate work to the enterprise plane via WorkManagementPort."""
+        """Delegate work to the Organisation via WorkManagementPort."""
         request_text = intent.raw.get("text", "")
         work_ref = self._work_management.create_work(
             WorkCreateRequest(
@@ -435,11 +435,11 @@ class AssistantChatService:
             )
         )
         return ChatResponse(
-            message=f"I've delegated this to the enterprise plane. Work ID: {work_ref.work_id}. Status: {work_ref.status}.",
+            message=f"I've delegated this to the Organisation. Work ID: {work_ref.work_id}. Status: {work_ref.status}.",
             session_id=session_id,
             status="delegated",
             reasoning=(
-                f"No capability match. Delegated to enterprise plane as work "
+                f"No capability match. Delegated to Organisation as work "
                 f"({frame.context.problem_context.value} / "
                 f"{frame.context.activity_purpose.value})."
             ),
@@ -459,7 +459,7 @@ class AssistantChatService:
         frame: ProblemFrame,
         session_id: str,
     ) -> ChatResponse | None:
-        """Evaluate whether the enterprise plane can handle this request.
+        """Evaluate whether the Organisation can handle this request.
 
         Returns a ChatResponse if the enterprise should act, otherwise None
         to allow fallback to pattern execution or other paths.
@@ -511,7 +511,7 @@ class AssistantChatService:
                 f"The enterprise can produce the proper answer for this, "
                 f"but it will take approximately {eta_seconds} seconds. "
                 f"I can give you a preliminary answer now while the enterprise work continues. "
-                f"Work has been delegated to the enterprise plane."
+                f"Work has been delegated to the Organisation."
             ),
             session_id=session_id,
             status="delegated_with_interim",

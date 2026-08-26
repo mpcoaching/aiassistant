@@ -1,4 +1,4 @@
-# Increment 21V — Make the Enterprise Plane Usable as a Team
+# Increment 21V — Make the Organisation Usable as a Team
 
 **Date:** 2026-08-26  
 **Author:** Kilo  
@@ -6,24 +6,24 @@
 
 ## Objective
 
-Make the current system actually usable as the beginning of an organisation/team. Prove that the Enterprise Plane can receive a capability gap, turn it into organisational work, develop the capability, register it, and subsequently use it to fulfil requests. Cross the line from "we have an architecture representing an organisation" to "we have the beginnings of an organisation that can become more capable through interaction."
+Make the current system actually usable as the beginning of an organisation/team. Prove that the Organisation can receive a capability gap, turn it into organisational work, develop the capability, register it, and subsequently use it to fulfil requests. Cross the line from "we have an architecture representing an organisation" to "we have the beginnings of an organisation that can become more capable through interaction."
 
 ## What Is Now Genuinely Real
 
 ### 1. Capability Development Lifecycle
 
-The Enterprise Plane can now represent the full lifecycle of capability development:
+The Organisation can now represent the full lifecycle of capability development:
 
 ```
 Capability Gap
     ↓
-Enterprise Plane creates capability-development work
+Organisation creates capability-development work
     ↓
-Worker picks up work from Enterprise Plane
+Worker picks up work from Organisation
     ↓
 Worker produces capability definition artifact
     ↓
-Worker registers capability in Enterprise Plane
+Worker registers capability in Organisation
     ↓
 Capability becomes available to organisation
 ```
@@ -61,14 +61,14 @@ The worker now has three execution modes:
 | **General Work** | Fallback | Produces markdown summary |
 
 `Worker.__init__` now accepts `capability_registry` parameter. The worker registers developed capabilities in both:
-1. The Enterprise Plane (`org_plane.register_capability()`)
+1. The Organisation (`org_plane.register_capability()`)
 2. The capability registry (for discovery)
 
 `Worker.pickup()` now picks up unassigned work (where `assignee_agent_id is None`), not just work assigned to itself. This ensures capability-development work is picked up even when no specific agent is assigned.
 
 `Worker._develop_capability()` produces:
 - A `Capability` model with interface definition
-- Registration in the Enterprise Plane
+- Registration in the Organisation
 - Registration in the capability registry
 - A markdown artifact documenting:
   - Capability ID, name, kind, status, owner
@@ -98,7 +98,7 @@ work_ref = self._work_management.create_work(
 **File:** `packages/workflow_runner/api.py`
 
 - Split monolithic capability setup into three try blocks:
-  1. Core enterprise plane (org plane, work management, assistant recreation)
+  1. Core Organisation (org plane, work management, assistant recreation)
   2. Capability registry + discovery adapter
   3. Capability execution adapter
 - This ensures `_capability_registry` is set even if `CapabilityExecutionAdapter` import fails
@@ -111,7 +111,7 @@ The following endpoints expose the organisation:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /roles` | List enterprise-plane roles |
+| `GET /roles` | List organisational roles |
 | `GET /capabilities` | List registered capabilities with availability |
 | `GET /capabilities/{id}/availability` | Query specific capability availability |
 | `GET /work` | List all work with assignees, status, outcomes |
@@ -150,7 +150,7 @@ Worker.execute()
     ↓
 _develop_capability():
   - Creates Capability model
-  - Registers in Enterprise Plane (org_plane.register_capability)
+  - Registers in Organisation (org_plane.register_capability)
   - Registers in Capability Registry
   - Writes capability artifact to worker_outputs/
     ↓
@@ -172,7 +172,7 @@ CapabilityDiscoveryPort.find_capabilities() → ["cap-work-..."]
 EnterpriseCapabilityQueryPort.query_capability() → {available: True, ...}
     ↓
 _handle_fast_capability():
-  - Delegates to enterprise plane
+  - Delegates to Organisation
   - Creates work with required_capability_ids=["cap-work-..."]
     ↓
 Response: status="delegated",
@@ -187,18 +187,18 @@ Response: status="delegated",
 
 1. **REQUEST 1:** User asks for unknown capability
    - Assistant identifies capability gap
-   - Enterprise Plane creates development work
+   - Organisation creates development work
    - Work has `work_type="capability_development"`
 
 2. **DEVELOPMENT:** Worker processes the work
    - Worker produces capability definition
-   - Capability registered in Enterprise Plane
+   - Capability registered in Organisation
    - Capability registered in Capability Registry
    - Artifact written to `worker_outputs/`
 
 3. **REQUEST 2:** User asks for same capability
-   - Assistant queries Enterprise Plane
-   - Enterprise Plane reports capability exists
+   - Assistant queries Organisation Control Plane
+   - Organisation reports capability exists
    - Assistant delegates for execution
 
 ## Separation of Capability Development and Execution
@@ -212,7 +212,7 @@ The model now explicitly distinguishes:
 | Worker mode | `_develop_capability()` | `_execute_capability()` or `_do_work()` |
 | Output | New capability definition + artifact | Execution result |
 | Registration | Yes (in OCP + registry) | No |
-| Who assigns | Enterprise Plane | Enterprise Plane |
+| Who assigns | Organisation | Organisation |
 
 ## Architectural Boundary
 
@@ -223,7 +223,7 @@ Assistant
     ↓
 Ports (WorkManagementPort, EnterpriseCapabilityQueryPort, CapabilityDiscoveryPort)
     ↓
-Enterprise Plane (OrganisationControlPlane)
+Organisation (OrganisationControlPlane)
     ↓
 Worker
     ↓
@@ -238,7 +238,7 @@ The Assistant:
 - Does NOT directly invoke workers
 - Does NOT decide who should perform work
 
-The Enterprise Plane:
+The Organisation:
 - Owns capability registration
 - Owns work creation and assignment
 - Owns capability availability
@@ -247,7 +247,11 @@ The Enterprise Plane:
 
 ## Final Architectural Test
 
-**Question:** If I replaced the current Enterprise Plane implementation tomorrow, what code in the Assistant would have to change?
+**Question:** Where does the Assistant sit relative to the Organisation?
+
+**Answer:** The Assistant is **inside** the Organisation. It is one role/agent within the organisation, not the organisation's interface to the user. The Chat/API/UI/Voice layer is outside the Organisation and is simply the interaction mechanism through which the user communicates with the Assistant.
+
+**Question:** If I replaced the current Organisation implementation tomorrow, what code in the Assistant would have to change?
 
 **Answer:** None.
 
@@ -257,6 +261,8 @@ The Assistant depends only on ports:
 - `CapabilityDiscoveryPort`
 
 It never imports or references `InMemoryOrganisationControlPlane` or any other concrete implementation. A future `PaperclipOrganisationControlPlane` would implement the same ports. The Assistant would continue to delegate through the same interfaces, unaware of the underlying implementation.
+
+The Assistant expresses intent; the Organisation Control Plane determines the operational mechanism.
 
 ## Files Changed
 
@@ -304,9 +310,9 @@ Total                                            162 passed
 
 ## The Smallest Next Increment
 
-**Persist enterprise plane state and add event emission.**
+**Persist Organisation state and add event emission.**
 
-Currently the enterprise plane is in-memory. The next step is to:
+Currently the Organisation is in-memory. The next step is to:
 1. Replace `InMemoryOrganisationControlPlane` with a database-backed implementation
 2. Publish events when work transitions states (created, assigned, in_progress, completed, failed)
 3. This enables reactive worker triggering and audit trails

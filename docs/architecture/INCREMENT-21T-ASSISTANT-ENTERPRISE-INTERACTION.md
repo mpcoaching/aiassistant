@@ -1,4 +1,4 @@
-# Increment 21T — Assistant ↔ Enterprise Plane Interaction Model
+# Increment 21T — Assistant ↔ Organisation Interaction Model
 
 **Date:** 2026-08-25  
 **Author:** Kilo  
@@ -6,13 +6,13 @@
 
 ## Objective
 
-Establish the correct decision boundary between the Assistant (user-facing interface) and the Enterprise Plane (organisation authority). Prove that the Assistant can determine whether the organisation should handle a request, whether the user should wait, or whether the Assistant should provide an interim answer while the organisation works on the proper one.
+Establish the correct decision boundary between the Assistant (a role inside the Organisation) and the Organisation (organisation authority). Prove that the Assistant can determine whether the Organisation should handle a request, whether the user should wait, or whether the Assistant should provide an interim answer while the Organisation works on the proper one.
 
 ## What Is Now Genuinely Real
 
-### 1. Assistant ↔ Enterprise Plane Decision Boundary
+### 1. Assistant ↔ Organisation Decision Boundary
 
-The Assistant now queries the enterprise plane **before** deciding how to respond. It asks: "What can the organisation currently do about this request?" and receives structured availability information.
+The Assistant now queries the Organisation **before** deciding how to respond. It asks: "What can the organisation currently do about this request?" and receives structured availability information.
 
 **File:** `packages/ai/src/chat.py`
 - `AssistantChatService` now accepts `enterprise_capability_query: EnterpriseCapabilityQueryPort`
@@ -53,7 +53,7 @@ Adapts `OrganisationControlPlane` to `EnterpriseCapabilityQueryPort`.
 
 | Case | Enterprise State | Assistant Response |
 |------|------------------|-------------------|
-| **Fast** | Available, ETA ≤ 60s | Delegates to enterprise plane |
+| **Fast** | Available, ETA ≤ 60s | Delegates to Organisation |
 | **Slow** | Available, ETA > 60s | Provides interim answer AND delegates |
 | **Unavailable** | Exists but in use | Reports busy, offers to queue |
 | **Gap** | Does not exist | Reports capability gap, offers fallback |
@@ -66,13 +66,13 @@ New endpoint:
 - `GET /capabilities/{capability_id}/availability` — query enterprise capability availability
 
 Enhanced endpoints:
-- `GET /roles` — list enterprise-plane roles with names, statuses, authority IDs
+- `GET /roles` — list organisational roles with names, statuses, authority IDs
 - `GET /work` — list work with `required_capability_ids`, outcomes, assignees
 - `GET /work/{work_id}` — inspect specific work with full capability and result info
 
 ### 7. Real Capability Execution Path (Worker)
 
-The worker remains the enterprise-plane execution mechanism. When work includes `required_capability_ids`, the worker invokes `CapabilityExecutionPort` to execute a real capability and stores the actual result in `work.outcome`.
+The worker remains the Organisation execution mechanism. When work includes `required_capability_ids`, the worker invokes `CapabilityExecutionPort` to execute a real capability and stores the actual result in `work.outcome`.
 
 **File:** `packages/organisation/src/worker.py`
 - `Worker._execute_capability()` invokes `CapabilityExecutionPort.execute()`
@@ -93,13 +93,13 @@ EnterpriseCapabilityQueryPort.query_capability(best_candidate.id)
 OrganisationControlPlane.query_capability()
     ↓
 Decision:
-  ├── Fast → WorkManagementPort.create_work() → enterprise plane
+  ├── Fast → WorkManagementPort.create_work() → Organisation
   ├── Slow → WorkManagementPort.create_work() + interim answer
   ├── Unavailable → report busy
   └── Gap → report gap
 ```
 
-The Assistant never knows whether the enterprise plane is `InMemoryOrganisationControlPlane` or a future Paperclip adapter. It only knows `WorkManagementPort` and `EnterpriseCapabilityQueryPort`.
+The Assistant never knows whether the Organisation is `InMemoryOrganisationControlPlane` or a future Paperclip adapter. It only knows `WorkManagementPort` and `EnterpriseCapabilityQueryPort`.
 
 ## How Work Is Assigned
 
@@ -109,11 +109,11 @@ For the proof, the worker is assigned as `worker-agent` when no assignee exists.
 
 ## How the Worker Receives Work
 
-The worker uses `Worker.pickup(org_plane)` to query the enterprise plane for work assigned to its agent ID (`worker-agent`). The API endpoint `POST /worker/run` triggers this pickup. The worker:
+The worker uses `Worker.pickup(org_plane)` to query the Organisation for work assigned to its agent ID (`worker-agent`). The API endpoint `POST /worker/run` triggers this pickup. The worker:
 1. Queries `org_plane.list_work()`
 2. Filters for work where `assignee_agent_id == "worker-agent"` and status is `PENDING` or `ASSIGNED`
 3. Executes the work
-4. Updates the enterprise plane with the result
+4. Updates the Organisation with the result
 
 ## How the Result Gets Back
 
@@ -133,7 +133,7 @@ When the worker executes a capability, it calls `CapabilityExecutionPort.execute
 1. **Enterprise plane state:** `InMemoryOrganisationControlPlane` stores roles, work, assignments, and delegations in Python dicts. Data is lost on process exit.
 2. **Worker output:** Artifacts are written to a local filesystem directory (`worker_outputs/`).
 3. **No event bus:** Work state changes are not published as events.
-4. **No persistence:** There is no database backing the enterprise plane.
+4. **No persistence:** There is no database backing the Organisation.
 
 ## What Remains Unimplemented
 
@@ -156,9 +156,9 @@ No changes to `AssistantChatService`, `WorkManagementPort`, or `EnterpriseCapabi
 
 ## The Smallest Next Increment
 
-**Persist enterprise plane state and add event emission.**
+**Persist Organisation state and add event emission.**
 
-Currently the enterprise plane is in-memory. The next step is to:
+Currently the Organisation is in-memory. The next step is to:
 1. Replace `InMemoryOrganisationControlPlane` with a database-backed implementation
 2. Publish events when work transitions states (created, assigned, in_progress, completed, failed)
 3. This enables reactive worker triggering and audit trails
@@ -175,7 +175,7 @@ After persistence, the natural next steps are:
 | 1 | User submits request through `/assistant/chat` | Verified |
 | 2 | Assistant delegates through `WorkManagementPort` | Verified |
 | 3 | Enterprise work identifies executable capability | Verified — `required_capability_ids` on work |
-| 4 | Worker picks up work from enterprise plane | Verified — `Worker.pickup()` |
+| 4 | Worker picks up work from Organisation | Verified — `Worker.pickup()` |
 | 5 | Worker invokes `CapabilityExecutionPort` | Verified — `Worker._execute_capability()` |
 | 6 | Capability actually executes | Verified — real capability via `tests.real_capability` |
 | 7 | Actual result stored against work | Verified — `work.outcome` contains real `ExecutionResult` |
@@ -245,7 +245,7 @@ curl -X POST http://localhost:8000/assistant/chat \
 # 1. Query availability for a non-existent capability
 curl http://localhost:8000/capabilities/nonexistent-cap/availability
 
-# Expected: {"available": false, "reason": "Capability not found in enterprise plane"}
+# Expected: {"available": false, "reason": "Capability not found in Organisation"}
 
 # 2. Send a request that has no matching capability
 curl -X POST http://localhost:8000/assistant/chat \
@@ -276,7 +276,7 @@ curl http://localhost:8000/work
 
 ## Architectural Answer
 
-**Is the Assistant inside or outside the enterprise plane?**
+**Is the Assistant inside or outside the Organisation?**
 
 The Assistant is **inside** the Organisation. It is one role/agent within the organisation, not the organisation's interface to the user. The Chat/API/UI/Voice layer is outside the Organisation and is simply the interaction mechanism through which the user communicates with the Assistant (and other organisational members).
 
@@ -313,11 +313,11 @@ Through `OrganisationControlPlane.assign_work(work, assignee)`. The organisation
 
 **How a worker/agent receives it:**
 
-Through `Worker.pickup(org_plane)`, which queries the enterprise plane for work assigned to its agent ID. The worker is an enterprise-plane citizen, not an external orchestrator.
+Through `Worker.pickup(org_plane)`, which queries the Organisation for work assigned to its agent ID. The worker is an Organisation citizen, not an external orchestrator.
 
 **How the result gets back:**
 
-The worker stores the result in `work.outcome` via the enterprise plane. The API exposes it through `GET /work` endpoints.
+The worker stores the result in `work.outcome` via the Organisation. The API exposes it through `GET /work` endpoints.
 
 ## Test Results
 
@@ -381,4 +381,4 @@ InMemoryOrganisationControlPlane  (current)
 PaperclipOrganisationControlPlane (future)
 ```
 
-The Assistant never knows which implementation is active. It delegates through ports, and the adapter translates to the enterprise plane.
+The Assistant never knows which implementation is active. It delegates through ports, and the adapter translates to the Organisation.

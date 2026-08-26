@@ -13,10 +13,10 @@ Endpoints:
   POST /schedules                    — create a schedule
   DELETE /schedules/{id}             — remove a schedule
   GET  /schedules                    — list active schedules
-  GET  /capabilities                 — list enterprise capabilities with availability
-  GET  /capabilities/{capability_id}/availability — query enterprise capability availability
-  GET  /roles                        — list enterprise-plane roles
-  GET  /work                         — list enterprise-plane work items
+  GET  /capabilities                 — list organisational capabilities with availability
+  GET  /capabilities/{capability_id}/availability — query organisational capability availability
+  GET  /roles                        — list organisational roles
+  GET  /work                         — list organisational work items
   GET  /work/{work_id}               — inspect a work item
   POST /work/{work_id}/process       — execute a specific work item
   POST /worker/run                   — worker picks up and executes its assigned work
@@ -1140,7 +1140,7 @@ async def query_capability_availability(capability_id: str) -> _CapabilityAvaila
         return _CapabilityAvailabilityResponse(
             capability_id=capability_id,
             available=False,
-            reason="Capability not found in enterprise plane",
+            reason="Capability not found in Organisation",
         )
     return _CapabilityAvailabilityResponse(
         capability_id=result["capability_id"],

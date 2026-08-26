@@ -1007,14 +1007,14 @@ Assistant (AI plane)
 └─────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────┐
-│         Enterprise Plane            │
+│           Organisation              │
 │  - Strategy                         │
 │  - ConceptStore (EIMS)              │
 │  - Governance                       │
 └─────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────┐
-│    Organisation/Control Plane       │
+│         Organisation                │
 │  - Roles                            │
 │  - Work assignment                   │
 │  - Authority                        │
@@ -1049,17 +1049,17 @@ Assistant (AI plane)
 ```
 User
   ↓
-Assistant (AI plane) — application-layer translation service
+Assistant (AI plane) — application-layer translation service inside Organisation
   ↓
 ┌─────────────────────────────────────┐
-│         Enterprise Plane            │
+│           Organisation              │
 │  - Strategy                         │
 │  - ConceptStore (EIMS)              │
 │  - Governance                       │
 └─────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────┐
-│    Organisation/Control Plane       │
+│         Organisation                │
 │  - Roles                            │
 │  - Work assignment                   │
 │  - Authority                        │

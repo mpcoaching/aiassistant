@@ -194,7 +194,7 @@ This is available via `ConceptStore.record_invocation()` and `InvocationRecorder
 - `last_invoked_at` — recency of use
 - `promotion_candidacy` — whether considered for promotion
 
-### From Enterprise Plane
+### From Organisation
 - `PreviousSolution` — previous solutions for strategies (used for reuse, not matching)
 - `ConceptKind.SOLVED_APPROACH` — stored solutions that could inform matching
 

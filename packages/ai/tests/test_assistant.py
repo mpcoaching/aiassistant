@@ -672,7 +672,7 @@ def test_telemetry_reformulation_detection() -> None:
     assert all(e.session_id == session_id for e in reformulations)
 
 
-# ---- Work Delegation (Enterprise Plane Integration) -----------------------
+# ---- Work Delegation (Organisation Integration) -----------------------
 
 
 class InMemoryWorkManagementPort:

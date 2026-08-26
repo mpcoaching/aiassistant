@@ -160,24 +160,34 @@ Every organisational event and piece of work that can eventually cross a tenant 
                          USER
                            │
                            ▼
-                      ASSISTANT
+                  Chat / API / UI / Voice
+                           │
+                           ▼
+                    ORGANISATION
+                           │
+         ┌─────────────────┼─────────────────┐
+         │                 │                 │
+         ▼                 ▼                 ▼
+      Assistant            COO         People & Capability
+         │                 │                 │
+         │                 │                 │
+         └─────────────────┼─────────────────┘
+                           │
+                           ▼
+                  Organisation Control Plane
                            │
                            ▼
                  ┌───────────────────┐
-                 │ Organisation      │
-                 │ Abstraction       │
-                 │ / Control Layer   │
+                 │ Communication /   │
+                 │ Event Boundary    │
                  └─────────┬─────────┘
                            │
-                ┌──────────▼──────────┐
-                │ Communication /     │
-                │ Event Boundary      │
-                └──────────┬──────────┘
-                           │
-              ┌────────────┴────────────┐
-              │                         │
-         Paperclip                  Other systems
+               ┌───────────┴───────────┐
+               │                       │
+          Paperclip              Other systems
 ```
+
+The interaction layer (Chat/API/UI/Voice) is outside the Organisation. The Assistant is inside it, alongside other organisational roles. The Organisation Control Plane owns organisational truth and delegates to operational systems through the event boundary.
 
 ### What Belongs Inside/Outside Paperclip
 
@@ -342,25 +352,37 @@ The Organisation layer remains responsible for organisational decisions.
 The existing abstraction layer remains intact:
 
 ```
+Interaction Layer (Chat / API / UI / Voice)
+    ↓
+Organisation
+    ↓
 Assistant
-   ↓
+    ↓
 Ports
-   ↓
-Organisation abstraction
-   ↓
+    ↓
+Organisation Control Plane
+    ↓
 Implementation
 ```
 
 The Assistant does not:
-- Import `OrganisationControlPlane`
+- Import `OrganisationControlPlane` directly
 - Know about Paperclip
 - Manage work state
 - Maintain capability state
 - Maintain team state
 - Directly invoke workers
 - Decide who should perform work
+- Act as the organisation's supervisor or orchestrator
 
-The Organisation abstraction:
+The Assistant is one role within the Organisation. It:
+- Understands user intent
+- Queries organisational capability through ports
+- Delegates to the Organisation Control Plane when organisational action is needed
+- Communicates with other organisational members when appropriate
+- Returns useful outcomes to the user
+
+The Organisation Control Plane:
 - Owns capability registration
 - Owns work creation and assignment
 - Owns capability availability
@@ -368,10 +390,15 @@ The Organisation abstraction:
 - Owns execution results
 - Owns event emission
 - Owns signal derivation
+- Owns organisational truth and decisions
 
 ## Final Architectural Test
 
-**Question:** If I replaced the current Enterprise Plane implementation tomorrow, what code in the Assistant would have to change?
+**Question:** Where does the Assistant sit relative to the Organisation?
+
+**Answer:** The Assistant is **inside** the Organisation. It is one role/agent within the organisation, not the organisation's interface to the user. The Chat/API/UI/Voice layer is outside the Organisation and is simply the interaction mechanism through which the user communicates with the Assistant.
+
+**Question:** If I replaced the current Organisation implementation tomorrow, what code in the Assistant would have to change?
 
 **Answer:** None.
 
@@ -381,6 +408,8 @@ The Assistant depends only on ports:
 - `CapabilityDiscoveryPort`
 
 It never imports or references `InMemoryOrganisationControlPlane` or any other concrete implementation. A future `PaperclipOrganisationControlPlane` would implement the same ports. The Assistant would continue to delegate through the same interfaces, unaware of the underlying implementation.
+
+The Assistant expresses intent; the Organisation Control Plane determines the operational mechanism.
 
 Similarly, the event boundary is defined through protocols (`OrganisationalEventEmitterPort`, `OrganisationalSignalEmitterPort`). Any implementation — in-memory, message bus, webhook, queue — can be plugged in without changing the Organisation layer or the Assistant.
 
@@ -462,7 +491,7 @@ After establishing the stream, the natural next steps are:
 
 ## Most Important Question
 
-**Can the system now evolve from single user to multi-tenant platform without rewriting the Assistant, Organisation abstraction, capability model, or communication boundary?**
+**Can the system now evolve from single user to multi-tenant platform without rewriting the Assistant (as an organisational role), Organisation abstraction, capability model, or communication boundary?**
 
 **Yes.**
 
