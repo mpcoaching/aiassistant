@@ -636,3 +636,207 @@ def test_query_capability_returns_unavailable_when_in_progress():
     assert result["available"] is False
     assert result["eta_seconds"] is None
     assert "in use" in result["reason"]
+
+
+# ---- 21U End-to-End Integration Tests ---------------------------------------
+
+
+def test_fast_capability_end_to_end_via_api(client):
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "run the real capability", "session_id": "ses-fast-1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "delegated"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "assigned"
+
+
+def test_slow_capability_produces_interim_via_api(client):
+    import workflow_runner_api as wr_api_mod
+    from contracts.capability_discovery import CapabilityCandidate
+
+    slow_candidate = CapabilityCandidate(
+        id="slow-cap",
+        name="Slow Capability",
+        description="A slow capability",
+        kind="tool",
+        confidence=0.9,
+    )
+    mock_discovery = MagicMock()
+    mock_discovery.find_capabilities.return_value = [slow_candidate]
+    wr_api_mod._assistant._capability_discovery = mock_discovery
+    
+    mock_availability = MagicMock()
+    mock_availability.available = True
+    mock_availability.eta_seconds = 300
+    mock_availability.assignee = None
+    mock_availability.reason = "Busy"
+    wr_api_mod._assistant._enterprise_capability_query.query_capability = MagicMock(
+        return_value=mock_availability
+    )
+
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "do something slow", "session_id": "ses-slow-1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "delegated_with_interim"
+    assert "preliminary answer" in data["message"]
+
+
+def test_capability_gap_creates_development_work_via_api(client):
+    import workflow_runner_api as api_mod
+    from contracts.capability_discovery import CapabilityCandidate
+
+    gap_candidate = CapabilityCandidate(
+        id="gap-cap",
+        name="Gap Capability",
+        description="A capability that does not exist",
+        kind="tool",
+        confidence=0.9,
+    )
+    mock_discovery = MagicMock()
+    mock_discovery.find_capabilities.return_value = [gap_candidate]
+    api_mod._assistant._capability_discovery = mock_discovery
+    api_mod._assistant._enterprise_capability_query.query_capability = MagicMock(
+        return_value=None
+    )
+
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "do something impossible", "session_id": "ses-gap-1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "capability_gap"
+    assert "does not currently have" in data["message"]
+    assert data["telemetry"]["gap"] is True
+    assert data["telemetry"]["work_created"] is True
+    assert data["telemetry"]["work_id"] is not None
+
+    work_id = data["telemetry"]["work_id"]
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["title"] == "Develop capability: Gap Capability"
+    assert work_data["status"] == "assigned"
+
+
+def test_capabilities_list_endpoint_returns_capabilities(client):
+    import workflow_runner_api as api_mod
+    from capability import Capability, CapabilityKind
+
+    mock_cap = Capability(
+        id="cap-1",
+        name="Test Capability",
+        description="A test capability",
+        capability_kind=CapabilityKind.SKILL,
+        tags=["skill"],
+    )
+    api_mod._capability_registry = MagicMock()
+    api_mod._capability_registry.list_all.return_value = [mock_cap]
+    api_mod._org_plane.query_capability = MagicMock(
+        return_value={
+            "capability_id": "cap-1",
+            "available": True,
+            "eta_seconds": 5,
+            "assignee": None,
+            "reason": "Available now",
+        }
+    )
+
+    response = client.get("/capabilities")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["capability_id"] == "cap-1"
+    assert data[0]["name"] == "Test Capability"
+    assert data[0]["available"] is True
+    assert data[0]["eta_seconds"] == 5
+
+
+def test_organisational_learning_loop_via_api(client):
+    import workflow_runner_api as wr_mod
+    from contracts.capability_discovery import CapabilityCandidate
+
+    org_plane = wr_mod._org_plane
+    capability_registry = wr_mod._capability_registry
+    assert org_plane is not None
+    assert capability_registry is not None
+
+    capability_name = "unique-learning-loop-capability"
+    request_message = f"do the {capability_name}"
+
+    gap_candidate = CapabilityCandidate(
+        id=f"cap-{capability_name}",
+        name=capability_name,
+        description=f"A capability for {capability_name}",
+        kind="skill",
+        confidence=0.9,
+    )
+    mock_discovery = MagicMock()
+    mock_discovery.find_capabilities.return_value = [gap_candidate]
+    wr_mod._assistant._capability_discovery = mock_discovery
+    wr_mod._assistant._enterprise_capability_query.query_capability = MagicMock(
+        return_value=None
+    )
+
+    response1 = client.post(
+        "/assistant/chat",
+        json={"message": request_message, "session_id": "ses-loop-1"},
+    )
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert data1["status"] == "capability_gap"
+    assert "does not currently have" in data1["message"]
+    work_id = data1["telemetry"]["work_id"]
+    assert work_id is not None
+
+    work = org_plane.get_work(work_id)
+    assert work is not None
+    assert work.work_type == "capability_development"
+
+    process_response = client.post(f"/work/{work_id}/process")
+    assert process_response.status_code == 200
+    worker_data = process_response.json()
+    assert worker_data["status"] == "completed"
+    assert worker_data["outcome"]["execution_mode"] == "capability_development"
+
+    developed_cap_id = worker_data["outcome"]["capability_id"]
+    assert org_plane.get_capability(developed_cap_id) is not None
+    assert capability_registry.get(developed_cap_id) is not None
+
+    mock_discovery.find_capabilities.return_value = [
+        CapabilityCandidate(
+            id=developed_cap_id,
+            name=capability_name,
+            description=f"A capability for {capability_name}",
+            kind="skill",
+            confidence=0.9,
+        )
+    ]
+    wr_mod._assistant._enterprise_capability_query.query_capability = MagicMock(
+        return_value=MagicMock(
+            capability_id=developed_cap_id,
+            available=True,
+            eta_seconds=5,
+            assignee=None,
+            reason="Available now",
+        )
+    )
+
+    response2 = client.post(
+        "/assistant/chat",
+        json={"message": request_message, "session_id": "ses-loop-2"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "delegated"
+    assert developed_cap_id in data2["telemetry"]["required_capability_ids"]

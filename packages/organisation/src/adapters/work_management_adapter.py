@@ -24,6 +24,7 @@ class WorkManagementAdapter:
             description=request.description,
             work_type=request.work_type,
             priority=request.priority,
+            organisation_id=request.organisation_id,
             accountable_role_id=request.accountable_role_id,
             coordinating_role_id=request.coordinating_role_id,
             required_capability_ids=list(request.required_capability_ids),

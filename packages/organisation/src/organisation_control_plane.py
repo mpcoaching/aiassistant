@@ -7,6 +7,7 @@ reference in-memory implementation for testing and local development.
 OrganisationControlPlane is mechanism-only:
 - provides role lookup, work assignment, authority delegation, organisational context
 - provides work status transitions (mark_work_ready for operational handoff)
+- emits operational events and organisational signals through dedicated ports
 - does NOT store Person/Agent records (owned by People/Capability, ADR-037)
 - does NOT coordinate work (belongs to roles)
 - does NOT become the CEO/COO/PM
@@ -35,6 +36,7 @@ from role import (
     Work,
     WorkStatus,
 )
+from contracts.organisational_events import WorkEventType
 
 
 class OrganisationControlPlane(ABC):
@@ -119,6 +121,50 @@ class OrganisationControlPlane(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def register_capability(self, capability: Any) -> None:
+        """Register a capability in the organisational capability store.
+
+        This is used for capability development: when a worker develops
+        a new capability, it is registered here so the organisation
+        can subsequently query and use it.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_capability(self, capability_id: str) -> Any | None:
+        """Retrieve a registered capability by ID."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def emit_event(self, event: Any) -> None:
+        """Emit an operational event through the organisation's event boundary.
+
+        Implementations may buffer, publish, log, or ignore events.
+        This is a communication mechanism, not an orchestration engine.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def emit_signal(self, signal: Any) -> None:
+        """Emit an organisational signal derived from operational events.
+
+        Signals represent organisational interpretation of operational facts.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def detect_capacity_pressure(
+        self, capability_id: str
+    ) -> Any | None:
+        """Detect whether a capability is under sustained demand pressure.
+
+        Returns a CapacityPressureSignal if pressure is detected, otherwise None.
+        This is a minimal proof-of-concept; real implementations may use
+        sliding windows, percentile analysis, or predictive models.
+        """
+        raise NotImplementedError
+
 
 class InMemoryOrganisationControlPlane(OrganisationControlPlane):
     """Reference implementation using in-memory storage.
@@ -134,6 +180,9 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
         self._work: dict[str, Work] = {}
         self._assignments: dict[str, Assignment] = {}
         self._delegations: dict[str, Delegation] = {}
+        self._capabilities: dict[str, Any] = {}
+        self._event_handlers: list[Any] = []
+        self._signal_handlers: list[Any] = []
 
     def get_role(self, role_id: str) -> Role | None:
         return self._roles.get(role_id)
@@ -179,6 +228,11 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
             status=AssignmentStatus.ACCEPTED,
         )
         self._assignments[assignment.id] = assignment
+        self._emit_work_event(
+            WorkEventType.ASSIGNED,
+            work,
+            assignee_id=assignee.id,
+        )
         return assignment
 
     def get_work(self, work_id: str) -> Work | None:
@@ -217,6 +271,7 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
             work.status = WorkStatus.IN_PROGRESS
             work.updated_at = datetime.now(UTC)
             self._work[work.id] = work
+            self._emit_work_event(WorkEventType.STARTED, work)
         return work
 
     def query_capability(self, capability_id: str) -> dict[str, Any] | None:
@@ -224,11 +279,12 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
 
         Returns minimal availability information.
         """
-        has_capability = any(
+        has_in_roles = any(
             capability_id in role.required_capability_ids
             for role in self._roles.values()
         )
-        if not has_capability:
+        has_registered = capability_id in self._capabilities
+        if not has_in_roles and not has_registered:
             return None
 
         in_progress = [
@@ -253,3 +309,96 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
             "assignee": None,
             "reason": "Capability is available",
         }
+
+    def register_capability(self, capability: Any) -> None:
+        """Register a capability in the organisational capability store."""
+        self._capabilities[capability.id] = capability
+        from contracts.organisational_events import CapabilityEvent
+        event = CapabilityEvent(
+            event_type="capability.registered",
+            organisation_id="default",
+            capability_id=capability.id,
+            capability_name=getattr(capability, "name", capability.id),
+            capability_kind=getattr(getattr(capability, "capability_kind", None), "value", "skill"),
+            status=getattr(getattr(capability, "status", None), "value", "active"),
+        )
+        self._emit(event)
+
+    def get_capability(self, capability_id: str) -> Any | None:
+        """Retrieve a registered capability by ID."""
+        return self._capabilities.get(capability_id)
+
+    def on_event(self, handler: Any) -> None:
+        """Register a handler for operational events."""
+        self._event_handlers.append(handler)
+
+    def on_signal(self, handler: Any) -> None:
+        """Register a handler for organisational signals."""
+        self._signal_handlers.append(handler)
+
+    def _emit(self, event: Any) -> None:
+        for handler in self._event_handlers:
+            handler(event)
+
+    def _emit_signal(self, signal: Any) -> None:
+        for handler in self._signal_handlers:
+            handler(signal)
+
+    def emit_event(self, event: Any) -> None:
+        self._emit(event)
+
+    def emit_signal(self, signal: Any) -> None:
+        self._emit_signal(signal)
+
+    def detect_capacity_pressure(
+        self, capability_id: str
+    ) -> Any | None:
+        from contracts.organisational_events import CapacityPressureSignal
+        in_progress = [
+            work for work in self._work.values()
+            if capability_id in work.required_capability_ids
+            and work.status in (WorkStatus.IN_PROGRESS, WorkStatus.ASSIGNED)
+        ]
+        pending = [
+            work for work in self._work.values()
+            if capability_id in work.required_capability_ids
+            and work.status == WorkStatus.PENDING
+        ]
+        if not in_progress and not pending:
+            return None
+        total_load = len(in_progress) + len(pending)
+        if total_load > 1:
+            return CapacityPressureSignal(
+                capability_id=capability_id,
+                capability_name=capability_id,
+                demand_rate_per_hour=float(total_load),
+                capacity_rate_per_hour=float(len(in_progress)),
+                queue_depth=len(pending),
+                average_eta_seconds=300.0 * total_load,
+                affected_work_ids=[w.id for w in in_progress + pending],
+                reason=f"{total_load} work items compete for this capability",
+            )
+        return None
+
+    def _emit_work_event(
+        self,
+        event_type: Any,
+        work: Work,
+        assignee_id: str | None = None,
+    ) -> None:
+        from contracts.organisational_events import WorkEvent, WorkEventType
+        event = WorkEvent(
+            event_type=event_type,
+            organisation_id="default",
+            work_id=work.id,
+            title=work.title,
+            work_type=work.work_type,
+            assignee_role_id=work.assignee_role_id,
+            assignee_agent_id=work.assignee_agent_id,
+            required_capability_ids=list(work.required_capability_ids),
+            status=work.status.value,
+            priority=work.priority,
+            outcome=work.outcome,
+            context=work.context,
+        )
+        self._emit(event)

@@ -104,6 +104,7 @@ class Work(BaseModel):
     work_type: str = "bau"
     status: WorkStatus = WorkStatus.PENDING
     priority: str = "normal"
+    organisation_id: str = "default"
     accountable_role_id: str
     coordinating_role_id: str | None = None
     requested_by_role_id: str | None = None
@@ -128,6 +129,7 @@ class Assignment(BaseModel):
 
     id: str
     work_id: str
+    organisation_id: str = "default"
     assignee_type: str
     assignee_id: str
     status: AssignmentStatus = AssignmentStatus.PROPOSED

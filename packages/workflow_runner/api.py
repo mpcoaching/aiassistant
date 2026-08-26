@@ -13,6 +13,7 @@ Endpoints:
   POST /schedules                    — create a schedule
   DELETE /schedules/{id}             — remove a schedule
   GET  /schedules                    — list active schedules
+  GET  /capabilities                 — list enterprise capabilities with availability
   GET  /capabilities/{capability_id}/availability — query enterprise capability availability
   GET  /roles                        — list enterprise-plane roles
   GET  /work                         — list enterprise-plane work items
@@ -628,8 +629,14 @@ from capability_selection_telemetry import CapabilitySelectionTelemetry
 
 _telemetry_persistence_path = os.environ.get("CAPABILITY_TELEMETRY_PATH", "data/capability_selection_telemetry.jsonl")
 _capability_selection_telemetry = CapabilitySelectionTelemetry(persistence_path=_telemetry_persistence_path)
+_capability_registry = None
+_capability_discovery = None
 
 _assistant = create_assistant(capability_selection_telemetry=_capability_selection_telemetry)
+
+_org_plane = None
+_work_management = None
+_enterprise_capability_query = None
 
 try:
     from organisation_control_plane import InMemoryOrganisationControlPlane
@@ -638,26 +645,22 @@ try:
     _org_plane = InMemoryOrganisationControlPlane()
     _org_plane.register_role(Role(id="researcher", name="Researcher", authority_ids=[]))
     _work_management = WorkManagementAdapter(_org_plane)
-    _assistant = create_assistant(
-        capability_selection_telemetry=_capability_selection_telemetry,
-        work_management=_work_management,
+    from organisation.src.adapters.enterprise_capability_query_adapter import (
+        EnterpriseCapabilityQueryAdapter,
     )
+    _enterprise_capability_query = EnterpriseCapabilityQueryAdapter(_org_plane)
+except Exception:
+    _org_plane = None
+    _work_management = None
+    _enterprise_capability_query = None
 
+try:
     from capability import Capability, CapabilityKind
-    from capability_deployment import (
-        CapabilityDeployment,
-        CompiledRef,
-        ExecutionMode,
-        Transport,
-    )
     from capability_registry.src.capabilities import CapabilityRegistry
     from capability_registry.src.concept_store_adapter import (
         ConceptStoreCapabilityRepository,
     )
-    from deployment_resolver import DeploymentResolver
-    from workflow_runner.src.adapters.capability_execution_adapter import (
-        CapabilityExecutionAdapter,
-    )
+    from concepts import ConceptStore
 
     _capability_store = ConceptStore()
     _capability_repository = ConceptStoreCapabilityRepository(_capability_store)
@@ -673,6 +676,34 @@ try:
         tags=["skill"],
     )
     _capability_registry.register(_real_capability)
+except Exception:
+    _capability_registry = None
+
+try:
+    from capability_matcher import RelevanceMatcher
+    from capability_registry.src.adapters.capability_discovery_adapter import (
+        CapabilityDiscoveryAdapter,
+    )
+    if _capability_registry is not None:
+        _matcher = RelevanceMatcher()
+        _capability_discovery = CapabilityDiscoveryAdapter(
+            registry=_capability_registry,
+            matcher=_matcher,
+        )
+except Exception:
+    _capability_discovery = None
+
+try:
+    from capability_deployment import (
+        CapabilityDeployment,
+        CompiledRef,
+        ExecutionMode,
+        Transport,
+    )
+    from deployment_resolver import DeploymentResolver
+    from workflow_runner.src.adapters.capability_execution_adapter import (
+        CapabilityExecutionAdapter,
+    )
 
     _capability_deployment = CapabilityDeployment(
         capability_id="real-capability",
@@ -692,14 +723,20 @@ try:
         except Exception:
             return None
 
-    _capability_execution = CapabilityExecutionAdapter(
-        registry=_capability_registry,
-        deployment_factory=_capability_deployment_factory,
-    )
+    if _capability_registry is not None:
+        _capability_execution = CapabilityExecutionAdapter(
+            registry=_capability_registry,
+            deployment_factory=_capability_deployment_factory,
+        )
 except Exception:
-    _org_plane = None
-    _work_management = None
     _capability_execution = None
+
+_assistant = create_assistant(
+    capability_selection_telemetry=_capability_selection_telemetry,
+    capability_discovery=_capability_discovery,
+    work_management=_work_management,
+    enterprise_capability_query=_enterprise_capability_query,
+)
 
 
 @app.post("/assistant/chat", response_model=_ChatResponse)
@@ -1055,12 +1092,43 @@ class _WorkResponse(BaseModel):
     output_path: str | None = None
 
 
+class _CapabilityResponse(BaseModel):
+    capability_id: str
+    name: str
+    description: str
+    kind: str
+    available: bool
+    eta_seconds: int | None = None
+    assignee: str | None = None
+    reason: str = ""
+
+
 class _CapabilityAvailabilityResponse(BaseModel):
     capability_id: str
     available: bool
     eta_seconds: int | None = None
     assignee: str | None = None
     reason: str = ""
+
+
+@app.get("/capabilities", response_model=list[_CapabilityResponse])
+async def list_capabilities() -> list[_CapabilityResponse]:
+    if _capability_registry is None:
+        raise HTTPException(status_code=501, detail="Capability registry not configured")
+    capabilities = []
+    for cap in _capability_registry.list_all():
+        availability = _org_plane.query_capability(cap.id) if _org_plane else None
+        capabilities.append(_CapabilityResponse(
+            capability_id=cap.id,
+            name=cap.name,
+            description=cap.description or "",
+            kind=cap.capability_kind.value if cap.capability_kind else "unknown",
+            available=availability["available"] if availability else False,
+            eta_seconds=availability.get("eta_seconds") if availability else None,
+            assignee=availability.get("assignee") if availability else None,
+            reason=availability.get("reason", "") if availability else "",
+        ))
+    return capabilities
 
 
 @app.get("/capabilities/{capability_id}/availability", response_model=_CapabilityAvailabilityResponse)
@@ -1154,7 +1222,10 @@ async def process_work(work_id: str) -> dict[str, Any]:
     work = _org_plane.get_work(work_id)
     if work is None:
         raise HTTPException(status_code=404, detail="Work not found")
-    worker = Worker(capability_execution=_capability_execution)
+    worker = Worker(
+        capability_execution=_capability_execution,
+        capability_registry=_capability_registry,
+    )
     result = worker.execute(work, _org_plane)
     return {"work_id": work_id, "status": result.get("status", "completed"), "outcome": result}
 
@@ -1163,7 +1234,10 @@ async def process_work(work_id: str) -> dict[str, Any]:
 async def run_worker() -> dict[str, Any]:
     if _org_plane is None:
         raise HTTPException(status_code=501, detail="Organisation plane not configured")
-    worker = Worker(capability_execution=_capability_execution)
+    worker = Worker(
+        capability_execution=_capability_execution,
+        capability_registry=_capability_registry,
+    )
     work = worker.pickup(_org_plane)
     if work is None:
         raise HTTPException(status_code=404, detail="No work available for worker")

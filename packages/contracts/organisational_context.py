@@ -3,6 +3,9 @@ from pydantic import BaseModel
 
 
 class OrganisationalContext(BaseModel):
+    """Explicit organisational/tenant identity preserved across boundaries."""
+
+    organisation_id: str = "default"
     current_actor_id: str | None = None
     current_role_id: str | None = None
     reporting_relationships: list[str] = []
