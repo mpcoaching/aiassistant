@@ -10,7 +10,7 @@ from pathlib import Path
 _packages_root = Path(__file__).parent
 if str(_packages_root) not in sys.path:
     sys.path.insert(0, str(_packages_root))
-for _pkg in ["bus", "capability_registry", "ai", "api", "configuration", "contracts", "langgraph", "organisation", "people_capability"]:
+for _pkg in ["bus", "capability_registry", "ai", "api", "configuration", "contracts", "langgraph", "organisation", "people_capability", "organisation_paperclip"]:
     _src = _packages_root / _pkg / "src"
     if _src.exists() and str(_src) not in sys.path:
         sys.path.insert(0, str(_src))

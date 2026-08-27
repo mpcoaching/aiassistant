@@ -1,0 +1,8 @@
+pyproject.toml
+src/organisation_paperclip.py
+src/organisation_paperclip.egg-info/PKG-INFO
+src/organisation_paperclip.egg-info/SOURCES.txt
+src/organisation_paperclip.egg-info/dependency_links.txt
+src/organisation_paperclip.egg-info/requires.txt
+src/organisation_paperclip.egg-info/top_level.txt
+tests/test_adapter.py

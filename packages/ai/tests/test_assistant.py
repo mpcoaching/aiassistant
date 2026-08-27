@@ -701,7 +701,7 @@ class InMemoryWorkManagementPort:
         return None
 
 
-def test_chat_delegates_to_enterprise_plane_when_no_capability_match() -> None:
+def test_chat_delegates_to_organisation_when_no_capability_match() -> None:
     discovery = InMemoryCapabilityDiscoveryPort(candidates=[])
     work_management = InMemoryWorkManagementPort()
     service = AssistantChatService(
