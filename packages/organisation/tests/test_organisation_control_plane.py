@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import pytest
 
+from contracts.work_management import WorkCreateRequest
 from organisation_control_plane import (
     InMemoryOrganisationControlPlane,
     OrganisationControlPlane,
@@ -216,3 +217,29 @@ def test_ocp_has_no_pathway_runtime_import() -> None:
             assert "bus" not in node.module, (
                 "OrganisationControlPlane must not import from bus"
             )
+
+
+def test_backend_interchangeable_via_organisation_interface() -> None:
+    """Paperclip and InMemory implementations are interchangeable through OrganisationControlPlane."""
+    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
+    from role import Work
+
+    in_memory = InMemoryOrganisationControlPlane()
+    in_memory.register_role(Role(id="r1", name="Operator", authority_ids=[]))
+    in_memory_work = Work(id="w-inter-1", title="Interop test", accountable_role_id="r1")
+    in_memory.assign_work(in_memory_work, Role(id="r1", name="Operator"))
+    assert in_memory_work.status == WorkStatus.ASSIGNED
+
+    wm_in_memory = WorkManagementAdapter(in_memory)
+    wm_in_memory.create_work(
+        WorkCreateRequest(
+            title="Adapter interop",
+            description="Proves WorkManagementAdapter works with any OrganisationControlPlane",
+            accountable_role_id="r1",
+            work_type="project",
+            priority="normal",
+            organisation_id="default",
+            required_capability_ids=[],
+        )
+    )
+    assert len(in_memory.list_work()) == 2

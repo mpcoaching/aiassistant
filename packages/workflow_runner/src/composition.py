@@ -122,8 +122,8 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     pattern_execution = PatternExecutionAdapter(runtime=langgraph_runtime)
     session_factory = SessionFactoryAdapter()
 
-    org_plane = InMemoryOrganisationControlPlane()
-    org_plane.register_role(Role(id="researcher", name="Researcher", authority_ids=[]))
+    from organisation.src.composition import create_organisation_control_plane
+    org_plane = create_organisation_control_plane()
     org_context_port: OrganisationalContextPort = OrganisationalContextAdapter(org_plane)
     work_management_port: WorkManagementPort = WorkManagementAdapter(org_plane)
     enterprise_capability_query_port: EnterpriseCapabilityQueryPort = EnterpriseCapabilityQueryAdapter(org_plane)

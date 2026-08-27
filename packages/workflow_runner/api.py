@@ -636,23 +636,22 @@ _assistant = create_assistant(capability_selection_telemetry=_capability_selecti
 
 _org_plane = None
 _work_management = None
-_enterprise_capability_query = None
+_capability_query = None
 
 try:
-    from organisation_control_plane import InMemoryOrganisationControlPlane
     from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
-    from role import Role
-    _org_plane = InMemoryOrganisationControlPlane()
-    _org_plane.register_role(Role(id="researcher", name="Researcher", authority_ids=[]))
+    from organisation.src.composition import create_organisation_control_plane
+
+    _org_plane = create_organisation_control_plane()
     _work_management = WorkManagementAdapter(_org_plane)
     from organisation.src.adapters.enterprise_capability_query_adapter import (
         EnterpriseCapabilityQueryAdapter,
     )
-    _enterprise_capability_query = EnterpriseCapabilityQueryAdapter(_org_plane)
+    _capability_query = EnterpriseCapabilityQueryAdapter(_org_plane)
 except Exception:
     _org_plane = None
     _work_management = None
-    _enterprise_capability_query = None
+    _capability_query = None
 
 try:
     from capability import Capability, CapabilityKind
@@ -735,7 +734,7 @@ _assistant = create_assistant(
     capability_selection_telemetry=_capability_selection_telemetry,
     capability_discovery=_capability_discovery,
     work_management=_work_management,
-    enterprise_capability_query=_enterprise_capability_query,
+    enterprise_capability_query=_capability_query,
 )
 
 

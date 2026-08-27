@@ -5,6 +5,7 @@ clone:
     settings:
       server: http://gitea:3000
       skip_verify: true
+      submodules: true
 
 steps:
   - name: install
@@ -75,6 +76,45 @@ steps:
       - "docker build -t registry.local.test/aiassistant/ci-runner:$IMAGE_TAG -f infrastructure/images/ci-runner/Dockerfile infrastructure/images/ci-runner"
       - "docker tag registry.local.test/aiassistant/ci-runner:$IMAGE_TAG registry.local.test/aiassistant/ci-runner:latest"
 
+  - name: build-paperclip
+    image: registry.local.test/aiassistant/docker-client:latest
+    when:
+      event: [push, manual]
+      path: ["operational/paperclip/**", ".woodpecker.yml"]
+    environment:
+      REGISTRY_USER:
+        from_secret: registry_user
+      REGISTRY_PASSWORD:
+        from_secret: registry_password
+    commands:
+      - git config --global --add safe.directory /woodpecker/src/gitea.local.test/ai/aiassistant
+      - docker login registry.local.test -u $REGISTRY_USER -p $REGISTRY_PASSWORD
+      - IMAGE_TAG=$(git rev-parse --short HEAD)
+      - echo "IMAGE_TAG=$IMAGE_TAG"
+      - "docker build -t registry.local.test/aiassistant/paperclip:$IMAGE_TAG -f operational/paperclip/Dockerfile operational/paperclip"
+      - "docker tag registry.local.test/aiassistant/paperclip:$IMAGE_TAG registry.local.test/aiassistant/paperclip:latest"
+
+  - name: test-paperclip
+    image: registry.local.test/aiassistant/paperclip:latest
+    when:
+      event: [push, manual]
+      path: ["operational/paperclip/**"]
+    commands:
+      - curl -f http://localhost:3100/api/health || (echo "Paperclip health check failed" && exit 1)
+
+  - name: test-paperclip-integration
+    image: registry.local.test/aiassistant/docker-client:latest
+    when:
+      event: [push, manual]
+      path: ["packages/organisation_paperclip/**", "operational/paperclip/**", ".woodpecker.yml"]
+    commands:
+      - git config --global --add safe.directory /woodpecker/src/gitea.local.test/ai/aiassistant
+      - docker run -d --name paperclip-integration -p 3100:3100 registry.local.test/aiassistant/paperclip:latest
+      - for i in $(seq 1 30); do curl -fs http://localhost:3100/api/health && break || sleep 2; done
+      - cd packages/organisation_paperclip && pip install --break-system-packages -e . 2>&1 || pip install --break-system-packages -e .
+      - PAPERCLIP_URL=http://localhost:3100 pytest tests/test_integration.py -v
+      - docker stop paperclip-integration || true
+
   - name: test-image
     image: registry.local.test/aiassistant/docker-client:latest
     when:
@@ -141,6 +181,7 @@ steps:
       - "docker push registry.local.test/aiassistant/langgraph:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/ci-runner:$IMAGE_TAG"
+      - "docker push registry.local.test/aiassistant/paperclip:$IMAGE_TAG"
       - "docker tag registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG registry.local.test/aiassistant/workflow_runner:latest"
       - "docker push registry.local.test/aiassistant/workflow_runner:latest"
       - "docker tag registry.local.test/aiassistant/langgraph:$IMAGE_TAG registry.local.test/aiassistant/langgraph:latest"
@@ -149,6 +190,8 @@ steps:
       - "docker push registry.local.test/aiassistant/control-center-ui:latest"
       - "docker tag registry.local.test/aiassistant/ci-runner:$IMAGE_TAG registry.local.test/aiassistant/ci-runner:latest"
       - "docker push registry.local.test/aiassistant/ci-runner:latest"
+      - "docker tag registry.local.test/aiassistant/paperclip:$IMAGE_TAG registry.local.test/aiassistant/paperclip:latest"
+      - "docker push registry.local.test/aiassistant/paperclip:latest"
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
