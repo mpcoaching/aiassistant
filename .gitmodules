@@ -1,0 +1,3 @@
+[submodule "operational/paperclip"]
+	path = operational/paperclip
+	url = https://github.com/paperclipai/paperclip.git
