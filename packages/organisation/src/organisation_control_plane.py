@@ -105,10 +105,28 @@ class OrganisationControlPlane(ABC):
     def mark_work_ready(self, work_id: str) -> Work | None:
         """Mark organisational Work as ready for operational execution.
 
-        Transitions Work.status to IN_PROGRESS. This is an organisational
+        Transitions Work.status to READY. This is an organisational
         handoff signal, NOT operational execution. Operations is responsible
         for picking up ready Work and executing it via its own entry points
         (PathwayRuntime, execute_workflow, etc.).
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def complete_work(self, work_id: str, outcome: dict[str, Any] | None = None) -> Work | None:
+        """Mark organisational Work as completed with an execution outcome.
+
+        Transitions Work.status to COMPLETED and records the outcome.
+        This is an organisational state mutation based on operational facts.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def fail_work(self, work_id: str, outcome: dict[str, Any] | None = None) -> Work | None:
+        """Mark organisational Work as failed with an execution outcome.
+
+        Transitions Work.status to FAILED and records the outcome.
+        This is an organisational state mutation based on operational facts.
         """
         raise NotImplementedError
 
@@ -183,6 +201,7 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
         self._capabilities: dict[str, Any] = {}
         self._event_handlers: list[Any] = []
         self._signal_handlers: list[Any] = []
+        self._processed_event_ids: set[str] = set()
 
     def get_role(self, role_id: str) -> Role | None:
         return self._roles.get(role_id)
@@ -263,15 +282,45 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
     def mark_work_ready(self, work_id: str) -> Work | None:
         """Mark organisational Work as ready for operational execution.
 
-        Transitions Work.status to IN_PROGRESS. This is an organisational
+        Transitions Work.status to READY. This is an organisational
         handoff signal, NOT operational execution.
         """
         work = self.get_work(work_id)
         if work is not None:
-            work.status = WorkStatus.IN_PROGRESS
+            work.status = WorkStatus.READY
             work.updated_at = datetime.now(UTC)
             self._work[work.id] = work
-            self._emit_work_event(WorkEventType.STARTED, work)
+            self._emit_work_event(WorkEventType.READY, work)
+        return work
+
+    def complete_work(self, work_id: str, outcome: dict[str, Any] | None = None) -> Work | None:
+        """Mark organisational Work as completed with an execution outcome.
+
+        Transitions Work.status to COMPLETED and records the outcome.
+        This is an organisational state mutation based on operational facts.
+        """
+        work = self.get_work(work_id)
+        if work is not None:
+            work.status = WorkStatus.COMPLETED
+            work.outcome = outcome
+            work.updated_at = datetime.now(UTC)
+            self._work[work.id] = work
+            self._emit_work_event(WorkEventType.COMPLETED, work)
+        return work
+
+    def fail_work(self, work_id: str, outcome: dict[str, Any] | None = None) -> Work | None:
+        """Mark organisational Work as failed with an execution outcome.
+
+        Transitions Work.status to FAILED and records the outcome.
+        This is an organisational state mutation based on operational facts.
+        """
+        work = self.get_work(work_id)
+        if work is not None:
+            work.status = WorkStatus.FAILED
+            work.outcome = outcome
+            work.updated_at = datetime.now(UTC)
+            self._work[work.id] = work
+            self._emit_work_event(WorkEventType.FAILED, work)
         return work
 
     def query_capability(self, capability_id: str) -> dict[str, Any] | None:
@@ -290,7 +339,7 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
         in_progress = [
             work for work in self._work.values()
             if capability_id in work.required_capability_ids
-            and work.status == WorkStatus.IN_PROGRESS
+            and work.status in (WorkStatus.IN_PROGRESS, WorkStatus.READY, WorkStatus.ASSIGNED)
         ]
 
         if in_progress:
@@ -337,6 +386,11 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
         self._signal_handlers.append(handler)
 
     def _emit(self, event: Any) -> None:
+        event_id = getattr(event, "event_id", None)
+        if event_id and event_id in self._processed_event_ids:
+            return
+        if event_id:
+            self._processed_event_ids.add(event_id)
         for handler in self._event_handlers:
             handler(event)
 
@@ -357,7 +411,7 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
         in_progress = [
             work for work in self._work.values()
             if capability_id in work.required_capability_ids
-            and work.status in (WorkStatus.IN_PROGRESS, WorkStatus.ASSIGNED)
+            and work.status in (WorkStatus.IN_PROGRESS, WorkStatus.READY, WorkStatus.ASSIGNED)
         ]
         pending = [
             work for work in self._work.values()

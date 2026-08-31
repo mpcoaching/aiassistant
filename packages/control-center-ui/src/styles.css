@@ -500,6 +500,84 @@ code {
   border: 1px solid var(--border);
 }
 
+.cc-chat-validation {
+  padding: 1rem;
+  background: rgba(56, 189, 248, 0.08);
+  border-top: 2px solid var(--primary);
+}
+.cc-chat-validation-header {
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}
+.cc-chat-validation-proposed {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.cc-chat-validation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.cc-chat-validation-confirm {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: none;
+  background: #16a34a;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.cc-chat-validation-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cc-chat-validation-update {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.cc-chat-validation-update:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cc-chat-validation-contradict {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.cc-chat-validation-contradict:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cc-chat-validation-pending {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  font-style: italic;
+}
+
 .cc-inline-input {
   min-width: 260px;
 }

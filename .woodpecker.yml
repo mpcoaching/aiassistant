@@ -49,7 +49,58 @@ steps:
     when:
       event: [push, manual]
     commands:
-      - for pkg in packages/*/; do if [ -d "$pkg/tests" ] && [ -f "$pkg/pyproject.toml" ]; then echo "Testing $pkg"; cd "$pkg"; if [ "$(basename "$pkg")" = "workflow_runner" ]; then pytest tests/ -v --tb=short --ignore=tests/test_phase23.py 2>&1 | tee /tmp/test-output.txt; else pytest tests/ -v --tb=short 2>&1 | tee /tmp/test-output.txt; fi; cd ../..; fi; done
+      - for pkg in packages/*/; do if [ -d "$pkg/tests" ] && [ -f "$pkg/pyproject.toml" ]; then echo "Testing $pkg"; cd "$pkg"; if [ "$(basename "$pkg")" = "workflow_runner" ]; then pytest tests/test_platform_integration.py tests/test_e2e.py tests/test_increment17_integration.py tests/test_increment18_integration.py tests/test_increment19_integration.py -v --tb=short 2>&1 | tee /tmp/test-output.txt; else pytest tests/ -v --tb=short 2>&1 | tee /tmp/test-output.txt; fi; cd ../..; fi; done
+
+  - name: test-e2e
+    image: registry.local.test/aiassistant/docker-client:latest
+    when:
+      event: [push, manual]
+    environment:
+      REGISTRY_USER:
+        from_secret: registry_user
+      REGISTRY_PASSWORD:
+        from_secret: registry_password
+      AGENT_DEV_DB_USER: aiassistant_user
+      AGENT_DEV_DB_PASSWORD: secureDevDbAssistPass
+      AGENT_DEV_DB_NAME: aiassistant
+      LANGGRAPH_DEV_DB_USER: langgraph_dev_user
+      LANGGRAPH_DEV_DB_PASSWORD: dev_langgraph_password
+      LANGGRAPH_DEV_DB_NAME: langgraph_dev
+    commands:
+      - git config --global --add safe.directory /woodpecker/src/gitea.local.test/ai/aiassistant
+      - cleanup() {
+          docker compose -f environments/dev/compose.yml down -v || true;
+          docker compose -f platform/compose.yml down -v || true;
+          docker compose -f infrastructure/compose.yml down -v || true;
+        }
+      - trap cleanup EXIT
+      - docker compose -f infrastructure/compose.yml up -d
+      - docker compose -f platform/compose.yml up -d
+      - docker compose -f environments/dev/compose.yml up -d
+      - |
+        echo "Waiting for backend health..."
+        ready=0
+        for i in $(seq 1 60); do
+          if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then echo "Backend ready"; ready=1; break; fi
+          sleep 5
+        done
+        if [ "$ready" -ne 1 ]; then echo "Backend did not become ready in time"; exit 1; fi
+      - |
+        echo "Waiting for UI..."
+        ready=0
+        for i in $(seq 1 60); do
+          if curl -fsS http://dev.local.test/ >/dev/null 2>&1; then echo "UI ready"; ready=1; break; fi
+          sleep 5
+        done
+        if [ "$ready" -ne 1 ]; then echo "UI did not become ready in time"; exit 1; fi
+      - cd packages/control-center-ui && npm install && npm run build
+      - cd ../..
+      - npx playwright test packages/control-center-ui/tests/e2e/critical-path.spec.ts --reporter=list --reporter=html
+      - mkdir -p /tmp/playwright-artifacts
+      - cp packages/control-center-ui/playwright-results.xml /tmp/playwright-artifacts/ || true
+      - if [ -d packages/control-center-ui/playwright-report ]; then cp -r packages/control-center-ui/playwright-report /tmp/playwright-artifacts/; fi
+    artifacts:
+      - /tmp/playwright-artifacts/**
 
   - name: build
     image: registry.local.test/aiassistant/docker-client:latest

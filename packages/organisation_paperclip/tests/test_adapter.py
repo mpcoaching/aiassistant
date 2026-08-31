@@ -181,7 +181,7 @@ def test_list_work_returns_mapped_issues():
         plane.close()
 
 
-def test_mark_work_ready_transitions_to_in_progress():
+def test_mark_work_ready_transitions_to_ready():
     with respx.mock:
         respx.get("http://localhost:3100/api/issues/issue-1").mock(
             return_value=Response(
@@ -206,6 +206,9 @@ def test_mark_work_ready_transitions_to_in_progress():
                     "title": "Task",
                     "status": "in_progress",
                     "assigneeAgentId": None,
+                    "capabilities": ["research"],
+                    "createdAt": "2026-08-26T00:00:00Z",
+                    "updatedAt": "2026-08-26T00:00:00Z",
                 },
             )
         )
@@ -214,7 +217,7 @@ def test_mark_work_ready_transitions_to_in_progress():
         assert work is not None
         result = plane.mark_work_ready("issue-1")
         assert result is not None
-        assert result.status == WorkStatus.IN_PROGRESS
+        assert result.status == WorkStatus.READY
         plane.close()
 
 

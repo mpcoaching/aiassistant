@@ -49,7 +49,7 @@ RUN printf '%s\n' '#!/usr/bin/env python3' \
     'if __name__ == "__main__":' \
     '    main()' > /wait_for.py && chmod +x /wait_for.py
 
-ENV PYTHONPATH=/app:/app/src:/packages/configuration/src:/packages/ai/src:/packages/bus/src:/packages/langgraph/src:/packages/capability_registry/src
+ENV PYTHONPATH=/app:/app/src:/packages:/packages/configuration/src:/packages/ai/src:/packages/bus/src:/packages/langgraph/src:/packages/capability_registry/src
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000

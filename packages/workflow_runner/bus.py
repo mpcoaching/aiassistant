@@ -18,12 +18,48 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 import pika
 
 logger = logging.getLogger("workflow-engine.bus")
+
+# ---- Capability invocation envelopes (C5) ---------------------------------
+# Tier 2 (in-process) and Tier 3 (bus-mediated) invocations use the SAME
+# envelope; only the transport differs.
+
+
+@dataclass
+class CapabilityRequest:
+    request_id: str
+    correlation_id: str
+    capability_id: str
+    capability_name: str
+    inputs: dict[str, Any]
+    caller_session_id: str | None = None
+    transport: str = "tier3_bus"
+    timeout_seconds: int = 300
+    context_ref: str | None = None
+
+    def to_json(self) -> str:
+        return json.dumps(self.__dict__)
+
+
+@dataclass
+class CapabilityReply:
+    request_id: str
+    correlation_id: str
+    status: str  # completed | approved | rejected | escalated | failed
+    outputs: dict[str, Any]
+    artifacts: list[str]
+    telemetry: dict[str, Any]
+    error: str | None = None
+
+    def to_json(self) -> str:
+        return json.dumps(self.__dict__)
+
 
 # Retry backoff (seconds) applied before giving up and spooling to disk.
 PUBLISH_BACKOFFS = (1, 2, 4)
@@ -89,22 +125,44 @@ class EventBus:
             conn = self._connect()
             try:
                 ch = conn.channel()
-                ch.exchange_declare(exchange=WORKFLOW_EXCHANGE, exchange_type="topic", durable=True)
+                for exchange in (WORKFLOW_EXCHANGE, CAPABILITY_EXCHANGE, KNOWLEDGE_EXCHANGE):
+                    ch.exchange_declare(exchange=exchange, exchange_type="topic", durable=True)
                 ch.exchange_declare(exchange=DEAD_LETTER_EXCHANGE, exchange_type="topic", durable=True)
 
-                for queue_name, routing_keys in WORKFLOW_QUEUES.items():
+                all_queues = {
+                    **WORKFLOW_QUEUES,
+                    **CAPABILITY_QUEUES,
+                    **KNOWLEDGE_QUEUES,
+                }
+                for queue_name, routing_keys in all_queues.items():
                     ch.queue_declare(queue=queue_name, durable=True, arguments={
                         "x-dead-letter-exchange": DEAD_LETTER_EXCHANGE,
                         "x-dead-letter-routing-key": f"dead.{queue_name}",
                     })
                     for rk in routing_keys:
-                        ch.queue_bind(exchange=WORKFLOW_EXCHANGE, queue=queue_name, routing_key=rk)
+                        exchange = WORKFLOW_EXCHANGE if queue_name.startswith("workflow.") else (
+                            CAPABILITY_EXCHANGE if queue_name.startswith("capability.") else KNOWLEDGE_EXCHANGE
+                        )
+                        ch.queue_bind(exchange=exchange, queue=queue_name, routing_key=rk)
 
                 ch.queue_declare(queue="workflow.dead", durable=True)
                 ch.queue_bind(exchange=DEAD_LETTER_EXCHANGE, queue="workflow.dead", routing_key="dead.#")
                 ch.close()
             finally:
                 conn.close()
+
+    # ---- capability invocation (Tier 3) ----
+
+    def publish_capability_request(self, workflow_id: str, payload: dict[str, Any]) -> None:
+        self.publish("capability.request", "CapabilityRequest", workflow_id, payload)
+
+    def publish_capability_reply(self, workflow_id: str, payload: dict[str, Any]) -> None:
+        self.publish("capability.reply", "CapabilityReply", workflow_id, payload)
+
+    # ---- knowledge ingestion ----
+
+    def publish_knowledge_chunk(self, workflow_id: str, payload: dict[str, Any]) -> None:
+        self.publish("knowledge.chunk.discovered", "KnowledgeChunkDiscovered", workflow_id, payload)
 
     def _write_fallback(self, routing_key: str, event_type: str, workflow_id: str, envelope: dict[str, Any]) -> None:
         try:

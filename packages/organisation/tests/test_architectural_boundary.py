@@ -84,3 +84,46 @@ def test_composition_boundary_exists() -> None:
 
     plane = create_organisation_control_plane()
     assert isinstance(plane, OrganisationControlPlane)
+
+
+def test_worker_does_not_access_private_org_state() -> None:
+    """Worker must not access implementation-private Organisation state."""
+    worker_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "workflow_runner", "src", "worker.py"
+    )
+    worker_path = os.path.normpath(worker_path)
+    with open(worker_path) as f:
+        source = f.read()
+    tree = ast.parse(source)
+    
+    # Find the execute method and check it doesn't access private org_plane attributes
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "execute":
+            for child in ast.walk(node):
+                if isinstance(child, ast.Attribute):
+                    attr_name = child.attr
+                    # Allow private attributes on self, but not on org_plane
+                    if attr_name.startswith("_"):
+                        # Check if it's on self
+                        if isinstance(child.value, ast.Name) and child.value.id == "self":
+                            continue
+                        # Check if it's on org_plane
+                        if isinstance(child.value, ast.Name) and child.value.id == "org_plane":
+                            assert False, (
+                                f"Worker must not access private org_plane attribute: {attr_name}"
+                            )
+
+
+def test_paperclip_adapter_does_not_leak_to_organisation() -> None:
+    """OrganisationControlPlane must not import Paperclip."""
+    source_path = os.path.join(
+        os.path.dirname(__file__), "..", "src", "organisation_control_plane.py"
+    )
+    source_path = os.path.normpath(source_path)
+    with open(source_path) as f:
+        tree = ast.parse(f.read())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            assert "organisation_paperclip" not in node.module, (
+                "OrganisationControlPlane must not import organisation_paperclip"
+            )

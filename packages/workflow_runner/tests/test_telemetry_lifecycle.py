@@ -20,6 +20,7 @@ import importlib.util
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -36,41 +37,50 @@ for _pkg in ["bus", "capability_registry", "ai", "workflow_runner", "langgraph"]
         sys.path.insert(0, str(_src))
 
 _api_path = _packages_root / "workflow_runner" / "api.py"
-_spec = importlib.util.spec_from_file_location("workflow_runner_api", _api_path)
+_spec = importlib.util.spec_from_file_location("workflow_runner_api_tel", _api_path)
 _api_mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_api_mod)
-sys.modules["workflow_runner_api"] = _api_mod
+sys.modules["workflow_runner_api_tel"] = _api_mod
 app = _api_mod.app
 
 
 @pytest.fixture()
 def client(tmp_path):
     telemetry_path = str(tmp_path / "telemetry.jsonl")
-    with patch("workflow_runner_api.EventBus") as MockBus, patch("workflow_runner_api._build_scheduler") as mock_build:
-        mock_bus = MagicMock()
-        mock_bus.declare_topology = MagicMock()
-        mock_bus.start_consumers = MagicMock()
-        mock_bus.shutdown = MagicMock()
-        mock_bus.publish_workflow_started = MagicMock()
-        mock_bus.publish_workflow_completed = MagicMock()
-        mock_bus.publish_workflow_failed = MagicMock()
-        mock_bus.publish_step_started = MagicMock()
-        mock_bus.publish_step_completed = MagicMock()
-        mock_bus.publish_capability_request = MagicMock()
-        mock_bus.publish_capability_reply = MagicMock()
-        mock_bus.publish_knowledge_chunk = MagicMock()
-        MockBus.return_value = mock_bus
+    with pytest.MonkeyPatch.context() as m:
+        m.setenv("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
+        m.setenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+        m.setenv("REDIS_URL", "redis://localhost:6379")
+        m.setenv("OPENAI_API_BASE", "http://localhost:4000/v1")
+        m.setenv("OPENAI_BASE_URL", "http://localhost:4000/v1")
+        m.setenv("ENV_TIER", "test")
+        m.setenv("CAPABILITY_TELEMETRY_PATH", telemetry_path)
+        _spec = importlib.util.spec_from_file_location("workflow_runner_api_tel", _api_path)
+        _api_mod = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_api_mod)
+        sys.modules["workflow_runner_api_tel"] = _api_mod
 
-        mock_sched = MagicMock()
-        mock_sched.get_jobs.return_value = []
-        mock_build.return_value = mock_sched
+        with patch.object(_api_mod, "EventBus") as MockBus, patch.object(_api_mod, "_build_scheduler") as mock_build:
+            mock_bus = MagicMock()
+            mock_bus.declare_topology = MagicMock()
+            mock_bus.start_consumers = MagicMock()
+            mock_bus.shutdown = MagicMock()
+            mock_bus.publish_workflow_started = MagicMock()
+            mock_bus.publish_workflow_completed = MagicMock()
+            mock_bus.publish_workflow_failed = MagicMock()
+            mock_bus.publish_step_started = MagicMock()
+            mock_bus.publish_step_completed = MagicMock()
+            mock_bus.publish_capability_request = MagicMock()
+            mock_bus.publish_capability_reply = MagicMock()
+            mock_bus.publish_knowledge_chunk = MagicMock()
+            MockBus.return_value = mock_bus
 
-        with patch.dict(os.environ, {"CAPABILITY_TELEMETRY_PATH": telemetry_path}):
-            import importlib
-            import workflow_runner_api
-            importlib.reload(workflow_runner_api)
+            mock_sched = MagicMock()
+            mock_sched.get_jobs.return_value = []
+            mock_build.return_value = mock_sched
+
             from fastapi.testclient import TestClient as TC
-            with TC(workflow_runner_api.app) as c:
+            with TC(_api_mod.app) as c:
                 yield c, telemetry_path
 
 
@@ -81,7 +91,7 @@ class TestTelemetryLifecycle:
         """A real /assistant/chat request must create a telemetry event that survives."""
         client_obj, telemetry_path = client
         
-        with patch("workflow_runner_api._assistant") as mock_assistant:
+        with patch("workflow_runner_api_tel._assistant") as mock_assistant:
             from capability_selection_telemetry import CapabilitySelectionEvent
             from datetime import datetime, timezone
             
@@ -101,11 +111,16 @@ class TestTelemetryLifecycle:
                 message="I found 2 capabilities...",
                 session_id="ses-lifecycle-1",
                 status="awaiting_capability_selection",
+                reasoning=None,
+                previous_solution=None,
+                human_input_request=None,
                 capability_candidates=[
                     {"id": "cap-a", "name": "capability_a"},
                     {"id": "cap-b", "name": "capability_b"},
                 ],
                 telemetry={"match_event_id": mock_event.event_id},
+                execution_outputs=None,
+                execution_artifacts=[],
             )
             mock_assistant._capability_selection_telemetry = MagicMock()
             mock_assistant._capability_selection_telemetry.get_events.return_value = [mock_event]
@@ -128,7 +143,7 @@ class TestTelemetryLifecycle:
         """Feedback must update the correct telemetry event."""
         client_obj, telemetry_path = client
         
-        with patch("workflow_runner_api._assistant") as mock_assistant:
+        with patch("workflow_runner_api_tel._assistant") as mock_assistant:
             mock_assistant.record_capability_feedback.return_value = None
             
             response = client_obj.post(
@@ -154,7 +169,8 @@ class TestTelemetryLifecycle:
         """Multiple requests in the same session must be correlated."""
         client_obj, telemetry_path = client
         
-        with patch("workflow_runner_api._assistant") as mock_assistant:
+        with patch("workflow_runner_api_tel._assistant") as mock_assistant, \
+             patch("workflow_runner_api_tel._capability_selection_telemetry") as mock_telemetry:
             from capability_selection_telemetry import CapabilitySelectionEvent
             from datetime import datetime, timezone
             
@@ -182,8 +198,7 @@ class TestTelemetryLifecycle:
                     interaction_type="select",
                 ),
             ]
-            mock_assistant._capability_selection_telemetry = MagicMock()
-            mock_assistant._capability_selection_telemetry.get_events_by_session.return_value = events
+            mock_telemetry.get_events_by_session.return_value = events
 
             response = client_obj.get("/assistant/telemetry/sessions/ses-correlation-1")
             assert response.status_code == 200
@@ -195,7 +210,8 @@ class TestTelemetryLifecycle:
         """Sessions with multiple events must be detected as reformulations."""
         client_obj, telemetry_path = client
         
-        with patch("workflow_runner_api._assistant") as mock_assistant:
+        with patch("workflow_runner_api_tel._assistant") as mock_assistant, \
+             patch("workflow_runner_api_tel._capability_selection_telemetry") as mock_telemetry:
             from capability_selection_telemetry import CapabilitySelectionEvent
             from datetime import datetime, timezone
             
@@ -223,8 +239,7 @@ class TestTelemetryLifecycle:
                     interaction_type="select",
                 ),
             ]
-            mock_assistant._capability_selection_telemetry = MagicMock()
-            mock_assistant._capability_selection_telemetry.get_reformulation_candidates.return_value = events
+            mock_telemetry.get_reformulation_candidates.return_value = events
 
             response = client_obj.get("/assistant/telemetry/reformulations")
             assert response.status_code == 200
@@ -292,13 +307,18 @@ class TestTelemetryLifecycle:
         """Telemetry failures must not affect chat functionality."""
         client_obj, telemetry_path = client
         
-        with patch("workflow_runner_api._assistant") as mock_assistant:
+        with patch("workflow_runner_api_tel._assistant") as mock_assistant:
             mock_assistant.chat.return_value = MagicMock(
                 message="I found a capability...",
                 session_id="ses-failure-1",
                 status="awaiting_capability_selection",
+                reasoning=None,
+                previous_solution=None,
+                human_input_request=None,
                 capability_candidates=[{"id": "cap-a", "name": "capability_a"}],
                 telemetry={},
+                execution_outputs=None,
+                execution_artifacts=[],
             )
             
             # Even if telemetry fails, chat should work
@@ -314,7 +334,7 @@ class TestTelemetryLifecycle:
         client_obj, telemetry_path = client
         export_path = str(tmp_path / "export.json")
         
-        with patch("workflow_runner_api._assistant") as mock_assistant:
+        with patch("workflow_runner_api_tel._capability_selection_telemetry") as mock_telemetry:
             from capability_selection_telemetry import CapabilitySelectionEvent
             from datetime import datetime, timezone
             
@@ -334,10 +354,9 @@ class TestTelemetryLifecycle:
                     selected_capability_id="cap-a",
                 ),
             ]
-            mock_assistant._capability_selection_telemetry = MagicMock()
-            mock_assistant._capability_selection_telemetry.export_to_json.return_value = None
+            mock_telemetry.export_to_json.return_value = None
+            mock_telemetry.get_events.return_value = mock_events
             
-            export_path = str(tmp_path / "export.json")
             response = client_obj.post(
                 "/assistant/telemetry/export",
                 json={"output_path": export_path},
@@ -346,7 +365,7 @@ class TestTelemetryLifecycle:
             data = response.json()
             assert data["status"] == "exported"
             assert data["path"] == export_path
-            mock_assistant._capability_selection_telemetry.export_to_json.assert_called_once_with(export_path)
+            mock_telemetry.export_to_json.assert_called_once_with(export_path)
 
     def test_user_action_persists_to_disk(self, tmp_path):
         """record_user_action must persist the updated event to disk."""
@@ -399,7 +418,7 @@ class TestTelemetryLifecycle:
         """Stats endpoint must compute correct distributions."""
         client_obj, telemetry_path = client
         
-        with patch("workflow_runner_api._assistant") as mock_assistant:
+        with patch("workflow_runner_api_tel._capability_selection_telemetry") as mock_telemetry:
             from capability_selection_telemetry import CapabilitySelectionEvent
             from datetime import datetime, timezone
             
@@ -431,9 +450,8 @@ class TestTelemetryLifecycle:
                     user_action="reject",
                 ),
             ]
-            mock_assistant._capability_selection_telemetry = MagicMock()
-            mock_assistant._capability_selection_telemetry.get_events.return_value = mock_events
-            mock_assistant._capability_selection_telemetry.get_reformulation_candidates.return_value = []
+            mock_telemetry.get_events.return_value = mock_events
+            mock_telemetry.get_reformulation_candidates.return_value = []
 
             response = client_obj.get("/assistant/telemetry/stats")
             assert response.status_code == 200
@@ -448,7 +466,7 @@ class TestTelemetryLifecycle:
         """All telemetry endpoints must be reachable and return valid responses."""
         client_obj, telemetry_path = client
         
-        with patch("workflow_runner_api._assistant") as mock_assistant:
+        with patch("workflow_runner_api_tel._assistant") as mock_assistant:
             mock_assistant._capability_selection_telemetry = MagicMock()
             mock_assistant._capability_selection_telemetry.get_events.return_value = []
             mock_assistant._capability_selection_telemetry.get_events_by_session.return_value = []

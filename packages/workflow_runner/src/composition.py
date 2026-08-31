@@ -15,6 +15,33 @@ from typing import Any
 logger = logging.getLogger("workflow_runner.composition")
 
 
+def register_operational_handlers(
+    org_plane: Any,
+    capability_execution: Any = None,
+    capability_registry: Any = None,
+) -> None:
+    """Register Operations coordination layer on the Organisation control plane.
+
+    This function is the composition-root wiring for the operational layer.
+    It creates the Operations coordination component which subscribes to
+    Organisation events and dispatches execution to exactly one backend.
+
+    The API transport layer may call it, but the operational architecture
+    is defined here, not in the API.
+    """
+    from workflow_runner.src.operational_handler import (
+        register_operational_handlers as _register,
+    )
+    _register(
+        org_plane=org_plane,
+        capability_execution=capability_execution,
+        capability_registry=capability_registry,
+    )
+
+
+register_operations = register_operational_handlers
+
+
 def create_assistant(
     reasoning_service: Any | None = None,
     capability_discovery: Any | None = None,
@@ -26,6 +53,7 @@ def create_assistant(
     pattern_execution: Any | None = None,
     capability_selection_telemetry: Any | None = None,
     enterprise_capability_query: Any | None = None,
+    ai_response: Any | None = None,
 ) -> Any:
     from chat import AssistantChatService
 
@@ -40,6 +68,7 @@ def create_assistant(
         pattern_execution=pattern_execution,
         capability_selection_telemetry=capability_selection_telemetry,
         enterprise_capability_query=enterprise_capability_query,
+        ai_response=ai_response,
     )
 
 
@@ -128,6 +157,14 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     work_management_port: WorkManagementPort = WorkManagementAdapter(org_plane)
     enterprise_capability_query_port: EnterpriseCapabilityQueryPort = EnterpriseCapabilityQueryAdapter(org_plane)
 
+    from ai.src.ai_response import AIResponseService
+
+    _ai_response: Any | None = None
+    try:
+        _ai_response = AIResponseService()
+    except ValueError:
+        pass
+
     assistant = create_assistant(
         capability_discovery=discovery,
         capability_execution=execution_adapter,
@@ -137,6 +174,7 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
         work_management=work_management_port,
         enterprise_capability_query=enterprise_capability_query_port,
         capability_selection_telemetry=capability_selection_telemetry,
+        ai_response=_ai_response,
     )
 
     return {

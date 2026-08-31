@@ -47,6 +47,27 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
+# Allow imports from sibling packages in the monorepo (ai, capability, etc.)
+_packages_dir = os.path.join(_script_dir, "..")
+if _packages_dir not in sys.path:
+    sys.path.insert(0, _packages_dir)
+
+for _pkg in ["bus", "capability_registry", "ai", "api", "configuration", "contracts", "langgraph", "organisation", "people_capability", "organisation_paperclip", "capability"]:
+    _src = os.path.join(_packages_dir, _pkg, "src")
+    if os.path.isdir(_src) and _src not in sys.path:
+        sys.path.insert(0, _src)
+for _pkg in ["contracts"]:
+    _root = os.path.join(_packages_dir, _pkg)
+    if os.path.isdir(_root) and _root not in sys.path:
+        sys.path.insert(0, _root)
+for _pkg in ["workflow_runner"]:
+    _src = os.path.join(_packages_dir, _pkg, "src")
+    if os.path.isdir(_src) and _src not in sys.path:
+        sys.path.insert(0, _src)
+    _root = os.path.join(_packages_dir, _pkg)
+    if os.path.isdir(_root) and _root not in sys.path:
+        sys.path.insert(0, _root)
+
 from capability_registry.src.capabilities import ConceptKind
 from capability_registry.src.capability_request import CapabilityRequest
 from capability_registry.src.concepts import (
@@ -70,7 +91,7 @@ from db import (
 )
 from loader import load_workflow, resolve_workflow_path
 from models import Step, WorkflowDefinition
-from organisation.src.worker import Worker
+from workflow_runner.src.worker import Worker
 from runtime_client import configure as _configure_runtime_client
 from scheduler import (
     _build_scheduler,
@@ -225,8 +246,8 @@ async def on_startup() -> None:
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
     try:
-        _scheduler()
-        shutdown_scheduler(_scheduler.sched)
+        holder = _scheduler()
+        shutdown_scheduler(holder.sched)
     except Exception:
         logger.exception("Error during scheduler shutdown")
     try:
@@ -624,7 +645,7 @@ class _ExecutionResultResponse(BaseModel):
     artifacts: list[str] = Field(default_factory=list)
     telemetry: dict[str, Any] = Field(default_factory=dict)
 
-from composition import create_assistant
+from workflow_runner.src.composition import create_assistant
 from capability_selection_telemetry import CapabilitySelectionTelemetry
 
 _telemetry_persistence_path = os.environ.get("CAPABILITY_TELEMETRY_PATH", "data/capability_selection_telemetry.jsonl")
@@ -730,12 +751,32 @@ try:
 except Exception:
     _capability_execution = None
 
+_ai_response = None
+if os.getenv("PORTKEY_MASTER_KEY"):
+    try:
+        from ai.src.ai_response import AIResponseService
+        _ai_response = AIResponseService()
+    except Exception:
+        pass
+
 _assistant = create_assistant(
     capability_selection_telemetry=_capability_selection_telemetry,
     capability_discovery=_capability_discovery,
     work_management=_work_management,
     enterprise_capability_query=_capability_query,
+    ai_response=_ai_response,
 )
+
+if _org_plane is not None:
+    try:
+        from workflow_runner.src.composition import register_operational_handlers
+        register_operational_handlers(
+            org_plane=_org_plane,
+            capability_execution=_capability_execution,
+            capability_registry=_capability_registry,
+        )
+    except Exception:
+        logger.exception("Failed to register operational handlers")
 
 
 @app.post("/assistant/chat", response_model=_ChatResponse)
@@ -770,7 +811,13 @@ async def assistant_chat_resume(session_id: str, body: dict[str, Any]) -> _ChatR
         message=response.message,
         session_id=response.session_id,
         status=response.status,
+        reasoning=response.reasoning,
+        previous_solution=response.previous_solution,
+        human_input_request=response.human_input_request,
+        capability_candidates=response.capability_candidates,
         telemetry=response.telemetry,
+        execution_outputs=response.execution_outputs,
+        execution_artifacts=response.execution_artifacts,
     )
 
 
@@ -1212,36 +1259,6 @@ async def get_work(work_id: str) -> _WorkResponse:
         outcome=work.outcome,
         output_path=work.outcome.get("output_path") if work.outcome else None,
     )
-
-
-@app.post("/work/{work_id}/process")
-async def process_work(work_id: str) -> dict[str, Any]:
-    if _org_plane is None:
-        raise HTTPException(status_code=501, detail="Organisation plane not configured")
-    work = _org_plane.get_work(work_id)
-    if work is None:
-        raise HTTPException(status_code=404, detail="Work not found")
-    worker = Worker(
-        capability_execution=_capability_execution,
-        capability_registry=_capability_registry,
-    )
-    result = worker.execute(work, _org_plane)
-    return {"work_id": work_id, "status": result.get("status", "completed"), "outcome": result}
-
-
-@app.post("/worker/run")
-async def run_worker() -> dict[str, Any]:
-    if _org_plane is None:
-        raise HTTPException(status_code=501, detail="Organisation plane not configured")
-    worker = Worker(
-        capability_execution=_capability_execution,
-        capability_registry=_capability_registry,
-    )
-    work = worker.pickup(_org_plane)
-    if work is None:
-        raise HTTPException(status_code=404, detail="No work available for worker")
-    result = worker.execute(work, _org_plane)
-    return {"work_id": work.id, "status": result.get("status", "completed"), "outcome": result}
 
 
 # ---- Internal helpers ----

@@ -223,6 +223,58 @@ class TestOrganisationEventEmission:
         assert events[0].event_type == WorkEventType.ASSIGNED
         assert events[0].work_id == "work-emit-1"
 
+    def test_ocp_emits_ready_event_when_marked_ready(self) -> None:
+        from organisation.src.organisation_control_plane import (
+            InMemoryOrganisationControlPlane,
+        )
+        from role import Role, Work, WorkStatus
+
+        events: list[Any] = []
+        org = InMemoryOrganisationControlPlane()
+        org.on_event(events.append)
+
+        work = Work(
+            id="work-emit-ready",
+            title="Ready Test",
+            accountable_role_id="role-1",
+        )
+        role = Role(id="role-1", name="Tester", authority_ids=[])
+        org.register_role(role)
+        org.assign_work(work, role)
+        events.clear()
+
+        org.mark_work_ready(work.id)
+
+        assert len(events) == 1
+        assert events[0].event_type == WorkEventType.READY
+        assert events[0].work_id == "work-emit-ready"
+        assert work.status == WorkStatus.READY
+
+    def test_ocp_does_not_emit_started_event_from_mark_work_ready(self) -> None:
+        from organisation.src.organisation_control_plane import (
+            InMemoryOrganisationControlPlane,
+        )
+        from role import Role, Work
+
+        events: list[Any] = []
+        org = InMemoryOrganisationControlPlane()
+        org.on_event(events.append)
+
+        work = Work(
+            id="work-no-started",
+            title="No Started Test",
+            accountable_role_id="role-1",
+        )
+        role = Role(id="role-1", name="Tester", authority_ids=[])
+        org.register_role(role)
+        org.assign_work(work, role)
+        events.clear()
+
+        org.mark_work_ready(work.id)
+
+        started_events = [e for e in events if e.event_type == WorkEventType.STARTED]
+        assert len(started_events) == 0
+
     def test_ocp_emits_capability_registered_event(self) -> None:
         from organisation.src.organisation_control_plane import (
             InMemoryOrganisationControlPlane,

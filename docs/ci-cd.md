@@ -15,6 +15,34 @@ Gitea (ai/aiassistant)  ──triggers──▶  Gitea Actions runner  ──inv
 - **Providers:** language-specific implementations (Python, TypeScript, Go, Rust) that know how to build/test each package type.
 - **Registry auth:** flows through environment `.env` files or Gitea Actions secrets; never committed to Git.
 
+## Test Layers
+
+Tests are organised into three distinct layers. Each layer has a different purpose, runtime requirement, and feedback speed.
+
+| Layer | Name | Scope | Runtime | How to run |
+|---|---|---|---|---|
+| **1** | Unit | Single class/function, all dependencies mocked | Sub-millisecond | `pytest tests/ -m unit` |
+| **2** | Application Integration | Real app code path, infrastructure adapters mocked, no Docker | Seconds | `pytest packages/workflow_runner/tests/test_platform_integration.py` |
+| **3** | Platform E2E | Full Docker Compose stack + browser automation | Minutes | `.woodpecker.yml → test-e2e` |
+
+### Layer 1 — Unit
+- Pure Python/TypeScript unit tests.
+- No `TestClient`, no Docker, no network.
+- Fast feedback during local development.
+
+### Layer 2 — Application Integration
+- Uses FastAPI `TestClient` or equivalent in-process runner.
+- Infrastructure dependencies (EventBus, Scheduler, Database, LLM) are patched/mocked at the adapter boundary.
+- The AssistantChatService, context formation, validation loops, and Work delegation are exercised with real code.
+- Can run locally without Docker.
+- **Canonical file:** `packages/workflow_runner/tests/test_platform_integration.py`
+
+### Layer 3 — Platform E2E
+- Requires full Docker Compose stack: `infrastructure/compose.yml` → `platform/compose.yml` → `environments/dev/compose.yml`.
+- Playwright browser tests validate the running platform end-to-end.
+- Artifacts (HTML report, JUnit XML, traces) are collected by CI.
+- **Canonical file:** `packages/control-center-ui/tests/e2e/critical-path.spec.ts`
+
 ## Workflows
 
 | Workflow | Trigger | Purpose |

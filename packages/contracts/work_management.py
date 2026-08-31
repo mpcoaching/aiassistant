@@ -1,5 +1,5 @@
-from typing import Protocol
-from pydantic import BaseModel
+from typing import Any, Protocol
+from pydantic import BaseModel, Field
 
 
 class WorkCreateRequest(BaseModel):
@@ -11,11 +11,13 @@ class WorkCreateRequest(BaseModel):
     work_type: str = "bau"
     priority: str = "normal"
     organisation_id: str = "default"
+    context: dict[str, Any] = Field(default_factory=dict)
 
 
 class WorkReference(BaseModel):
     work_id: str
     status: str
+    outcome: dict[str, Any] | None = None
 
 
 class WorkManagementPort(Protocol):

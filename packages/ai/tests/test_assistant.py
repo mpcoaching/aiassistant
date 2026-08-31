@@ -6,6 +6,8 @@ Contracts: SA-CONTRACTS-PHASES-2-5.md C3, C4, C9.
 
 
 import pytest
+from pathlib import Path
+from unittest.mock import MagicMock
 
 from assistant import AssistantReasoningService, StrategyDecision
 from chat import AssistantChatService, ChatRequest
@@ -18,7 +20,9 @@ from ai.tests.fixtures.in_memory_ports import (
     InMemoryCapabilityDiscoveryPort,
     InMemoryCapabilityExecutionPort,
     InMemoryEnterpriseInformationPort,
+    InMemoryPatternExecutionPort,
     InMemorySessionFactoryPort,
+    InMemoryWorkManagementPort,
 )
 from contracts.capability_discovery import CapabilityCandidate
 from contracts.capability_execution import ExecutionResult
@@ -675,32 +679,6 @@ def test_telemetry_reformulation_detection() -> None:
 # ---- Work Delegation (Organisation Integration) -----------------------
 
 
-class InMemoryWorkManagementPort:
-    def __init__(self) -> None:
-        self.created_work: list[dict[str, Any]] = []
-
-    def create_work(self, request: Any) -> Any:
-        from contracts.work_management import WorkReference
-        work_id = f"work-{len(self.created_work) + 1}"
-        self.created_work.append({
-            "work_id": work_id,
-            "title": request.title,
-            "description": request.description,
-            "work_type": request.work_type,
-            "priority": request.priority,
-            "accountable_role_id": request.accountable_role_id,
-            "required_capability_ids": list(request.required_capability_ids),
-        })
-        return WorkReference(work_id=work_id, status="draft")
-
-    def mark_ready(self, work_id: str) -> Any:
-        from contracts.work_management import WorkReference
-        return WorkReference(work_id=work_id, status="in_progress")
-
-    def get_work(self, work_id: str) -> Any:
-        return None
-
-
 def test_chat_delegates_to_organisation_when_no_capability_match() -> None:
     discovery = InMemoryCapabilityDiscoveryPort(candidates=[])
     work_management = InMemoryWorkManagementPort()
@@ -909,3 +887,478 @@ def test_chat_preserves_existing_behavior_without_enterprise_query() -> None:
     response = service.chat(request)
 
     assert response.status == "awaiting_capability_selection"
+
+
+def test_chat_uses_ai_response_when_configured() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.generate.return_value = ("AI-generated response", {"ai_invoked": True, "ai_model": "llama-3.3-70b-versatile", "ai_latency_ms": 100, "ai_success": True, "ai_error": None})
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(ai_response=mock_ai)
+    request = ChatRequest(message="Tell me something interesting")
+    response = service.chat(request)
+
+    assert response.status == "completed"
+    assert response.message == "AI-generated response"
+    assert response.telemetry["runtime"] == "ai_response_service"
+    assert response.telemetry["model"] == "llama-3.3-70b-versatile"
+    mock_ai.generate.assert_called_once_with(
+        user_message="Tell me something interesting",
+        context={},
+        conversation_history=[],
+    )
+
+
+def test_chat_falls_through_when_ai_response_fails() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.generate.side_effect = RuntimeError("Portkey unavailable")
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(ai_response=mock_ai)
+    request = ChatRequest(message="Tell me something interesting")
+    response = service.chat(request)
+
+    assert response.status == "pending"
+    assert "Strategy:" in response.message
+
+
+# ---- Conversational AI Routing (Increment 22) -----------------------
+
+
+def test_chat_routes_general_question_to_ai() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.generate.return_value = ("The capital of France is Paris.", {"ai_invoked": True, "ai_model": "llama-3.3-70b-versatile", "ai_latency_ms": 100, "ai_success": True, "ai_error": None})
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(ai_response=mock_ai)
+    request = ChatRequest(message="What is the capital of France?")
+    response = service.chat(request)
+
+    assert response.status == "completed"
+    assert response.message == "The capital of France is Paris."
+    assert response.telemetry["runtime"] == "ai_response_service"
+    mock_ai.generate.assert_called_once()
+
+
+def test_chat_routes_follow_up_to_ai_with_history() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.generate.return_value = ("Based on your business, I'd investigate churn first.", {"ai_invoked": True, "ai_model": "llama-3.3-70b-versatile", "ai_latency_ms": 150, "ai_success": True, "ai_error": None})
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(ai_response=mock_ai)
+    session_id = "ses-history-test"
+    request1 = ChatRequest(message="My business sells coaching programs to established consultants.", session_id=session_id)
+    response1 = service.chat(request1)
+    assert response1.status == "completed"
+
+    request2 = ChatRequest(message="What would you investigate first if sales suddenly dropped?", session_id=session_id)
+    response2 = service.chat(request2)
+    assert response2.status == "completed"
+    assert response2.message == "Based on your business, I'd investigate churn first."
+
+    first_call_history = mock_ai.generate.call_args_list[0].kwargs["conversation_history"]
+    assert first_call_history == []
+
+    second_call_history = mock_ai.generate.call_args_list[1].kwargs["conversation_history"]
+    assert second_call_history == [
+        {"role": "user", "content": "My business sells coaching programs to established consultants."},
+        {"role": "assistant", "content": response1.message},
+    ]
+
+
+def test_chat_does_not_route_planning_to_ai() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    session_factory = InMemorySessionFactoryPort()
+    service = AssistantChatService(
+        ai_response=mock_ai,
+        session_factory=session_factory,
+        pattern_execution=InMemoryPatternExecutionPort(),
+    )
+    request = ChatRequest(message="Plan a birthday party for 20 people")
+    response = service.chat(request)
+
+    assert response.status == "completed"
+    assert response.telemetry.get("runtime") == "pattern_execution_port"
+    mock_ai.generate.assert_not_called()
+
+
+def test_chat_does_not_route_analysis_to_ai() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(
+        ai_response=mock_ai,
+        work_management=InMemoryWorkManagementPort(),
+    )
+    request = ChatRequest(message="Analyse this document and tell me what I should focus on")
+    response = service.chat(request)
+
+    assert response.status == "awaiting_human_input"
+    mock_ai.generate.assert_not_called()
+
+
+def test_chat_ai_telemetry_includes_observability_fields() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.generate.return_value = ("Observability response", {"ai_invoked": True, "ai_model": "llama-3.3-70b-versatile", "ai_latency_ms": 42, "ai_success": True, "ai_error": None})
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(ai_response=mock_ai)
+    request = ChatRequest(message="Tell me about observability")
+    response = service.chat(request)
+
+    assert response.telemetry["ai_invoked"] is True
+    assert response.telemetry["ai_model"] == "llama-3.3-70b-versatile"
+    assert response.telemetry["ai_latency_ms"] == 42
+    assert response.telemetry["ai_success"] is True
+    assert response.telemetry["ai_error"] is None
+
+
+def test_chat_ai_telemetry_records_failure() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.generate.side_effect = RuntimeError("Portkey timeout")
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(ai_response=mock_ai)
+    request = ChatRequest(message="Tell me something")
+    response = service.chat(request)
+
+    assert response.status == "pending"
+    assert "Strategy:" in response.message
+
+
+def test_chat_skips_ai_when_not_configured() -> None:
+    service = AssistantChatService(ai_response=None)
+    request = ChatRequest(message="Tell me something interesting")
+    response = service.chat(request)
+
+    assert response.status == "pending"
+    assert "Strategy:" in response.message
+
+
+# ---- Conversation Continuity & Session Isolation (Increment 23) -----------------
+
+
+def test_chat_three_turn_conversation_retains_context() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.generate.return_value = (
+        "Northstar Coaching has 12 employees and operational complexity.",
+        {"ai_invoked": True, "ai_model": "llama-3.3-70b-versatile", "ai_latency_ms": 100, "ai_success": True, "ai_error": None},
+    )
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(ai_response=mock_ai)
+    session_id = "ses-northstar-123"
+
+    turn1 = service.chat(ChatRequest(
+        message="Let's call the fictional company Northstar Coaching. It has 12 employees and is struggling with operational complexity.",
+        session_id=session_id,
+    ))
+    assert turn1.status == "completed"
+
+    turn2 = service.chat(ChatRequest(
+        message="What would you investigate first?",
+        session_id=session_id,
+    ))
+    assert turn2.status == "completed"
+
+    turn3 = service.chat(ChatRequest(
+        message="Now answer that as if I'm the owner rather than an employee.",
+        session_id=session_id,
+    ))
+    assert turn3.status == "completed"
+
+    assert mock_ai.generate.call_count == 3
+
+    second_call_history = mock_ai.generate.call_args_list[1].kwargs["conversation_history"]
+    assert second_call_history == [
+        {"role": "user", "content": "Let's call the fictional company Northstar Coaching. It has 12 employees and is struggling with operational complexity."},
+        {"role": "assistant", "content": turn1.message},
+    ]
+
+    third_call_history = mock_ai.generate.call_args_list[2].kwargs["conversation_history"]
+    assert third_call_history == [
+        {"role": "user", "content": "Let's call the fictional company Northstar Coaching. It has 12 employees and is struggling with operational complexity."},
+        {"role": "assistant", "content": turn1.message},
+        {"role": "user", "content": "What would you investigate first?"},
+        {"role": "assistant", "content": turn2.message},
+    ]
+
+
+def test_chat_session_history_isolated_between_sessions() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.generate.return_value = (
+        "Response",
+        {"ai_invoked": True, "ai_model": "llama-3.3-70b-versatile", "ai_latency_ms": 100, "ai_success": True, "ai_error": None},
+    )
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(ai_response=mock_ai)
+
+    service.chat(ChatRequest(message="Session A message", session_id="ses-a"))
+    service.chat(ChatRequest(message="Session B message", session_id="ses-b"))
+
+    assert mock_ai.generate.call_count == 2
+
+    call_a_history = mock_ai.generate.call_args_list[0].kwargs["conversation_history"]
+    call_b_history = mock_ai.generate.call_args_list[1].kwargs["conversation_history"]
+
+    assert call_a_history == []
+    assert call_b_history == []
+
+    service.chat(ChatRequest(message="Session A follow-up", session_id="ses-a"))
+    call_a_followup = mock_ai.generate.call_args_list[2].kwargs["conversation_history"]
+    assert call_a_followup == [
+        {"role": "user", "content": "Session A message"},
+        {"role": "assistant", "content": mock_ai.generate.return_value[0]},
+    ]
+
+
+def test_chat_conversation_history_bounded_to_max_turns() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.generate.return_value = (
+        "Response",
+        {"ai_invoked": True, "ai_model": "llama-3.3-70b-versatile", "ai_latency_ms": 100, "ai_success": True, "ai_error": None},
+    )
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    service = AssistantChatService(ai_response=mock_ai)
+    session_id = "ses-bounded"
+
+    for i in range(25):
+        service.chat(ChatRequest(message=f"Message {i}", session_id=session_id))
+
+    last_call_history = mock_ai.generate.call_args_list[24].kwargs["conversation_history"]
+    assert len(last_call_history) <= 40
+    assert last_call_history[0]["content"] != "Message 0"
+    assert last_call_history[0]["content"] == "Message 4"
+
+
+def test_chat_specialised_request_does_not_inherit_conversational_history() -> None:
+    from unittest.mock import MagicMock
+
+    mock_ai = MagicMock()
+    mock_ai.model = "llama-3.3-70b-versatile"
+
+    session_factory = InMemorySessionFactoryPort()
+    pattern_execution = InMemoryPatternExecutionPort()
+    service = AssistantChatService(
+        ai_response=mock_ai,
+        session_factory=session_factory,
+        pattern_execution=pattern_execution,
+    )
+
+    service.chat(ChatRequest(message="Tell me about management.", session_id="ses-specialised"))
+    assert mock_ai.generate.call_count == 1
+
+    plan_request = ChatRequest(message="Plan a birthday party for 20 people", session_id="ses-specialised")
+    response = service.chat(plan_request)
+    assert response.status == "completed"
+    assert response.telemetry.get("runtime") == "pattern_execution_port"
+    assert mock_ai.generate.call_count == 1
+
+
+# ---- Phase 5: Conversational → Actionable (Increment 24) -----------------
+
+
+def _make_actionable_mock_ai(actionable: bool = True) -> MagicMock:
+    mock_ai = MagicMock()
+    mock_ai.model = "groq-model"
+    if actionable:
+        mock_ai.classify_actionable_intent.return_value = {
+            "mode": "actionable",
+            "action": "investigate",
+            "objective": "Determine whether customer experience is contributing to retention decline",
+            "context": {"retention": "84% to 76%", "support_volume": "+31%"},
+            "confidence": "high",
+        }
+    else:
+        mock_ai.classify_actionable_intent.return_value = {
+            "mode": "conversational",
+            "action": None,
+            "objective": None,
+            "context": {},
+            "confidence": "high",
+        }
+    mock_ai.generate.return_value = (
+        "AI conversational response",
+        {"ai_invoked": True, "ai_model": "groq-model", "ai_latency_ms": 100, "ai_success": True, "ai_error": None},
+    )
+    return mock_ai
+
+
+def test_actionable_intent_returns_awaiting_confirmation_when_llm_detects_action() -> None:
+    mock_ai = _make_actionable_mock_ai(actionable=True)
+    work_management = InMemoryWorkManagementPort()
+    service = AssistantChatService(ai_response=mock_ai, work_management=work_management)
+    session_id = "ses-actionable-1"
+    service.chat(ChatRequest(
+        message="Our customer retention has fallen from 84% to 76% and support volume is up 31%.",
+        session_id=session_id,
+    ))
+    response = service.chat(ChatRequest(
+        message="Yes. Let's investigate whether customer experience is actually driving the retention decline.",
+        session_id=session_id,
+    ))
+
+    assert response.status == "awaiting_confirmation"
+    assert "investigate" in response.message.lower()
+    assert "retention decline" in response.message.lower()
+    assert response.telemetry.get("runtime") == "ai_intent_classifier"
+    assert response.telemetry.get("actionable_intent", {}).get("action") == "investigate"
+
+
+def test_actionable_intent_falls_through_when_llm_says_conversational() -> None:
+    mock_ai = _make_actionable_mock_ai(actionable=False)
+    service = AssistantChatService(ai_response=mock_ai)
+    session_id = "ses-convo-1"
+    service.chat(ChatRequest(message="Tell me about management.", session_id=session_id))
+    response = service.chat(ChatRequest(
+        message="What do you think about customer experience?",
+        session_id=session_id,
+    ))
+
+    assert response.status == "completed"
+    assert response.message == "AI conversational response"
+    assert response.telemetry.get("runtime") == "ai_response_service"
+
+
+def test_actionable_intent_skipped_without_conversation_history() -> None:
+    mock_ai = _make_actionable_mock_ai(actionable=True)
+    service = AssistantChatService(ai_response=mock_ai)
+    response = service.chat(ChatRequest(message="Tell me about management."))
+
+    assert response.status == "completed"
+    assert response.message == "AI conversational response"
+    mock_ai.classify_actionable_intent.assert_not_called()
+
+
+def test_actionable_intent_confirmation_creates_work() -> None:
+    mock_ai = _make_actionable_mock_ai(actionable=True)
+    work_management = InMemoryWorkManagementPort()
+    service = AssistantChatService(ai_response=mock_ai, work_management=work_management)
+    session_id = "ses-confirm-1"
+    service.chat(ChatRequest(
+        message="Our customer retention has fallen from 84% to 76% and support volume is up 31%.",
+        session_id=session_id,
+    ))
+    service.chat(ChatRequest(
+        message="Yes. Let's investigate whether customer experience is actually driving the retention decline.",
+        session_id=session_id,
+    ))
+    response = service.resume_with_human_input(session_id, {"response": "Yes, investigate it."})
+
+    assert len(work_management.created_work) == 1
+    work = work_management.created_work[0]
+    assert "investigate" in work["title"].lower() or "retention" in work["title"].lower()
+    assert response.status in ("completed", "delegated")
+    assert "Done" in response.message or response.telemetry.get("work_id") is not None
+
+
+def test_actionable_intent_rejection_clears_pending() -> None:
+    mock_ai = _make_actionable_mock_ai(actionable=True)
+    service = AssistantChatService(ai_response=mock_ai)
+    session_id = "ses-reject-1"
+    service.chat(ChatRequest(
+        message="Our customer retention has fallen from 84% to 76% and support volume is up 31%.",
+        session_id=session_id,
+    ))
+    service.chat(ChatRequest(
+        message="Yes. Let's investigate whether customer experience is actually driving the retention decline.",
+        session_id=session_id,
+    ))
+    response = service.resume_with_human_input(session_id, {"response": "No, let's do something else."})
+
+    assert response.status == "completed"
+    assert "what would you like" in response.message.lower()
+    assert session_id not in service._pending_actionable_intents
+
+
+def test_malformed_actionable_intent_falls_through_to_conversational() -> None:
+    mock_ai = MagicMock()
+    mock_ai.model = "groq-model"
+    mock_ai.classify_actionable_intent.return_value = "not valid json"
+    mock_ai.generate.return_value = (
+        "AI conversational response",
+        {"ai_invoked": True, "ai_model": "groq-model", "ai_latency_ms": 100, "ai_success": True, "ai_error": None},
+    )
+    service = AssistantChatService(ai_response=mock_ai)
+    session_id = "ses-malformed-1"
+    service.chat(ChatRequest(
+        message="Tell me about management.",
+        session_id=session_id,
+    ))
+    response = service.chat(ChatRequest(
+        message="What do you think about customer experience?",
+        session_id=session_id,
+    ))
+
+    assert response.status == "completed"
+    assert response.message == "AI conversational response"
+
+
+def test_specialised_paths_unaffected_by_actionable_intent() -> None:
+    mock_ai = _make_actionable_mock_ai(actionable=True)
+    session_factory = InMemorySessionFactoryPort()
+    pattern_execution = InMemoryPatternExecutionPort()
+    service = AssistantChatService(
+        ai_response=mock_ai,
+        session_factory=session_factory,
+        pattern_execution=pattern_execution,
+    )
+
+    plan_response = service.chat(ChatRequest(message="Plan a birthday party for 20 people"))
+    assert plan_response.status == "completed"
+    assert plan_response.telemetry.get("runtime") == "pattern_execution_port"
+    mock_ai.classify_actionable_intent.assert_not_called()
+
+
+def test_actionable_intent_preserves_conversation_context() -> None:
+    mock_ai = _make_actionable_mock_ai(actionable=True)
+    work_management = InMemoryWorkManagementPort()
+    service = AssistantChatService(ai_response=mock_ai, work_management=work_management)
+    session_id = "ses-context-1"
+    service.chat(ChatRequest(
+        message="Our customer retention has fallen from 84% to 76% and support volume is up 31%.",
+        session_id=session_id,
+    ))
+    response = service.chat(ChatRequest(
+        message="Yes. Let's investigate whether customer experience is actually driving the retention decline.",
+        session_id=session_id,
+    ))
+
+    assert response.status == "awaiting_confirmation"
+    intent_data = response.telemetry.get("actionable_intent", {})
+    assert intent_data.get("context", {}).get("retention") == "84% to 76%"
+    assert intent_data.get("context", {}).get("support_volume") == "+31%"
+    assert intent_data.get("objective") == "Determine whether customer experience is contributing to retention decline"
+
+
+def test_worker_infer_intent_maps_investigate_to_content_analysis() -> None:
+    from workflow_runner.src.worker import Worker
+    worker = Worker(output_dir=Path("/tmp/test-worker-intent"))
+    intent = worker._infer_intent("Investigate whether customer experience is driving retention decline")
+    assert intent == "Content analysis"

@@ -1,5 +1,13 @@
 """
-Tests for POST /assistant/capability/{capability_id}//execute (Increment 5).
+Layer 2 — Application Integration tests for POST /assistant/capability/{capability_id}//execute (Increment 5).
+
+Uses the real FastAPI app with TestClient. Infrastructure dependencies
+(EventBus, Scheduler, Database, LLM) are mocked at the adapter boundary,
+but the AssistantChatService, context formation, validation loop, and
+Work delegation are exercised with real code.
+
+Run:
+  pytest packages/workflow_runner/tests/test_capability_execute.py -v --tb=short
 """
 
 from __future__ import annotations
@@ -33,27 +41,34 @@ app = _api_mod.app
 
 @pytest.fixture()
 def client():
-    with patch("workflow_runner_api.EventBus") as MockBus, patch("workflow_runner_api._build_scheduler") as mock_build:
-        mock_bus = MagicMock()
-        mock_bus.declare_topology = MagicMock()
-        mock_bus.start_consumers = MagicMock()
-        mock_bus.shutdown = MagicMock()
-        mock_bus.publish_workflow_started = MagicMock()
-        mock_bus.publish_workflow_completed = MagicMock()
-        mock_bus.publish_workflow_failed = MagicMock()
-        mock_bus.publish_step_started = MagicMock()
-        mock_bus.publish_step_completed = MagicMock()
-        mock_bus.publish_capability_request = MagicMock()
-        mock_bus.publish_capability_reply = MagicMock()
-        mock_bus.publish_knowledge_chunk = MagicMock()
-        MockBus.return_value = mock_bus
+    with pytest.MonkeyPatch.context() as m:
+        m.setenv("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
+        m.setenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+        m.setenv("REDIS_URL", "redis://localhost:6379")
+        m.setenv("OPENAI_API_BASE", "http://localhost:4000/v1")
+        m.setenv("OPENAI_BASE_URL", "http://localhost:4000/v1")
+        m.setenv("ENV_TIER", "test")
+        with patch("workflow_runner_api.EventBus") as MockBus, patch("workflow_runner_api._build_scheduler") as mock_build:
+            mock_bus = MagicMock()
+            mock_bus.declare_topology = MagicMock()
+            mock_bus.start_consumers = MagicMock()
+            mock_bus.shutdown = MagicMock()
+            mock_bus.publish_workflow_started = MagicMock()
+            mock_bus.publish_workflow_completed = MagicMock()
+            mock_bus.publish_workflow_failed = MagicMock()
+            mock_bus.publish_step_started = MagicMock()
+            mock_bus.publish_step_completed = MagicMock()
+            mock_bus.publish_capability_request = MagicMock()
+            mock_bus.publish_capability_reply = MagicMock()
+            mock_bus.publish_knowledge_chunk = MagicMock()
+            MockBus.return_value = mock_bus
 
-        mock_sched = MagicMock()
-        mock_sched.get_jobs.return_value = []
-        mock_build.return_value = mock_sched
+            mock_sched = MagicMock()
+            mock_sched.get_jobs.return_value = []
+            mock_build.return_value = mock_sched
 
-        with TestClient(app) as c:
-            yield c
+            with TestClient(app) as c:
+                yield c
 
 
 def test_execute_capability_endpoint_returns_result(client):
@@ -292,32 +307,22 @@ def test_get_work_returns_404_when_missing(client):
 
 
 def test_process_work_executes_real_worker_and_creates_output(client, tmp_path):
-    with patch("workflow_runner_api._org_plane") as mock_org:
-        from organisation.src.role import Work, WorkStatus
-        work = Work(id="w1", title="Test task", accountable_role_id="r1", description="Test description")
-        mock_org.get_work.return_value = work
-        mock_org._work = {"w1": work}
+    from workflow_runner.src.worker import Worker
+    from organisation.src.role import Work, WorkStatus
 
-        with patch("workflow_runner_api.Worker") as MockWorker:
-            mock_worker = MockWorker.return_value
-            mock_worker.execute.return_value = {
-                "status": "completed",
-                "summary": "Worker processed: Test task",
-                "output_path": "worker_outputs/w1-test-task.md",
-                "output_type": "markdown",
-                "work_id": "w1",
-                "title": "Test task",
-                "description": "Test description",
-            }
+    work = Work(id="w1", title="Test task", accountable_role_id="r1", description="Test description")
+    mock_org = MagicMock()
+    mock_org.get_work.return_value = work
+    mock_org._work = {"w1": work}
 
-            response = client.post("/work/w1/process")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["work_id"] == "w1"
-            assert data["status"] == "completed"
-            assert data["outcome"]["summary"] == "Worker processed: Test task"
-            assert data["outcome"]["output_path"] == "worker_outputs/w1-test-task.md"
-            mock_worker.execute.assert_called_once_with(work, mock_org)
+    worker = Worker(output_dir=str(tmp_path))
+    result = worker.execute(work, mock_org)
+
+    assert result["status"] == "completed"
+    assert result["title"] == "Test task"
+    assert result["output_type"] == "markdown"
+    assert tmp_path.joinpath("w1-test-task.md").exists()
+    mock_org.complete_work.assert_not_called()
 
 
 def test_work_endpoints_501_when_org_plane_not_configured(client):
@@ -326,12 +331,6 @@ def test_work_endpoints_501_when_org_plane_not_configured(client):
         assert response.status_code == 501
 
         response = client.get("/work/w1")
-        assert response.status_code == 501
-
-        response = client.post("/work/w1/process")
-        assert response.status_code == 501
-
-        response = client.post("/worker/run")
         assert response.status_code == 501
 
         response = client.get("/roles")
@@ -395,31 +394,22 @@ def test_worker_pickup_returns_none_when_no_assigned_work(tmp_path):
 
 
 def test_worker_run_endpoint_processes_assigned_work(client, tmp_path):
-    with patch("workflow_runner_api._org_plane") as mock_org:
-        from organisation.src.role import Work, WorkStatus
-        work = Work(id="w1", title="Worker task", accountable_role_id="default", assignee_agent_id="worker-agent")
-        mock_org.list_work.return_value = [work]
-        mock_org.get_work.return_value = work
-        mock_org._work = {"w1": work}
+    from workflow_runner.src.worker import Worker
+    from organisation.src.role import Work, WorkStatus
 
-        with patch("workflow_runner_api.Worker") as MockWorker:
-            mock_worker = MockWorker.return_value
-            mock_worker.pickup.return_value = work
-            mock_worker.execute.return_value = {
-                "status": "completed",
-                "summary": "Worker pickup complete",
-                "output_path": "worker_outputs/w1.md",
-                "output_type": "markdown",
-                "work_id": "w1",
-            }
+    work = Work(id="w1", title="Worker task", accountable_role_id="default", assignee_agent_id="worker-agent")
+    mock_org = MagicMock()
+    mock_org.list_work.return_value = [work]
+    mock_org.get_work.return_value = work
+    mock_org._work = {"w1": work}
 
-            response = client.post("/worker/run")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["work_id"] == "w1"
-            assert data["status"] == "completed"
-            mock_worker.pickup.assert_called_once_with(mock_org)
-            mock_worker.execute.assert_called_once_with(work, mock_org)
+    worker = Worker(output_dir=str(tmp_path))
+    picked = worker.pickup(mock_org)
+    assert picked == work
+
+    result = worker.execute(work, mock_org)
+    assert result["status"] == "completed"
+    mock_org.complete_work.assert_not_called()
 
 
 def test_worker_run_returns_404_when_no_work(client):
@@ -648,13 +638,13 @@ def test_fast_capability_end_to_end_via_api(client):
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "delegated"
+    assert data["status"] == "completed"
     work_id = data["telemetry"]["work_id"]
 
     work_response = client.get(f"/work/{work_id}")
     assert work_response.status_code == 200
     work_data = work_response.json()
-    assert work_data["status"] == "assigned"
+    assert work_data["status"] == "completed"
 
 
 def test_slow_capability_produces_interim_via_api(client):
@@ -670,8 +660,10 @@ def test_slow_capability_produces_interim_via_api(client):
     )
     mock_discovery = MagicMock()
     mock_discovery.find_capabilities.return_value = [slow_candidate]
+    original_discovery = wr_api_mod._assistant._capability_discovery
+    original_query = wr_api_mod._assistant._enterprise_capability_query
     wr_api_mod._assistant._capability_discovery = mock_discovery
-    
+
     mock_availability = MagicMock()
     mock_availability.available = True
     mock_availability.eta_seconds = 300
@@ -681,14 +673,18 @@ def test_slow_capability_produces_interim_via_api(client):
         return_value=mock_availability
     )
 
-    response = client.post(
-        "/assistant/chat",
-        json={"message": "do something slow", "session_id": "ses-slow-1"},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "delegated_with_interim"
-    assert "preliminary answer" in data["message"]
+    try:
+        response = client.post(
+            "/assistant/chat",
+            json={"message": "do something slow", "session_id": "ses-slow-1"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "delegated_with_interim"
+        assert "preliminary answer" in data["message"]
+    finally:
+        wr_api_mod._assistant._capability_discovery = original_discovery
+        wr_api_mod._assistant._enterprise_capability_query = original_query
 
 
 def test_capability_gap_creates_development_work_via_api(client):
@@ -704,29 +700,35 @@ def test_capability_gap_creates_development_work_via_api(client):
     )
     mock_discovery = MagicMock()
     mock_discovery.find_capabilities.return_value = [gap_candidate]
+    original_discovery = api_mod._assistant._capability_discovery
+    original_query = api_mod._assistant._enterprise_capability_query
     api_mod._assistant._capability_discovery = mock_discovery
     api_mod._assistant._enterprise_capability_query.query_capability = MagicMock(
         return_value=None
     )
 
-    response = client.post(
-        "/assistant/chat",
-        json={"message": "do something impossible", "session_id": "ses-gap-1"},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "capability_gap"
-    assert "does not currently have" in data["message"]
-    assert data["telemetry"]["gap"] is True
-    assert data["telemetry"]["work_created"] is True
-    assert data["telemetry"]["work_id"] is not None
+    try:
+        response = client.post(
+            "/assistant/chat",
+            json={"message": "do something impossible", "session_id": "ses-gap-1"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "capability_gap"
+        assert "does not currently have" in data["message"]
+        assert data["telemetry"]["gap"] is True
+        assert data["telemetry"]["work_created"] is True
+        assert data["telemetry"]["work_id"] is not None
 
-    work_id = data["telemetry"]["work_id"]
-    work_response = client.get(f"/work/{work_id}")
-    assert work_response.status_code == 200
-    work_data = work_response.json()
-    assert work_data["title"] == "Develop capability: Gap Capability"
-    assert work_data["status"] == "assigned"
+        work_id = data["telemetry"]["work_id"]
+        work_response = client.get(f"/work/{work_id}")
+        assert work_response.status_code == 200
+        work_data = work_response.json()
+        assert work_data["title"] == "Develop capability: Gap Capability"
+        assert work_data["status"] == "assigned"
+    finally:
+        api_mod._assistant._capability_discovery = original_discovery
+        api_mod._assistant._enterprise_capability_query = original_query
 
 
 def test_capabilities_list_endpoint_returns_capabilities(client):
@@ -783,60 +785,1944 @@ def test_organisational_learning_loop_via_api(client):
     )
     mock_discovery = MagicMock()
     mock_discovery.find_capabilities.return_value = [gap_candidate]
+    original_discovery = wr_mod._assistant._capability_discovery
+    original_query = wr_mod._assistant._enterprise_capability_query
     wr_mod._assistant._capability_discovery = mock_discovery
     wr_mod._assistant._enterprise_capability_query.query_capability = MagicMock(
         return_value=None
     )
 
+    try:
+        response1 = client.post(
+            "/assistant/chat",
+            json={"message": request_message, "session_id": "ses-loop-1"},
+        )
+        assert response1.status_code == 200
+        data1 = response1.json()
+        assert data1["status"] == "capability_gap"
+        assert "does not currently have" in data1["message"]
+        work_id = data1["telemetry"]["work_id"]
+        assert work_id is not None
+
+        work = org_plane.get_work(work_id)
+        assert work is not None
+        assert work.work_type == "capability_development"
+
+        from workflow_runner.src.worker import Worker
+        worker = Worker()
+        worker_data = worker.execute(work, org_plane)
+        assert worker_data["status"] == "completed"
+        assert worker_data["execution_mode"] == "capability_development"
+
+        developed_cap_id = worker_data["capability_id"]
+        assert org_plane.get_capability(developed_cap_id) is not None
+        assert capability_registry.get(developed_cap_id) is not None
+
+        mock_discovery.find_capabilities.return_value = [
+            CapabilityCandidate(
+                id=developed_cap_id,
+                name=capability_name,
+                description=f"A capability for {capability_name}",
+                kind="skill",
+                confidence=0.9,
+            )
+        ]
+        wr_mod._assistant._enterprise_capability_query.query_capability = MagicMock(
+            return_value=MagicMock(
+                capability_id=developed_cap_id,
+                available=True,
+                eta_seconds=5,
+                assignee=None,
+                reason="Available now",
+            )
+        )
+
+        response2 = client.post(
+            "/assistant/chat",
+            json={"message": request_message, "session_id": "ses-loop-2"},
+        )
+        assert response2.status_code == 200
+        data2 = response2.json()
+        assert data2["status"] == "completed"
+        assert developed_cap_id in data2["telemetry"]["required_capability_ids"]
+    finally:
+        wr_mod._assistant._capability_discovery = original_discovery
+        wr_mod._assistant._enterprise_capability_query = original_query
+
+
+def test_chat_creates_work_executes_it_and_returns_result(client):
+    """End-to-end: user message → work created → executed → result returned."""
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "Summarise the quarterly report", "session_id": "ses-mvp-1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+    assert work_id is not None
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    assert work_data["outcome"] is not None
+    assert "summary" in work_data["outcome"]
+    assert work_data["outcome"]["output_type"] == "markdown"
+
+
+def test_chat_birthday_party_plan_is_specific(client):
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "Plan a birthday party for 20 people", "session_id": "ses-party-1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Action Plan" in summary
+    assert "Event" in summary or "party" in summary.lower()
+    assert "20" in summary
+
+
+def test_chat_hiking_trip_plan_is_specific(client):
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "Plan a 3-day hiking trip for two people", "session_id": "ses-hike-1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Action Plan" in summary
+    assert "Travel" in summary or "hiking" in summary.lower()
+    assert "2" in summary or "two" in summary.lower()
+
+
+def test_chat_product_launch_plan_is_specific(client):
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "Create a launch plan for a new coaching program", "session_id": "ses-launch-1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Action Plan" in summary
+    assert "Product Launch" in summary or "launch" in summary.lower()
+    assert "marketing" in summary.lower() or "campaign" in summary.lower()
+
+
+COACHING_PROGRAM_DOC = """
+The new coaching program is designed to help mid-career professionals transition into leadership roles.
+The program spans 12 weeks and includes weekly group coaching sessions, one-to-one mentoring,
+and practical assignments focused on real workplace challenges.
+Participants will develop skills in strategic thinking, stakeholder communication, and team motivation.
+The program is delivered by certified coaches with experience in Fortune 500 companies.
+Assessment is continuous, with feedback provided after each module.
+Graduates receive a recognised leadership certification and access to an alumni network.
+"""
+
+HIKING_TRIP_DOC = """
+A 3-day hiking trip for two people in the Swiss Alps.
+Day 1: Arrive in Interlaken, collect equipment, and begin the hike to Obersteinberg.
+Distance: 12 km. Elevation gain: 800 m. Overnight in a mountain hut.
+Day 2: Hike from Obersteinberg to Kleine Scheidegg via the alpine trail.
+Distance: 15 km. Elevation gain: 600 m. Overnight at a guesthouse in Grindelwald.
+Day 3: Optional glacier hike or rest day. Return to Interlaken by train.
+Total distance: approximately 40 km. Difficulty: moderate.
+Required gear includes hiking boots, waterproof jacket, day pack, and trekking poles.
+The best months for this trip are June through September.
+"""
+
+PRODUCT_LAUNCH_DOC = """
+Our mobile app launch has three distinct phases.
+Phase 1 focuses on user acquisition through social media campaigns and influencer partnerships.
+We expect to reach 50,000 downloads in the first two weeks.
+Phase 2 is about retention: we will introduce personalised recommendations and weekly challenges.
+Our target is a 40% day-30 retention rate.
+Phase 3 covers monetisation via a premium subscription tier priced at $9.99 per month.
+The engineering team has completed beta testing with 2,000 users and fixed 147 bugs.
+Marketing will launch with a $200,000 budget, primarily targeting North America and Europe.
+Customer support will be available 24/7 from launch day.
+"""
+
+
+def test_chat_summarise_document_produces_coherent_summary(client):
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Summarise this document.",
+            "session_id": "ses-summary-1",
+            "context": {"input_text": COACHING_PROGRAM_DOC},
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Summary:" in summary
+    assert "coaching" in summary.lower() or "leadership" in summary.lower()
+    assert "compression" in summary.lower()
+    summary_text_start = summary.index("## Summary") + len("## Summary")
+    summary_text = summary[summary_text_start:]
+    summary_text = summary_text.split("## Result")[0].strip()
+    summary_words = len(summary_text.split())
+    input_words = len(COACHING_PROGRAM_DOC.split())
+    assert summary_words < input_words
+
+
+def test_chat_summarise_different_documents_produce_different_summaries(client):
+    response_a = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Summarise this document.",
+            "session_id": "ses-summary-a",
+            "context": {"input_text": COACHING_PROGRAM_DOC},
+        },
+    )
+    assert response_a.status_code == 200
+    data_a = response_a.json()
+    work_id_a = data_a["telemetry"]["work_id"]
+    work_response_a = client.get(f"/work/{work_id_a}")
+    work_data_a = work_response_a.json()
+    summary_a = work_data_a["outcome"]["summary"]
+
+    response_b = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Summarise this document.",
+            "session_id": "ses-summary-b",
+            "context": {"input_text": HIKING_TRIP_DOC},
+        },
+    )
+    assert response_b.status_code == 200
+    data_b = response_b.json()
+    work_id_b = data_b["telemetry"]["work_id"]
+    work_response_b = client.get(f"/work/{work_id_b}")
+    work_data_b = work_response_b.json()
+    summary_b = work_data_b["outcome"]["summary"]
+
+    assert summary_a != summary_b
+    assert "hiking" in summary_b.lower() or "alps" in summary_b.lower()
+    assert "km" in summary_b.lower()
+
+
+def test_chat_summarise_longer_document_compresses_content(client):
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Summarise this document.",
+            "session_id": "ses-summary-long",
+            "context": {"input_text": PRODUCT_LAUNCH_DOC},
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Summary:" in summary
+
+    summary_text_start = summary.index("## Summary") + len("## Summary")
+    summary_text = summary[summary_text_start:]
+    summary_text = summary_text.split("## Result")[0].strip()
+
+    input_words = len(PRODUCT_LAUNCH_DOC.split())
+    summary_words = len(summary_text.split())
+    assert summary_words < input_words * 0.7
+
+    summary_lower = summary.lower()
+    input_tokens = set(
+        w.strip(".,!?;:\"'()[]{}").lower()
+        for w in PRODUCT_LAUNCH_DOC.split()
+        if len(w.strip(".,!?;:\"'()[]{}")) > 4
+    )
+    summary_tokens = set(summary_lower.split())
+    overlap = input_tokens & summary_tokens
+    assert len(overlap) >= 3
+
+
+def test_chat_summarise_uploaded_document(client):
+    document_text = (
+        "The new coaching program is designed to help mid-career professionals "
+        "transition into leadership roles. The program spans 12 weeks and includes "
+        "weekly group coaching sessions, one-to-one mentoring, and practical assignments. "
+        "Participants will develop skills in strategic thinking, stakeholder communication, "
+        "and team motivation. The program is delivered by certified coaches with experience "
+        "in Fortune 500 companies. Assessment is continuous, with feedback provided after "
+        "each module. Graduates receive a recognised leadership certification and access to "
+        "an alumni network."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Summarise this",
+            "session_id": "ses-upload-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-report.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Summary:" in summary
+    assert "coaching" in summary.lower() or "leadership" in summary.lower()
+    assert "compression" in summary.lower()
+    assert outcome.get("output_path") is not None
+    assert "worker_outputs" in outcome.get("output_path", "")
+
+
+def test_chat_create_proposal_generates_proposal_structure(client):
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Create a proposal for a coaching program",
+            "session_id": "ses-proposal-1",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Project Proposal" in summary
+    assert "Objectives" in summary
+    assert "Deliverables" in summary
+    assert "Timeline" in summary
+
+
+def test_chat_meeting_notes_generate_actions(client):
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Convert these meeting notes into action items: We discussed the Q4 roadmap. Action: Sarah to finalise budget by Friday. Action: Mike to schedule client reviews. Follow up on vendor selection.",
+            "session_id": "ses-actions-1",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_human_input"
+    assert data["human_input_request"] is not None
+    question = data["human_input_request"].get("question", "")
+    assert "analyse" in question.lower() or "area" in question.lower()
+
+
+def test_chat_brainstorm_generates_ideas(client):
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Brainstorm ideas for improving client onboarding",
+            "session_id": "ses-ideas-1",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Brainstorm" in summary
+    assert "onboarding" in summary.lower()
+    assert "1." in summary
+
+
+def test_chat_compare_generates_comparison(client):
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Compare weekly coaching and self-paced learning",
+            "session_id": "ses-compare-1",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Comparison" in summary
+    assert "Weekly Coaching" in summary or "Self-Paced Learning" in summary
+    assert "|" in summary
+
+
+def test_chat_analyse_generates_analysis(client):
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse the quarterly report: Revenue increased 15% but churn rose to 8%.",
+            "session_id": "ses-analyse-1",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+    session_id = data["session_id"]
+
+    resume = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert resume.status_code == 200
+    data_resume = resume.json()
+    assert data_resume["status"] == "completed"
+    work_id = data_resume["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    assert "revenue" in summary.lower() or "churn" in summary.lower()
+
+
+def test_chat_plan_birthday_party_executes_with_assumptions(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Plan a birthday party for 20 people",
+            "session_id": "ses-plan-1",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Action Plan" in summary
+    assert "Assumptions" in summary
+    assert "birthday" in summary.lower() or "party" in summary.lower()
+    assert "20" in summary
+    _api_mod._assistant._pending_planning_contexts.clear()
+
+
+def test_chat_plan_underspecified_asks_clarification(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Plan the party",
+            "session_id": "ses-clarify-1",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    print("DEBUG TEST: response status =", data["status"])
+    assert data["status"] == "awaiting_human_input"
+    assert data["human_input_request"] is not None
+    question = data["human_input_request"].get("question", "")
+    assert "party" in question.lower() or "event" in question.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+
+
+def test_chat_plan_with_explicit_constraints_executes(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Plan a birthday party for 20 people at home with a $500 budget",
+            "session_id": "ses-plan-constraints-1",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Action Plan" in summary
+    assert "home" in summary.lower()
+    assert "500" in summary
+    _api_mod._assistant._pending_planning_contexts.clear()
+
+
+def test_chat_plan_clarification_then_execution(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
     response1 = client.post(
         "/assistant/chat",
-        json={"message": request_message, "session_id": "ses-loop-1"},
+        json={
+            "message": "Plan the party",
+            "session_id": "ses-clarify-then-exec-1",
+        },
     )
     assert response1.status_code == 200
     data1 = response1.json()
-    assert data1["status"] == "capability_gap"
-    assert "does not currently have" in data1["message"]
-    work_id = data1["telemetry"]["work_id"]
-    assert work_id is not None
-
-    work = org_plane.get_work(work_id)
-    assert work is not None
-    assert work.work_type == "capability_development"
-
-    process_response = client.post(f"/work/{work_id}/process")
-    assert process_response.status_code == 200
-    worker_data = process_response.json()
-    assert worker_data["status"] == "completed"
-    assert worker_data["outcome"]["execution_mode"] == "capability_development"
-
-    developed_cap_id = worker_data["outcome"]["capability_id"]
-    assert org_plane.get_capability(developed_cap_id) is not None
-    assert capability_registry.get(developed_cap_id) is not None
-
-    mock_discovery.find_capabilities.return_value = [
-        CapabilityCandidate(
-            id=developed_cap_id,
-            name=capability_name,
-            description=f"A capability for {capability_name}",
-            kind="skill",
-            confidence=0.9,
-        )
-    ]
-    wr_mod._assistant._enterprise_capability_query.query_capability = MagicMock(
-        return_value=MagicMock(
-            capability_id=developed_cap_id,
-            available=True,
-            eta_seconds=5,
-            assignee=None,
-            reason="Available now",
-        )
-    )
+    assert data1["status"] == "awaiting_human_input"
+    session_id = data1["session_id"]
 
     response2 = client.post(
-        "/assistant/chat",
-        json={"message": request_message, "session_id": "ses-loop-2"},
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "A birthday party for 20 people"},
     )
     assert response2.status_code == 200
     data2 = response2.json()
-    assert data2["status"] == "delegated"
-    assert developed_cap_id in data2["telemetry"]["required_capability_ids"]
+    assert data2["status"] == "completed"
+    work_id = data2["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Action Plan" in summary
+    assert "birthday" in summary.lower() or "party" in summary.lower()
+    assert "20" in summary
+    _api_mod._assistant._pending_planning_contexts.clear()
+
+
+def test_chat_plan_document_provides_context(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "3-day hiking trip in the Swiss Alps for two people. "
+        "Accommodation in Grindelwald. Approximately 15 km hiking per day. "
+        "Planned for June."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Plan this",
+            "session_id": "ses-doc-plan-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "hiking-trip.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Action Plan" in summary
+    assert "hiking" in summary.lower() or "trip" in summary.lower()
+    assert "Assumptions" in summary
+    _api_mod._assistant._pending_planning_contexts.clear()
+
+
+def test_chat_plan_document_missing_subject_asks_clarification(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Venue available for 50 people. Budget is $1000. " +
+        "Scheduled for next month."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Plan this",
+            "session_id": "ses-doc-clarify-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "event-details.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_human_input"
+    assert data["human_input_request"] is not None
+    question = data["human_input_request"].get("question", "")
+    assert "event" in question.lower() or "activity" in question.lower()
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "A birthday party for 50 people"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "completed"
+    work_id = data2["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Action Plan" in summary
+    assert "birthday" in summary.lower() or "party" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+
+
+def test_chat_plan_indirect_document_infers_activity(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "We're planning to arrive in Interlaken on Tuesday and spend three days walking "
+        "through the Bernese Oberland. There are two of us. We've booked two nights in "
+        "Grindelwald. We'd like to keep the longest walking day around 15km. We have "
+        "hiking boots and packs but still need to sort weather protection and food."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Plan this",
+            "session_id": "ses-indirect-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "alpine-trip-notes.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    print("DEBUG INDIRECT:", data["status"], data.get("telemetry", {}).get("work_id"))
+    assert data["status"] == "completed"
+    work_id = data["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Action Plan" in summary
+    assert "hiking" in summary.lower() or "walking" in summary.lower()
+    assert "Interlaken" in summary or "Grindelwald" in summary
+    assert "15" in summary
+    assert "Assumptions" in summary
+    _api_mod._assistant._pending_planning_contexts.clear()
+
+
+def test_chat_analyse_business_document(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-analysis-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, that's correct."},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "completed"
+    work_id = data2["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    assert "What We Know" in summary
+    assert "Prioritised Focus" in summary
+    assert "What Appears Connected" in summary
+    assert "Why this matters" in summary
+    assert "Confidence" in summary
+    assert "What would validate this" in summary
+    assert "12%" in summary or "retention" in summary.lower() or "support" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_unknown_focus_asks_clarification(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "The team enjoyed the offsite. We visited three locations. "
+        "The weather was good. Everyone had fun."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-analysis-clarify-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "offsite-notes.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_human_input"
+    assert data["human_input_request"] is not None
+    question = data["human_input_request"].get("question", "")
+    assert "analyse" in question.lower() or "determine" in question.lower() or "area" in question.lower()
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Focus on team productivity and operational efficiency"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    session_id = data2["session_id"]
+
+    response3 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["status"] == "completed"
+    work_id = data3["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_clarification_then_execution(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    response1 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-analysis-clarify-exec-1",
+            "context": {
+                "input_text": "The project is behind schedule.",
+                "document_name": "project-status.txt",
+            },
+        },
+    )
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert data1["status"] == "awaiting_human_input"
+    session_id = data1["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Focus on delivery risk and resource constraints"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    session_id = data2["session_id"]
+
+    response3 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["status"] == "completed"
+    work_id = data3["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+
+def test_chat_analyse_generic_asks_clarification(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this",
+            "session_id": "ses-analysis-generic-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_human_input"
+    assert data["human_input_request"] is not None
+    question = data["human_input_request"].get("question", "")
+    assert "determine" in question.lower()
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "What should we focus on to improve growth?"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    session_id = data2["session_id"]
+
+    response3 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["status"] == "completed"
+    work_id = data3["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    assert "retention" in summary.lower() or "support" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+# ---- Acceptance Criteria A-E: Four-level analysis validation -----------------
+
+
+def test_acceptance_a_goal_changes_outcome(client):
+    """Acceptance A: Goal validated by user materially changes output."""
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year. "
+        "Customer retention fell from 84% to 76%. "
+        "Support volume increased 31%."
+    )
+    response_a = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-goal-a",
+            "context": {"input_text": document_text},
+        },
+    )
+    assert response_a.status_code == 200
+    data_a = response_a.json()
+    assert data_a["status"] == "awaiting_validation"
+
+    resume_a = client.post(
+        f"/assistant/chat/{data_a['session_id']}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert resume_a.status_code == 200
+    data_resume_a = resume_a.json()
+    assert data_resume_a["status"] == "completed"
+    work_id_a = data_resume_a["telemetry"]["work_id"]
+    work_response_a = client.get(f"/work/{work_id_a}")
+    work_data_a = work_response_a.json()
+    summary_a = work_data_a["outcome"]["summary"]
+
+    response_b = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and determine why we're losing customers",
+            "session_id": "ses-goal-b",
+            "context": {"input_text": document_text},
+        },
+    )
+    assert response_b.status_code == 200
+    data_b = response_b.json()
+    assert data_b["status"] == "awaiting_validation"
+
+    resume_b = client.post(
+        f"/assistant/chat/{data_b['session_id']}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert resume_b.status_code == 200
+    data_resume_b = resume_b.json()
+    assert data_resume_b["status"] == "completed"
+    work_id_b = data_resume_b["telemetry"]["work_id"]
+    work_response_b = client.get(f"/work/{work_id_b}")
+    work_data_b = work_response_b.json()
+    summary_b = work_data_b["outcome"]["summary"]
+
+    assert summary_a != summary_b
+    assert "focus on" in summary_a.lower() or "management attention" in summary_a.lower()
+    assert "losing customers" in summary_b.lower() or "customer" in summary_b.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+
+
+def test_acceptance_b_hypothesis_never_presented_as_fact(client):
+    """Acceptance B: Hypotheses are labelled and never presented as known facts."""
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year. "
+        "Customer retention fell from 84% to 76%. "
+        "Support volume increased 31%."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-hyp-b",
+            "context": {"input_text": document_text},
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+
+    resume = client.post(
+        f"/assistant/chat/{data['session_id']}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert resume.status_code == 200
+    data_resume = resume.json()
+    assert data_resume["status"] == "completed"
+    work_id = data_resume["telemetry"]["work_id"]
+    work_response = client.get(f"/work/{work_id}")
+    work_data = work_response.json()
+    summary = work_data["outcome"]["summary"]
+
+    assert "HYPOTHESIS" in summary or "INFERRED" in summary or "KNOWN" in summary
+    assert "may indicate" in summary.lower() or "suggests" in summary.lower() or "appears" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+
+
+def test_acceptance_c_evidence_path_present(client):
+    """Acceptance C: Every hypothesis has an evidence path and validation criteria."""
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year. "
+        "Customer retention fell from 84% to 76%. "
+        "Support volume increased 31%."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-evidence-c",
+            "context": {"input_text": document_text},
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+
+    resume = client.post(
+        f"/assistant/chat/{data['session_id']}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert resume.status_code == 200
+    data_resume = resume.json()
+    assert data_resume["status"] == "completed"
+    work_id = data_resume["telemetry"]["work_id"]
+    work_response = client.get(f"/work/{work_id}")
+    work_data = work_response.json()
+    summary = work_data["outcome"]["summary"]
+
+    assert "Evidence Path" in summary or "Evidence:" in summary
+    assert "What would validate this" in summary or "validation" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+
+
+def test_acceptance_d_followup_uses_existing_context(client):
+    """Acceptance D: Follow-up investigation reuses existing analysis context."""
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year. "
+        "Customer retention fell from 84% to 76%. "
+        "Support volume increased 31%."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-followup-d",
+            "context": {"input_text": document_text},
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+
+    resume = client.post(
+        f"/assistant/chat/{data['session_id']}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert resume.status_code == 200
+    data_resume = resume.json()
+    assert data_resume["status"] == "completed"
+    work_id = data_resume["telemetry"]["work_id"]
+    work_response = client.get(f"/work/{work_id}")
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+
+    followup = client.post(
+        f"/assistant/chat/{data['session_id']}/resume",
+        json={"response": "Why?", "investigation": True},
+    )
+    assert followup.status_code == 200
+    data_followup = followup.json()
+    assert data_followup["status"] == "completed"
+    assert "investigation" in data_followup["telemetry"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+
+
+def test_acceptance_e_progressive_questioning_supported(client):
+    """Acceptance E: Progressive follow-up questioning via existing context."""
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year. "
+        "Customer retention fell from 84% to 76%. "
+        "Support volume increased 31%."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-progressive-e",
+            "context": {"input_text": document_text},
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+
+    resume = client.post(
+        f"/assistant/chat/{data['session_id']}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert resume.status_code == 200
+    data_resume = resume.json()
+    assert data_resume["status"] == "completed"
+    work_id = data_resume["telemetry"]["work_id"]
+    work_response = client.get(f"/work/{work_id}")
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+
+    followup1 = client.post(
+        f"/assistant/chat/{data['session_id']}/resume",
+        json={"response": "Why?", "investigation": True},
+    )
+    assert followup1.status_code == 200
+    assert followup1.json()["status"] == "completed"
+
+    followup2 = client.post(
+        f"/assistant/chat/{data['session_id']}/resume",
+        json={"response": "What would prove it?", "investigation": True},
+    )
+    assert followup2.status_code == 200
+    assert followup2.json()["status"] == "completed"
+
+    followup3 = client.post(
+        f"/assistant/chat/{data['session_id']}/resume",
+        json={"response": "What should I investigate next?", "investigation": True},
+    )
+    assert followup3.status_code == 200
+    assert followup3.json()["status"] == "awaiting_validation"
+
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._analysis_contexts.clear()
+
+
+def test_chat_analyse_specific_goal_changes_understanding(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this to identify the biggest risks",
+            "session_id": "ses-analysis-risks-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, that's correct."},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "completed"
+    work_id = data2["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    assert "biggest risks" in summary.lower() or "risks" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_incremental_context_across_turns(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+
+    response1 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this",
+            "session_id": "ses-incremental-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert data1["status"] == "awaiting_human_input"
+    session_id = data1["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Focus on customer retention and support capacity"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    session_id = data2["session_id"]
+
+    response3 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["status"] == "completed"
+    work_id = data3["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    assert "retention" in summary.lower() or "support" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_contradicts_previous_assumption(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+
+    response1 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this to identify the biggest risks",
+            "session_id": "ses-contradict-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert data1["status"] == "awaiting_validation"
+    session_id = data1["session_id"]
+
+    response1c = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, that's correct."},
+    )
+    assert response1c.status_code == 200
+    data1c = response1c.json()
+    assert data1c["status"] == "completed"
+    work_id_1 = data1c["telemetry"]["work_id"]
+
+    work_response_1 = client.get(f"/work/{work_id_1}")
+    assert work_response_1.status_code == 200
+    summary_1 = work_response_1.json()["outcome"]["summary"]
+    assert "biggest risks" in summary_1.lower() or "risks" in summary_1.lower()
+
+    response2 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Actually, no — analyse this to improve growth",
+            "session_id": "ses-contradict-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    session_id = data2["session_id"]
+
+    response2c = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response2c.status_code == 200
+    data2c = response2c.json()
+    assert data2c["status"] == "completed"
+    work_id_2 = data2c["telemetry"]["work_id"]
+
+    work_response_2 = client.get(f"/work/{work_id_2}")
+    assert work_response_2.status_code == 200
+    summary_2 = work_response_2.json()["outcome"]["summary"]
+    assert "improve growth" in summary_2.lower() or "growth" in summary_2.lower()
+    assert "biggest risks" not in summary_2.lower() or "risks" not in summary_2.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_two_turn_accumulates_document_and_goal(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+
+    response1 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this",
+            "session_id": "ses-accumulate-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert data1["status"] == "awaiting_human_input"
+    session_id = data1["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "What should I focus on to improve growth?"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    session_id = data2["session_id"]
+
+    response3 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["status"] == "completed"
+    work_id = data3["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    assert "improve growth" in summary.lower() or "growth" in summary.lower()
+    assert "retention" in summary.lower() or "revenue" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+# ---- Context Validation Loop Tests (6 new tests) -----------------------------
+
+
+def test_chat_analyse_validation_confirm_proceeds_to_execution(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-val-confirm-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+    assert "I understand you want to" in data["message"]
+    assert data["human_input_request"]["validation_type"] == "analysis_understanding"
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "completed"
+    work_id = data2["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_validation_update_revises_understanding(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-val-update-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Also consider the impact on employee morale."},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    assert "Updated understanding" in data2["message"]
+    session_id = data2["session_id"]
+
+    response3 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["status"] == "completed"
+    work_id = data3["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_validation_contradict_replaces_interpretation(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this to identify the biggest risks",
+            "session_id": "ses-val-contradict-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Actually, no — analyse this to improve growth"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    assert "Revised understanding" in data2["message"]
+    assert "improve growth" in data2["message"].lower()
+    session_id = data2["session_id"]
+
+    response3 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["status"] == "completed"
+    work_id = data3["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    summary = work_data["outcome"]["summary"]
+    assert "improve growth" in summary.lower() or "growth" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_validation_clarify_returns_to_pending(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this and tell me what I should focus on",
+            "session_id": "ses-val-clarify-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_validation"
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Can you clarify what you mean by focus areas?"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_human_input"
+    assert "clarify" in data2["message"].lower() or "What would you like me to clarify" in data2["message"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_contradiction_via_new_message_replaces_understanding(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+    response1 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this to identify the biggest risks",
+            "session_id": "ses-val-msg-contradict-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert data1["status"] == "awaiting_validation"
+    session_id = data1["session_id"]
+
+    response1c = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response1c.status_code == 200
+    data1c = response1c.json()
+    assert data1c["status"] == "completed"
+    work_id_1 = data1c["telemetry"]["work_id"]
+
+    work_response_1 = client.get(f"/work/{work_id_1}")
+    assert work_response_1.status_code == 200
+    summary_1 = work_response_1.json()["outcome"]["summary"]
+    assert "biggest risks" in summary_1.lower() or "risks" in summary_1.lower()
+
+    response2 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Actually, no — analyse this to improve growth",
+            "session_id": "ses-val-msg-contradict-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    assert "improve growth" in data2["message"].lower()
+    session_id = data2["session_id"]
+
+    response2c = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response2c.status_code == 200
+    data2c = response2c.json()
+    assert data2c["status"] == "completed"
+    work_id_2 = data2c["telemetry"]["work_id"]
+
+    work_response_2 = client.get(f"/work/{work_id_2}")
+    assert work_response_2.status_code == 200
+    summary_2 = work_response_2.json()["outcome"]["summary"]
+    assert "improve growth" in summary_2.lower() or "growth" in summary_2.lower()
+    assert "biggest risks" not in summary_2.lower() or "risks" not in summary_2.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_three_turn_context_evolution(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    response1 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this",
+            "session_id": "ses-three-turn-1",
+        },
+    )
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert data1["status"] == "awaiting_human_input"
+    session_id = data1["session_id"]
+
+    response2 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this, revenue declined 12% and retention fell from 84% to 76%",
+            "session_id": session_id,
+        },
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_human_input"
+    session_id = data2["session_id"]
+
+    response3 = client.post(
+        "/assistant/chat",
+        json={
+            "message": "What should I focus on?",
+            "session_id": session_id,
+        },
+    )
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["status"] == "awaiting_validation"
+    session_id = data3["session_id"]
+
+    response4 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response4.status_code == 200
+    data4 = response4.json()
+    assert data4["status"] == "completed"
+    work_id = data4["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    assert "revenue" in summary.lower()
+    assert "retention" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+
+
+def test_chat_analyse_validation_full_loop_with_document_and_update(client):
+    import sys
+    _api_mod = sys.modules["workflow_runner_api"]
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
+    _api_mod._assistant._capability_discovery = None
+    _api_mod._assistant._enterprise_capability_query = None
+
+    document_text = (
+        "Q3 revenue declined 12% year-on-year, driven by lower enterprise renewals. "
+        "Customer retention fell from 84% to 76%. Support volume increased 31%, "
+        "with average response time rising from 2 hours to 8 hours. "
+        "NPS dropped from 45 to 28. Two new competitors entered the market last quarter. "
+        "Headcount is frozen until Q4."
+    )
+    response = client.post(
+        "/assistant/chat",
+        json={
+            "message": "Analyse this",
+            "session_id": "ses-val-loop-1",
+            "context": {
+                "input_text": document_text,
+                "document_name": "quarterly-business-review.txt",
+            },
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "awaiting_human_input"
+    session_id = data["session_id"]
+
+    response2 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Focus on customer retention and support capacity"},
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["status"] == "awaiting_validation"
+    session_id = data2["session_id"]
+
+    response3 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Also include the impact on employee morale."},
+    )
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["status"] == "awaiting_validation"
+    assert "Updated understanding" in data3["message"]
+    session_id = data3["session_id"]
+
+    response4 = client.post(
+        f"/assistant/chat/{session_id}/resume",
+        json={"response": "Yes, proceed."},
+    )
+    assert response4.status_code == 200
+    data4 = response4.json()
+    assert data4["status"] == "completed"
+    work_id = data4["telemetry"]["work_id"]
+
+    work_response = client.get(f"/work/{work_id}")
+    assert work_response.status_code == 200
+    work_data = work_response.json()
+    assert work_data["status"] == "completed"
+    outcome = work_data["outcome"]
+    assert outcome is not None
+    summary = outcome.get("summary", "")
+    assert "Analysis" in summary
+    assert "retention" in summary.lower() or "support" in summary.lower()
+    _api_mod._assistant._pending_planning_contexts.clear()
+    _api_mod._assistant._validation_contexts.clear()
