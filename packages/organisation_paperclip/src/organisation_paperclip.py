@@ -22,6 +22,7 @@ from uuid import uuid4
 
 import httpx
 from contracts.organisational_events import WorkEvent, WorkEventType
+from organisation_control_plane import OrganisationControlPlane
 from role import (
     Agent,
     Assignment,
@@ -48,7 +49,7 @@ class _PaperclipAgentRole(Role):
 
 
 
-class PaperclipOrganisationControlPlane:
+class PaperclipOrganisationControlPlane(OrganisationControlPlane):
     """OrganisationControlPlane implementation backed by Paperclip.
 
     Maps our domain concepts to Paperclip concepts:
@@ -90,8 +91,9 @@ class PaperclipOrganisationControlPlane:
         self._role_cache: dict[str, Role] = {}
         self._work_cache: dict[str, Work] = {}
         self._assignment_cache: dict[str, Assignment] = {}
-        self._event_handler: Callable[[Any], None] | None = None
-        self._signal_handler: Callable[[Any], None] | None = None
+        self._event_handlers: list[Callable[[Any], None]] = []
+        self._signal_handlers: list[Callable[[Any], None]] = []
+        self._processed_event_ids: set[str] = set()
 
     def _headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}
@@ -116,11 +118,11 @@ class PaperclipOrganisationControlPlane:
 
     def on_event(self, handler: Callable[[Any], None]) -> None:
         """Register a handler for operational events."""
-        self._event_handler = handler
+        self._event_handlers.append(handler)
 
     def on_signal(self, handler: Callable[[Any], None]) -> None:
         """Register a handler for organisational signals."""
-        self._signal_handler = handler
+        self._signal_handlers.append(handler)
 
     # ------------------------------------------------------------------
     # OrganisationControlPlane interface
@@ -260,14 +262,36 @@ class PaperclipOrganisationControlPlane:
         """Mark organisational Work as ready for operational execution."""
         work = self.get_work(work_id)
         if work is not None:
-            work.status = WorkStatus.IN_PROGRESS
+            work.status = WorkStatus.READY
             work.updated_at = datetime.now(UTC)
             self._work_cache[work_id] = work
             try:
                 self._request("PATCH", f"/api/issues/{work_id}", json={"status": "in_progress"})
             except PaperclipAdapterError:
                 pass
-            self._emit_work_event(WorkEventType.STARTED, work)
+            self._emit_work_event(WorkEventType.READY, work)
+        return work
+
+    def complete_work(self, work_id: str, outcome: dict[str, Any] | None = None) -> Work | None:
+        """Mark organisational Work as completed with an execution outcome."""
+        work = self.get_work(work_id)
+        if work is not None:
+            work.status = WorkStatus.COMPLETED
+            work.outcome = outcome
+            work.updated_at = datetime.now(UTC)
+            self._work_cache[work_id] = work
+            self._emit_work_event(WorkEventType.COMPLETED, work)
+        return work
+
+    def fail_work(self, work_id: str, outcome: dict[str, Any] | None = None) -> Work | None:
+        """Mark organisational Work as failed with an execution outcome."""
+        work = self.get_work(work_id)
+        if work is not None:
+            work.status = WorkStatus.FAILED
+            work.outcome = outcome
+            work.updated_at = datetime.now(UTC)
+            self._work_cache[work_id] = work
+            self._emit_work_event(WorkEventType.FAILED, work)
         return work
 
     def trigger_execution(self, work_id: str, agent_id: str) -> dict[str, Any] | None:
@@ -315,7 +339,7 @@ class PaperclipOrganisationControlPlane:
                 work.updated_at = datetime.now(UTC)
                 self._work_cache[work_id] = work
 
-                if self._event_handler:
+                if self._event_handlers:
                     event = WorkEvent(
                         event_type=WorkEventType.COMPLETED,
                         organisation_id=self._company_id,
@@ -330,7 +354,7 @@ class PaperclipOrganisationControlPlane:
                         outcome=work.outcome,
                         context=work.context,
                     )
-                    self._event_handler(event)
+                    self.emit_event(event)
                 return work
 
             if run_status in ("failed", "cancelled"):
@@ -344,7 +368,7 @@ class PaperclipOrganisationControlPlane:
                 elif run_status == "failed":
                     self._emit_work_event(WorkEventType.FAILED, work)
 
-                if self._event_handler:
+                if self._event_handlers:
                     event = WorkEvent(
                         event_type=WorkEventType.COMPLETED if run_status == "completed" else WorkEventType.FAILED,
                         organisation_id=self._company_id,
@@ -359,7 +383,7 @@ class PaperclipOrganisationControlPlane:
                         outcome=work.outcome,
                         context=work.context,
                     )
-                    self._event_handler(event)
+                    self.emit_event(event)
                 return work
 
             import time
@@ -405,13 +429,18 @@ class PaperclipOrganisationControlPlane:
 
     def emit_event(self, event: Any) -> None:
         """Emit an operational event through the organisation's event boundary."""
-        if self._event_handler:
-            self._event_handler(event)
+        event_id = getattr(event, "event_id", None)
+        if event_id and event_id in self._processed_event_ids:
+            return
+        if event_id:
+            self._processed_event_ids.add(event_id)
+        for handler in self._event_handlers:
+            handler(event)
 
     def emit_signal(self, signal: Any) -> None:
         """Emit an organisational signal derived from operational events."""
-        if self._signal_handler:
-            self._signal_handler(signal)
+        for handler in self._signal_handlers:
+            handler(signal)
 
     def detect_capacity_pressure(self, capability_id: str) -> Any | None:
         """Detect whether a capability is under sustained demand pressure."""
@@ -545,8 +574,13 @@ class PaperclipOrganisationControlPlane:
             outcome=work.outcome,
             context=work.context,
         )
-        if self._event_handler:
-            self._event_handler(event)
+        event_id = getattr(event, "event_id", None)
+        if event_id and event_id in self._processed_event_ids:
+            return
+        if event_id:
+            self._processed_event_ids.add(event_id)
+        for handler in self._event_handlers:
+            handler(event)
 
     # ------------------------------------------------------------------
     # Mapping helpers

@@ -68,7 +68,7 @@ def test_bau_work_flow_without_ceo_involvement() -> None:
 
     ready = plane.mark_work_ready("w-bau")
     assert ready is not None
-    assert ready.status == WorkStatus.IN_PROGRESS
+    assert ready.status == WorkStatus.READY
     assert work.accountable_role_id == "r-fm"
 
 
@@ -213,7 +213,7 @@ def test_operational_handoff_is_status_transition_not_execution() -> None:
 
     ready = plane.mark_work_ready("w-handoff")
     assert ready is not None
-    assert ready.status == WorkStatus.IN_PROGRESS
+    assert ready.status == WorkStatus.READY
     assert assignment.assignee_id == "r-ops"
 
     assert not hasattr(plane, "execute_work")

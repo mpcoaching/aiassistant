@@ -38,8 +38,16 @@ infrastructure/configs/gitea-runner/data/config.yml
 agentic/docs/workflows/.wf/
 
 # Generated data
-concepts_data/concepts.json
+concepts_data/
 token_economics.json
+
+# Worker outputs
+worker_outputs/
+
+# Test artifacts
+test-results/
+playwright-results.xml
+packages/control-center-ui/test-results/
 
 # Coverage artifacts
 coverage.xml

@@ -23,4 +23,4 @@ if [ -f "$TEMPLATE" ]; then
   ' "$TEMPLATE" "$OUT"
 fi
 
-exec node build/start-server.js --port=4000
+exec node build/start-server.js --port=4000 --config /app/conf.json

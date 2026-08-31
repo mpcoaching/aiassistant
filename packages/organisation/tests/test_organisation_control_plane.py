@@ -179,7 +179,7 @@ def test_strategic_project_accountability_scenario() -> None:
     assert initiative.coordinating_role_id == "r-pm"
 
 
-def test_mark_work_ready_transitions_to_in_progress() -> None:
+def test_mark_work_ready_transitions_to_ready() -> None:
     plane = InMemoryOrganisationControlPlane()
     work = Work(id="w1", title="Task", accountable_role_id="r1")
     plane.register_role(Role(id="r1", name="Operator"))
@@ -188,8 +188,8 @@ def test_mark_work_ready_transitions_to_in_progress() -> None:
 
     ready = plane.mark_work_ready("w1")
     assert ready is not None
-    assert ready.status == WorkStatus.IN_PROGRESS
-    assert plane.get_work("w1").status == WorkStatus.IN_PROGRESS
+    assert ready.status == WorkStatus.READY
+    assert plane.get_work("w1").status == WorkStatus.READY
 
 
 def test_mark_work_ready_missing_work_returns_none() -> None:

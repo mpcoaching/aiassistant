@@ -47,6 +47,7 @@ class OrganisationContext(BaseModel):
 class WorkEventType(str, Enum):
     CREATED = "work.created"
     ASSIGNED = "work.assigned"
+    READY = "work.ready"
     QUEUED = "work.queued"
     STARTED = "work.started"
     COMPLETED = "work.completed"

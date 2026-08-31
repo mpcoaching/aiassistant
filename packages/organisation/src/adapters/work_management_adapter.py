@@ -7,6 +7,8 @@ OrganisationControlPlane, and converts Work back to WorkReference.
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from contracts.work_management import WorkCreateRequest, WorkReference
 
 from organisation_control_plane import OrganisationControlPlane
@@ -18,8 +20,9 @@ class WorkManagementAdapter:
         self._org = org_plane
 
     def create_work(self, request: WorkCreateRequest) -> WorkReference:
+        base_id = f"work-{request.title.lower().replace(' ', '-')[:20]}"
         work = Work(
-            id=f"work-{request.title.lower().replace(' ', '-')[:20]}",
+            id=f"{base_id}-{uuid4().hex[:6]}",
             title=request.title,
             description=request.description,
             work_type=request.work_type,
@@ -28,6 +31,7 @@ class WorkManagementAdapter:
             accountable_role_id=request.accountable_role_id,
             coordinating_role_id=request.coordinating_role_id,
             required_capability_ids=list(request.required_capability_ids),
+            context=request.context or {},
         )
         assignee = self._org.get_role(request.accountable_role_id)
         if assignee is None:
@@ -47,4 +51,8 @@ class WorkManagementAdapter:
         work = self._org.get_work(work_id)
         if work is None:
             return None
-        return WorkReference(work_id=work.id, status=work.status.value)
+        return WorkReference(
+            work_id=work.id,
+            status=work.status.value,
+            outcome=work.outcome,
+        )

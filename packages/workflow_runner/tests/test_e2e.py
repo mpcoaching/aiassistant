@@ -1,5 +1,5 @@
 """
-End-to-end test: Control Center → Workflow Engine → Services → Event Bus.
+Layer 2 — Application Integration test: Control Center → Workflow Engine → Services → Event Bus.
 
 Simulates the full Control Center trigger flow:
 1. Control Center triggers a workflow via POST /workflows/{name}/run

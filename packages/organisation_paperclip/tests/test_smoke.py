@@ -1,13 +1,17 @@
 """
 End-to-end smoke test for the Paperclip-backed Organisation vertical slice.
 
-Proves the complete chain:
-  chat-style work request
-  → Paperclip-backed OrganisationControlPlane
-  → Paperclip Company/Agent/Issue
-  → deterministic test agent execution
-  → HeartbeatRun result
-  → Organisation Work.outcome
+Proves the complete event-driven flow:
+  Organisation creates Work
+  → Work is assigned
+  → Organisation marks Work ready (emits READY event)
+  → Operations receives READY event
+  → Operations selects Paperclip backend
+  → Paperclip adapter triggers execution
+  → Paperclip completes
+  → Operations reports result to Organisation
+  → Organisation emits COMPLETED event
+  → Work.outcome is available through organisational interface
 
 Requires a running Paperclip instance on PAPERCLIP_URL.
 """
@@ -16,11 +20,13 @@ from __future__ import annotations
 
 import os
 import time
+from typing import Any
 
 import pytest
 
 from organisation_paperclip import PaperclipOrganisationControlPlane
 from role import WorkStatus
+from workflow_runner.src.operations import Operations, PaperclipBackend
 
 PAPERCLIP_URL = os.getenv("PAPERCLIP_URL", "http://localhost:3100")
 PAPERCLIP_API_KEY = os.getenv("PAPERCLIP_API_KEY", "")
@@ -37,7 +43,7 @@ def _make_plane(company_id: str) -> PaperclipOrganisationControlPlane:
     )
 
 
-def test_paperclip_end_to_end_smoke():
+def test_paperclip_event_driven_execution():
     plane = _make_plane(PAPERCLIP_COMPANY_ID)
     try:
         company = plane.create_company(f"smoke-company-{int(time.time())}")
@@ -57,6 +63,15 @@ def test_paperclip_end_to_end_smoke():
         )
         assert agent is not None, "Failed to create test agent in Paperclip"
 
+        events: list[Any] = []
+        test_plane.on_event(events.append)
+
+        paperclip_backend = PaperclipBackend(test_plane)
+        Operations(
+            org_plane=test_plane,
+            backends=[paperclip_backend],
+        )
+
         work = test_plane.create_work(
             title="smoke-test-work",
             description="End-to-end smoke test work item",
@@ -70,26 +85,32 @@ def test_paperclip_end_to_end_smoke():
         assert assignment.assignee_id == agent.id
         assert work.assignee_agent_id == agent.id
 
-        result = test_plane.trigger_execution(work.id, agent.id)
-        assert result is not None, "Failed to trigger Paperclip execution"
-        run_id = result["id"]
+        assigned_events = [e for e in events if e.event_type == "work.assigned"]
+        assert len(assigned_events) == 1
+        assert assigned_events[0].work_id == work.id
 
-        work = test_plane.wait_for_execution(work.id, agent.id)
-        assert work is not None, "Work not found after execution"
-        assert work.status == WorkStatus.COMPLETED, f"Expected COMPLETED, got {work.status}"
-        assert work.outcome is not None, "Work outcome is None"
+        ready_work = test_plane.mark_work_ready(work.id)
+        assert ready_work is not None
+        assert ready_work.status in (WorkStatus.READY, WorkStatus.COMPLETED)
 
-        stdout = work.outcome.get("stdout", "") if isinstance(work.outcome, dict) else ""
-        assert "smoke-test-success" in stdout, f"Expected success marker in stdout, got: {stdout}"
+        ready_events = [e for e in events if e.event_type == "work.ready"]
+        assert len(ready_events) == 1
+        assert ready_events[0].work_id == work.id
 
-        run = test_plane.get_heartbeat_run(run_id)
-        assert run is not None, "HeartbeatRun not found"
-        assert run["status"] == "succeeded"
+        time.sleep(2)
+
+        completed_events = [e for e in events if e.event_type == "work.completed"]
+        assert len(completed_events) >= 1, f"Expected completed event, got events: {[(e.event_type, e.work_id) for e in events]}"
+        assert completed_events[0].work_id == work.id
+        assert completed_events[0].outcome is not None
 
         retrieved = test_plane.get_work(work.id)
         assert retrieved is not None
         assert retrieved.status == WorkStatus.COMPLETED
         assert retrieved.outcome is not None
+
+        stdout = retrieved.outcome.get("stdout", "") if isinstance(retrieved.outcome, dict) else ""
+        assert "smoke-test-success" in stdout, f"Expected success marker in stdout, got: {stdout}"
 
         test_plane.close()
     finally:
