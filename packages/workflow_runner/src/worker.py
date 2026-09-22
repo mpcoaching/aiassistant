@@ -116,14 +116,14 @@ class Worker:
         """Develop a new capability from a capability-gap work item."""
         from capability import Capability, CapabilityKind, CapabilityStatus
 
-        capability_id = f"cap-{work.id}"
-        capability_name = work.title.replace("Develop capability: ", "").strip()
+        capability_id = work.develops_capability_id or f"cap-{work.id}"
+        capability_name = work.title.replace("Develop capability: ", "").strip() if work.title.startswith("Develop capability:") else work.title
         capability = Capability(
             id=capability_id,
             name=capability_name,
             description=work.description,
             capability_kind=CapabilityKind.SKILL,
-            status=CapabilityStatus.ACTIVE,
+            status=CapabilityStatus.DRAFT,
             owner=self._agent_id,
             created_by="worker",
             interface={
@@ -132,7 +132,7 @@ class Worker:
             },
         )
 
-        org_plane.register_capability(capability)
+        org_plane.register_capability(capability, work_id=work.id)
 
         if self._capability_registry is not None:
             self._capability_registry.register(capability)

@@ -54,6 +54,8 @@ def create_assistant(
     capability_selection_telemetry: Any | None = None,
     enterprise_capability_query: Any | None = None,
     ai_response: Any | None = None,
+    agent_id: str | None = None,
+    solution_selection: Any | None = None,
 ) -> Any:
     from chat import AssistantChatService
 
@@ -69,14 +71,31 @@ def create_assistant(
         capability_selection_telemetry=capability_selection_telemetry,
         enterprise_capability_query=enterprise_capability_query,
         ai_response=ai_response,
+        agent_id=agent_id,
+        solution_selection=solution_selection,
     )
 
 
+def _create_agent_store() -> Any:
+    """Create an InMemoryAgentStore with the Assistant bootstrapped."""
+    from agent_store import InMemoryAgentStore
+
+    store = InMemoryAgentStore()
+    store.bootstrap_assistant(actor_id="assistant")
+    return store
+
+
 def create_application(capability_selection_telemetry: Any | None = None) -> dict[str, Any]:
-    from adapters.capability_discovery_adapter import CapabilityDiscoveryAdapter
-    from adapters.enterprise_capability_query_adapter import EnterpriseCapabilityQueryAdapter
-    from adapters.organisational_context_adapter import OrganisationalContextAdapter
-    from adapters.work_management_adapter import WorkManagementAdapter
+    from capability_registry.src.adapters.capability_discovery_adapter import (
+        CapabilityDiscoveryAdapter,
+    )
+    from organisation.src.adapters.enterprise_capability_query_adapter import (
+        EnterpriseCapabilityQueryAdapter,
+    )
+    from organisation.src.adapters.organisational_context_adapter import (
+        OrganisationalContextAdapter,
+    )
+    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
     from capability_registry.src.adapters.execution_authorisation_adapter import InMemoryExecutionAuthorisationPort
     from capability_registry.src.capabilities import ConceptKind
     from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
@@ -152,9 +171,20 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     session_factory = SessionFactoryAdapter()
 
     from organisation.src.composition import create_organisation_control_plane
-    org_plane = create_organisation_control_plane()
+    org_plane = create_organisation_control_plane(capability_registry=registry)
     org_context_port: OrganisationalContextPort = OrganisationalContextAdapter(org_plane)
-    work_management_port: WorkManagementPort = WorkManagementAdapter(org_plane)
+
+    agent_store = _create_agent_store()
+    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
+    work_management_port: WorkManagementPort = WorkManagementAdapter(
+        org_plane, agent_store=agent_store
+    )
+    from organisation.src.adapters.solution_selection_adapter import SolutionSelectionAdapter
+    solution_selection_port = SolutionSelectionAdapter(
+        org_plane=org_plane,
+        workflow_lookup=None,
+        capability_query=enterprise_capability_query_port.query_capability,
+    )
     enterprise_capability_query_port: EnterpriseCapabilityQueryPort = EnterpriseCapabilityQueryAdapter(org_plane)
 
     from ai.src.ai_response import AIResponseService
@@ -175,6 +205,8 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
         enterprise_capability_query=enterprise_capability_query_port,
         capability_selection_telemetry=capability_selection_telemetry,
         ai_response=_ai_response,
+        agent_id="assistant",
+        solution_selection=solution_selection_port,
     )
 
     return {

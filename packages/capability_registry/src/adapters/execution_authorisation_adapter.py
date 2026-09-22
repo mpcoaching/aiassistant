@@ -64,11 +64,12 @@ class InMemoryExecutionAuthorisationPort:
         capability_id: str,
     ) -> CapabilityAssignment | None:
         for assignment in self._assignments:
-            if (
-                assignment.capability_id == capability_id
-                and assignment.assignee_type == actor_type
-                and assignment.assignee_id == actor_id
-            ):
+            if assignment.capability_id != capability_id:
+                continue
+            if assignment.actor_id is not None:
+                if assignment.actor_id == actor_id:
+                    return assignment
+            elif assignment.assignee_type == actor_type and assignment.assignee_id == actor_id:
                 return assignment
         return None
 
@@ -79,12 +80,14 @@ class InMemoryExecutionAuthorisationPort:
         capability_id: str,
     ) -> CapabilityProficiency | None:
         for proficiency in self._proficiencies:
-            if (
-                proficiency.capability_id == capability_id
-                and (
-                    (actor_type == "person" and proficiency.person_id == actor_id)
-                    or (actor_type == "agent" and proficiency.agent_id == actor_id)
-                )
+            if proficiency.capability_id != capability_id:
+                continue
+            if proficiency.actor_id is not None:
+                if proficiency.actor_id == actor_id:
+                    return proficiency
+            elif (
+                (actor_type == "person" and proficiency.person_id == actor_id)
+                or (actor_type == "agent" and proficiency.agent_id == actor_id)
             ):
                 return proficiency
         return None

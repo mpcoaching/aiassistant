@@ -658,6 +658,7 @@ _assistant = create_assistant(capability_selection_telemetry=_capability_selecti
 _org_plane = None
 _work_management = None
 _capability_query = None
+_paperclip_assistant = None
 
 try:
     from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
@@ -818,6 +819,28 @@ async def assistant_chat_resume(session_id: str, body: dict[str, Any]) -> _ChatR
         telemetry=response.telemetry,
         execution_outputs=response.execution_outputs,
         execution_artifacts=response.execution_artifacts,
+    )
+
+
+@app.post("/assistant/paperclip-chat", response_model=_ChatResponse)
+async def assistant_paperclip_chat(body: _ChatRequest) -> _ChatResponse:
+    if _paperclip_assistant is None:
+        return _ChatResponse(
+            message="Paperclip Assistant is not configured.",
+            session_id=body.session_id or "error",
+            status="error",
+            reasoning="Paperclip Assistant is not configured",
+        )
+    response = _paperclip_assistant.chat(
+        message=body.message,
+        session_id=body.session_id,
+    )
+    return _ChatResponse(
+        message=response.message,
+        session_id=response.session_id,
+        status=response.status,
+        reasoning=response.reasoning,
+        telemetry=response.telemetry,
     )
 
 

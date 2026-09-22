@@ -28,6 +28,7 @@ class CapabilityProficiency(BaseModel):
 
     id: str
     capability_id: str
+    actor_id: str | None = None
     person_id: str | None = None
     agent_id: str | None = None
     proficiency_level: ProficiencyLevel = ProficiencyLevel.COMPETENT

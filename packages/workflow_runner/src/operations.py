@@ -138,10 +138,13 @@ class Operations:
         self,
         org_plane: Any,
         backends: list[ExecutionBackend] | None = None,
+        capability_registry: Any = None,
     ) -> None:
         self._org_plane = org_plane
         self._backends = backends or []
+        self._capability_registry = capability_registry
         self._processed_work_ids: set[str] = set()
+        self._proficiencies: dict[str, Any] = {}
         org_plane.on_event(self._handle_event)
 
     def _handle_event(self, event: Any) -> None:
@@ -160,6 +163,23 @@ class Operations:
             logger.warning("Work %s not found for execution", work_id)
             return
 
+        if work.work_type == "capability_development":
+            if self._capability_registry is None:
+                self._org_plane.fail_work(work_id, {"error": "capability_registry_not_configured"})
+                return
+            backend = self._select_backend(work)
+            if backend is None:
+                self._org_plane.fail_work(work_id, {"error": "no_execution_backend"})
+                return
+            try:
+                result = backend.execute(work)
+                self._assess_capability_development(work, result)
+                self._org_plane.complete_work(work_id, result)
+            except Exception as exc:
+                logger.exception("Execution failed for work %s: %s", work_id, exc)
+                self._org_plane.fail_work(work_id, {"error": str(exc)})
+            return
+
         backend = self._select_backend(work)
         if backend is None:
             logger.warning(
@@ -173,6 +193,50 @@ class Operations:
         except Exception as exc:
             logger.exception("Execution failed for work %s: %s", work_id, exc)
             self._org_plane.fail_work(work_id, {"error": str(exc)})
+
+    def _assess_capability_development(self, work: Work, execution_result: dict[str, Any]) -> dict[str, Any]:
+        """Assess a capability-development execution result.
+
+        Does not emit capability-development lifecycle events.
+        Records the assessment for proficiency tracking.
+        """
+        from organisation.src.outcome import assess_capability_development
+
+        cap = None
+        if self._capability_registry is not None:
+            cap = self._capability_registry.get(work.develops_capability_id or f"cap-{work.id}")
+        if cap is None:
+            cap = self._org_plane.get_capability(work.develops_capability_id or f"cap-{work.id}")
+
+        assessment = assess_capability_development(work, cap, execution_result)
+
+        if assessment["passed"]:
+            capability_id = assessment.get("capability_id")
+            if capability_id and self._capability_registry is not None:
+                promoted = self._capability_registry.promote(capability_id)
+                self._record_proficiency(work, promoted, assessment)
+
+        return assessment
+
+    def _record_proficiency(self, work: Work, capability: Any, assessment: dict[str, Any]) -> None:
+        """Record a CapabilityProficiency for the actor that developed the capability."""
+        try:
+            from capability_proficiency import CapabilityProficiency, ProficiencyLevel
+        except ImportError:
+            return
+
+        actor_id = work.assignee_actor_id or work.assignee_agent_id or work.assignee_person_id
+        if actor_id is None:
+            return
+
+        prof = CapabilityProficiency(
+            id=f"prof-{actor_id}-{assessment.get('capability_id', '')}-{work.id}",
+            capability_id=assessment.get("capability_id", ""),
+            actor_id=actor_id,
+            proficiency_level=ProficiencyLevel.PROFICIENT,
+            evidence=assessment.get("evidence", []),
+        )
+        self._proficiencies[prof.id] = prof
 
     def _select_backend(self, work: Work) -> ExecutionBackend | None:
         """Select exactly one execution backend for the Work."""

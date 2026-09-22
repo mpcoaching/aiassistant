@@ -8,6 +8,8 @@ class WorkCreateRequest(BaseModel):
     accountable_role_id: str
     coordinating_role_id: str | None = None
     required_capability_ids: list[str] = []
+    develops_capability_id: str | None = None
+    assignee_actor_id: str | None = None
     work_type: str = "bau"
     priority: str = "normal"
     organisation_id: str = "default"

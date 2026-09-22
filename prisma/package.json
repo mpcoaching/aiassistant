@@ -1,0 +1,1 @@
+{"name":"prisma-tests","version":"1.0.0","private":true,"scripts":{"test":"vitest run","test:watch":"vitest","db:validate":"prisma validate","db:migrate":"prisma migrate deploy","db:studio":"prisma studio"},"dependencies":{"@prisma/client":"^6.19.3"},"devDependencies":{"@types/node":"^22.15.22","prisma":"^6.19.3","typescript":"^5.8.3","vitest":"^3.2.4"}}

@@ -79,8 +79,9 @@ class InMemoryOrganisationalContextPort:
 
 
 class InMemoryWorkManagementPort:
-    def __init__(self) -> None:
+    def __init__(self, agent_store: Any = None) -> None:
         self._work: dict[str, Any] = {}
+        self._agent_store = agent_store
 
     def create_work(self, request: Any) -> WorkReference:
         work_id = f"work-{len(self._work) + 1}"

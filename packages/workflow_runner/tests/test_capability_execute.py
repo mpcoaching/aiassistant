@@ -13,6 +13,7 @@ Run:
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +33,7 @@ if str(_ai_tests_fixtures) not in sys.path:
     sys.path.insert(0, str(_ai_tests_fixtures))
 
 _api_path = _packages_root / "workflow_runner" / "api.py"
+os.environ.pop("PAPERCLIP_URL", None)
 _spec = importlib.util.spec_from_file_location("workflow_runner_api", _api_path)
 _api_mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_api_mod)

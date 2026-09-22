@@ -1,0 +1,1 @@
+"""Paperclip-backed OrganisationControlPlane adapter."""

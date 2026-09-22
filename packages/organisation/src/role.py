@@ -112,7 +112,9 @@ class Work(BaseModel):
     assignee_role_id: str | None = None
     assignee_person_id: str | None = None
     assignee_agent_id: str | None = None
+    assignee_actor_id: str | None = None
     required_capability_ids: list[str] = Field(default_factory=list)
+    develops_capability_id: str | None = None
     acceptance_criteria: list[str] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
     parent_work_id: str | None = None

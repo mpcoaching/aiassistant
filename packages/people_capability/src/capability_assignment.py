@@ -34,6 +34,7 @@ class CapabilityAssignment(BaseModel):
 
     id: str
     capability_id: str
+    actor_id: str | None = None
     assignee_type: str  # "person" | "agent"
     assignee_id: str
     assignment_type: AssignmentType = AssignmentType.PRIMARY

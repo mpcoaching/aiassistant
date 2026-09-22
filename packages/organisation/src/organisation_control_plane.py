@@ -36,6 +36,7 @@ from role import (
     Work,
     WorkStatus,
 )
+from actor import Actor, ActorType
 from contracts.organisational_events import WorkEventType
 
 
@@ -140,7 +141,7 @@ class OrganisationControlPlane(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def register_capability(self, capability: Any) -> None:
+    def register_capability(self, capability: Any, work_id: str | None = None) -> None:
         """Register a capability in the organisational capability store.
 
         This is used for capability development: when a worker develops
@@ -152,6 +153,38 @@ class OrganisationControlPlane(ABC):
     @abstractmethod
     def get_capability(self, capability_id: str) -> Any | None:
         """Retrieve a registered capability by ID."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def select_execution_path(
+        self,
+        intent: str,
+        context: dict[str, Any],
+        capability_query: Any = None,
+        workflow_lookup: Any = None,
+    ) -> Any:
+        """Select the organisational execution path for a request.
+
+        Decision hierarchy:
+        1. Existing workflow → EXISTING_WORKFLOW
+        2. Capability available → CAPABILITY_PATH
+        3. Capability exists but unavailable → HUMAN_TEAM_INVESTIGATION
+        4. Capability gap → NEW_CAPABILITY_REQUIRED
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def execute_organisational_change(
+        self,
+        work: Work,
+        actor: Any,
+        capability_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Execute an organisational change (e.g. capability assignment).
+
+        Checks authority delegation before applying changes. Returns a
+        result dict with status and details.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -192,13 +225,14 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
     Does NOT execute operational work or invoke runtimes.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, capability_registry: Any = None) -> None:
         self._roles: dict[str, Role] = {}
         self._authorities: dict[str, Authority] = {}
         self._work: dict[str, Work] = {}
         self._assignments: dict[str, Assignment] = {}
         self._delegations: dict[str, Delegation] = {}
         self._capabilities: dict[str, Any] = {}
+        self._capability_registry = capability_registry
         self._event_handlers: list[Any] = []
         self._signal_handlers: list[Any] = []
         self._processed_event_ids: set[str] = set()
@@ -228,7 +262,7 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
         )
 
     def assign_work(
-        self, work: Work, assignee: Role | Person | Agent
+        self, work: Work, assignee: Role | Person | Agent | Actor
     ) -> Assignment:
         if isinstance(assignee, Role):
             work.assignee_role_id = assignee.id
@@ -236,6 +270,12 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
             work.assignee_person_id = assignee.id
         elif isinstance(assignee, Agent):
             work.assignee_agent_id = assignee.id
+        elif isinstance(assignee, Actor):
+            work.assignee_actor_id = assignee.id
+            if assignee.actor_type == ActorType.AGENT:
+                work.assignee_agent_id = assignee.reference_id
+            elif assignee.actor_type == ActorType.PERSON:
+                work.assignee_person_id = assignee.reference_id
         work.status = WorkStatus.ASSIGNED
         work.updated_at = datetime.now(UTC)
         self._work[work.id] = work
@@ -359,9 +399,12 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
             "reason": "Capability is available",
         }
 
-    def register_capability(self, capability: Any) -> None:
+    def register_capability(self, capability: Any, work_id: str | None = None) -> None:
         """Register a capability in the organisational capability store."""
-        self._capabilities[capability.id] = capability
+        if self._capability_registry is not None:
+            self._capability_registry.register(capability)
+        else:
+            self._capabilities[capability.id] = capability
         from contracts.organisational_events import CapabilityEvent
         event = CapabilityEvent(
             event_type="capability.registered",
@@ -370,11 +413,14 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
             capability_name=getattr(capability, "name", capability.id),
             capability_kind=getattr(getattr(capability, "capability_kind", None), "value", "skill"),
             status=getattr(getattr(capability, "status", None), "value", "active"),
+            work_id=work_id,
         )
         self._emit(event)
 
     def get_capability(self, capability_id: str) -> Any | None:
         """Retrieve a registered capability by ID."""
+        if self._capability_registry is not None:
+            return self._capability_registry.get(capability_id)
         return self._capabilities.get(capability_id)
 
     def on_event(self, handler: Any) -> None:
@@ -449,6 +495,7 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
             work_type=work.work_type,
             assignee_role_id=work.assignee_role_id,
             assignee_agent_id=work.assignee_agent_id,
+            assignee_actor_id=work.assignee_actor_id,
             required_capability_ids=list(work.required_capability_ids),
             status=work.status.value,
             priority=work.priority,
@@ -456,3 +503,202 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
             context=work.context,
         )
         self._emit(event)
+
+    def select_execution_path(
+        self,
+        intent: str,
+        context: dict[str, Any],
+        capability_query: Any = None,
+        workflow_lookup: Any = None,
+    ) -> Any:
+        """Select the organisational execution path for a request.
+
+        Decision hierarchy:
+        1. Existing workflow → EXISTING_WORKFLOW
+        2. Capability available → CAPABILITY_PATH
+        3. Capability exists but unavailable → HUMAN_TEAM_INVESTIGATION
+        4. Capability gap → NEW_CAPABILITY_REQUIRED
+
+        When required_capability_ids is non-empty and a specific capability
+        is identified as missing, that capability_id is preserved on the
+        ExecutionPathResult so it can flow through to Work.develops_capability_id.
+        """
+        from execution_path import ExecutionPath, ExecutionPathResult
+
+        required_ids: list[str] = list(context.get("required_capability_ids", []) or [])
+        candidate_capabilities: list[dict[str, Any]] = context.get("candidate_capabilities", []) or []
+        candidate_ids: list[str] = [c.get("id") for c in candidate_capabilities if c.get("id")]
+
+        all_ids = list(required_ids)
+
+        if workflow_lookup is not None:
+            try:
+                workflows = workflow_lookup(intent)
+            except TypeError:
+                workflows = workflow_lookup(intent, context=context)
+            if workflows:
+                return ExecutionPathResult(
+                    path=ExecutionPath.EXISTING_WORKFLOW,
+                    workflow=workflows[0],
+                    capability_id=None,
+                    reason="Matching workflow found",
+                )
+
+        unavailable_id: str | None = None
+
+        for cap_id in all_ids:
+            cap = self.get_capability(cap_id)
+            avail = capability_query(cap_id) if capability_query is not None else None
+
+            if cap is not None:
+                if avail is None or getattr(avail, "available", True) is not False:
+                    return ExecutionPathResult(
+                        path=ExecutionPath.CAPABILITY_PATH,
+                        capability_id=cap_id,
+                        reason="Capability is available",
+                    )
+                unavailable_id = cap_id
+            else:
+                if avail is None:
+                    return ExecutionPathResult(
+                        path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
+                        capability_id=cap_id,
+                        reason="Required capability not found in registry and not known to operational layer",
+                    )
+                if getattr(avail, "available", True):
+                    return ExecutionPathResult(
+                        path=ExecutionPath.CAPABILITY_PATH,
+                        capability_id=cap_id,
+                        reason="Capability is available via operational layer",
+                    )
+                return ExecutionPathResult(
+                    path=ExecutionPath.HUMAN_TEAM_INVESTIGATION,
+                    capability_id=cap_id,
+                    reason="Capability exists but is unavailable",
+                )
+
+        for cand_id in candidate_ids:
+            cap = self.get_capability(cand_id)
+            avail = capability_query(cand_id) if capability_query is not None else None
+
+            if cap is not None:
+                if avail is None or getattr(avail, "available", True) is not False:
+                    return ExecutionPathResult(
+                        path=ExecutionPath.CAPABILITY_PATH,
+                        capability_id=cand_id,
+                        reason="Capability is available",
+                    )
+                if unavailable_id is None:
+                    unavailable_id = cand_id
+            else:
+                if avail is None:
+                    return ExecutionPathResult(
+                        path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
+                        capability_id=cand_id,
+                        reason="Candidate capability not found in registry",
+                    )
+                if getattr(avail, "available", True):
+                    return ExecutionPathResult(
+                        path=ExecutionPath.CAPABILITY_PATH,
+                        capability_id=cand_id,
+                        reason="Capability is available via operational layer",
+                    )
+                if unavailable_id is None:
+                    unavailable_id = cand_id
+                else:
+                    return ExecutionPathResult(
+                        path=ExecutionPath.HUMAN_TEAM_INVESTIGATION,
+                        capability_id=cand_id,
+                        reason="Multiple capabilities exist but are unavailable",
+                    )
+
+        if unavailable_id is not None:
+            return ExecutionPathResult(
+                path=ExecutionPath.HUMAN_TEAM_INVESTIGATION,
+                capability_id=unavailable_id,
+                reason="Capability exists but is unavailable",
+            )
+
+        if required_ids:
+            return ExecutionPathResult(
+                path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
+                capability_id=required_ids[0],
+                reason="Required capability not found in registry",
+            )
+
+        if candidate_ids:
+            return ExecutionPathResult(
+                path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
+                capability_id=candidate_ids[0],
+                reason="Candidate capability not found in registry",
+            )
+
+        return ExecutionPathResult(
+            path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
+            capability_id=None,
+            reason="No matching workflow or capability found",
+        )
+
+    def execute_organisational_change(
+        self,
+        work: Work,
+        actor: Any,
+        capability_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Execute an organisational change (e.g. capability assignment).
+
+        Checks whether the actor's role has the authority to make
+        organisational changes before applying them.
+        """
+        from role import Authority, Delegation
+
+        actor_id = getattr(actor, "id", None) or str(actor)
+        actor_role_ids: list[str] = []
+        if hasattr(actor, "fulfilled_role_ids"):
+            actor_role_ids = list(actor.fulfilled_role_ids)
+        elif hasattr(actor, "role_ids"):
+            actor_role_ids = list(actor.role_ids)
+
+        authority_checked = False
+        authorised = False
+
+        for role_id in actor_role_ids:
+            role = self._roles.get(role_id)
+            if role is None:
+                continue
+            authority_checked = True
+            for auth_id in role.authority_ids:
+                auth = self._authorities.get(auth_id)
+                if auth is None:
+                    continue
+                for delegation in self._delegations.values():
+                    if (
+                        delegation.authority_id == auth_id
+                        and delegation.from_role_id == auth.grantor_role_id
+                        and delegation.to_role_id == role_id
+                    ):
+                        authorised = True
+                        break
+                if authorised:
+                    break
+            if authorised:
+                break
+
+        if not authorised:
+            return {
+                "status": "unauthorised",
+                "authority_checked": authority_checked,
+                "assignee_actor_id": actor_id,
+            }
+
+        self._work[work.id] = work
+        work.assignee_actor_id = actor_id
+        work.status = WorkStatus.ASSIGNED
+        work.updated_at = datetime.now(UTC)
+
+        return {
+            "status": "executed",
+            "authority_checked": authority_checked,
+            "assignee_actor_id": actor_id,
+            "capability_ids": capability_ids or [],
+        }

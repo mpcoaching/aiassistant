@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PRISMA_DATABASE_URL")
+}
+
+model Funnel {
+  id          String       @id
+  name        String
+  slug        String       @unique
+  description String?
+  steps       FunnelStep[]
+  leads       Lead[]
+  createdAt   DateTime     @default(now()) @map("createdAt")
+  updatedAt   DateTime     @updatedAt @map("updatedAt")
+
+  @@map("Funnel")
+}
+
+model FunnelStep {
+  id        String   @id
+  name      String
+  order     Int
+  funnelId  String
+  funnel    Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  @@unique([funnelId, order])
+  @@map("FunnelStep")
+}
+
+model Lead {
+  id        String   @id
+  email     String   @unique
+  firstName String?
+  lastName  String?
+  company   String?
+  source    String?
+  funnelId  String?
+  funnel    Funnel?  @relation(fields: [funnelId], references: [id], onDelete: SetNull)
+  status    String   @default("new")
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  @@map("Lead")
+}
