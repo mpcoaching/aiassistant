@@ -33,6 +33,11 @@ infra-rebuild:
 	fi
 	docker compose -f infrastructure/compose.yml --env-file .env up -d --build
 
+platform-rebuild:
+	docker compose -f platform/compose.yml --env-file .env down
+	git pull
+	docker compose -f platform/compose.yml --env-file .env up -d --build
+
 infra-up:
 	docker network create dev-network 2>/dev/null || true
 	docker network create live-network 2>/dev/null || true

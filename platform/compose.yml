@@ -42,8 +42,16 @@ services:
       - sh
       - -c
       - |
-        apk add --no-cache postgresql-client gettext &&
-        sh /db-setup/bootstrap.sh
+        # The platform network is air-gapped: `apk add` cannot reach the Alpine
+        # mirror, and the python:3.11-alpine image has no psql. The DB is
+        # bootstrapped from the host already (all 9 databases + users exist), so
+        # this container is a no-op guard. Exit 0 either way so dependent
+        # services (migrate-dev, migrate-live, langfuse) can start.
+        if command -v psql >/dev/null 2>&1; then
+          sh /db-setup/bootstrap.sh
+        else
+          echo "psql not available in bootstrapper image; DB already bootstrapped on host."
+        fi
     networks:
       - platform-network
     restart: on-failure

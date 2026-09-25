@@ -3,10 +3,10 @@ local.test:53 {
     log
     errors
     hosts {
-        172.20.0.4 gitea.local.test
+        192.168.1.238 gitea.local.test
         192.168.1.238 registry.local.test
-        172.20.0.4 woodpecker.local.test
-        192.168.1.238 woodpecker-grpc.local.test
+        192.168.1.238 woodpecker.local.test
+        172.19.0.7 woodpecker-grpc.local.test
         192.168.1.238 oo.local.test
         192.168.1.238 otel.local.test
         192.168.1.238 qdrant.local.test

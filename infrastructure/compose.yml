@@ -212,6 +212,9 @@ services:
       - WOODPECKER_BACKEND_DOCKER_VOLUMES=/var/run/docker.sock:/var/run/docker.sock
     dns:
       - 192.168.1.238
+    extra_hosts:
+      - "gitea.local.test:192.168.1.238"
+      - "woodpecker.local.test:192.168.1.238"
     networks:
       - infrastructure-network
     restart: unless-stopped
