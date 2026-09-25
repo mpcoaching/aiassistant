@@ -13,6 +13,9 @@ name: platform
 services:
   postgres:
     image: postgres:16
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: unless-stopped
     env_file:
       - ../.env
@@ -136,6 +139,9 @@ services:
   # Image pinned (immutability, ADR-006) — update digest on promotion.
   portkey:
     image: portkeyai/gateway:1.15.2
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     expose:
       - 4000
       - 8787
@@ -153,6 +159,7 @@ services:
       - EXPERIMENTAL_GEN_AI_OTEL_TRACES_ENABLED=true
       - EXPERIMENTAL_GEN_AI_OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - EXPERIMENTAL_GEN_AI_OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - TRUSTED_CUSTOM_HOSTS=192.168.1.68,localhost,127.0.0.1,host.docker.internal
     # entrypoint expands ${VAR} placeholders in the conf template from the
     # environment (../.env) and writes /app/conf.json before starting Portkey.
     entrypoint: ["/app/entrypoint.sh"]
@@ -314,7 +321,8 @@ services:
 
   n8n:
     image: n8nio/n8n:latest
-    profiles: ["disabled"]
+    ports:
+      - "${N8N_PORT}:5678"
     environment:
       - N8N_HOST=${N8N_HOST}
       - N8N_PORT=${N8N_PORT}

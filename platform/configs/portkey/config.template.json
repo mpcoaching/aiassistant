@@ -3,6 +3,21 @@
   "cache": false,
   "integrations": [
     {
+      "provider": "openai",
+      "slug": "ollama-local",
+      "credentials": {
+        "apiKey": "ollama"
+      },
+      "base_url": "http://192.168.1.68:11434/v1",
+      "models": [
+        { "slug": "qwen2.5-coder:7b", "status": "active" },
+        { "slug": "qwen2.5:1.5b", "status": "active" },
+        { "slug": "llama3.1:8b", "status": "active" },
+        { "slug": "qwen2.5:7b", "status": "active" },
+        { "slug": "deepseek-r1:8b", "status": "active" }
+      ]
+    },
+    {
       "provider": "groq",
       "slug": "groq-cloud",
       "credentials": {
@@ -50,20 +65,6 @@
         { "slug": "gemini-2.5-flash", "status": "active" },
         { "slug": "gemini-2.5-pro", "status": "active" }
       ]
-    },
-    {
-      "provider": "openai",
-      "slug": "model-runner-local",
-      "credentials": {
-        "apiKey": "DUMMY"
-      },
-      "base_url": "${AI_PROVIDER_BASE_URL}",
-      "models": [
-        { "slug": "coding-local", "status": "active" },
-        { "slug": "qwen2.5-coder-7b-instruct", "status": "active" },
-        { "slug": "gemma-3-4b-it", "status": "active" },
-        { "slug": "deepseek-coder-v2-lite-instruct", "status": "active" }
-      ]
     }
   ],
   "defaultConfig": {
@@ -72,14 +73,15 @@
     "request_timeout": 30000,
     "targets": [
       {
+        "provider": "openai",
+        "api_key": "ollama",
+        "custom_host": "http://192.168.1.68:11434/v1",
+        "override_params": { "model": "qwen2.5-coder:7b" }
+      },
+      {
         "provider": "groq",
         "api_key": "${GROQ_API_KEY}",
         "override_params": { "model": "qwen/qwen3.8-27b" }
-      },
-      {
-        "provider": "openai",
-        "api_key": "${GEMINI_API_KEY}",
-        "override_params": { "model": "gemini-2.5-flash" }
       },
       {
         "provider": "openai",
@@ -93,8 +95,8 @@
       },
       {
         "provider": "openai",
-        "api_key": "DUMMY",
-        "override_params": { "model": "coding-local" }
+        "api_key": "${GEMINI_API_KEY}",
+        "override_params": { "model": "gemini-2.5-flash" }
       }
     ]
   }
