@@ -30,16 +30,14 @@ services:
       timeout: 5s
       retries: 5
 
-  # ----- DNS: CoreDNS — resolves *.local.test for Docker network containers AND external clients -----
-  # Exposed on host port 53 so Fedora/laptop can query it for *.local.test resolution.
-  # Forwards non-*.local.test queries to public DNS (1.1.1.1).
+  # ----- DNS: internal only — resolves *.local.test for Docker network containers -----
+  # Not exposed on host port 53 (dnsmasq may be running on host; binding fails).
+  # Docker's built-in DNS (127.0.0.11) handles inter-container service discovery.
+  # CoreDNS is only for *.local.test FQDN resolution within infrastructure-network.
   core_dns:
     image: coredns/coredns:1.11.1
     container_name: infra_dns
     command: -conf /etc/coredns/Corefile
-    ports:
-      - "53:53/tcp"
-      - "53:53/udp"
     volumes:
       - ./configs/coredns/Corefile:/etc/coredns/Corefile:ro
     networks:
@@ -198,7 +196,6 @@ services:
     container_name: infra_woodpecker_server
     ports:
       - "8000:8000"
-      - "9000:9000"
     volumes:
       - woodpecker-server-data:/var/lib/woodpecker
     environment:
@@ -215,6 +212,9 @@ services:
       - WOODPECKER_BACKEND_DOCKER_VOLUMES=/var/run/docker.sock:/var/run/docker.sock
     dns:
       - 192.168.1.238
+    extra_hosts:
+      - "gitea.local.test:192.168.1.238"
+      - "woodpecker.local.test:192.168.1.238"
     networks:
       - infrastructure-network
     restart: unless-stopped
