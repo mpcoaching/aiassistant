@@ -1,0 +1,7 @@
+{
+  "auths": {
+    "registry.local.test": {
+      "auth": "cmVnaXN0cnlfdXNlcjpyZWdpc3RyMzNQYXNzdzAwcmQ="
+    }
+  }
+}

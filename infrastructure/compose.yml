@@ -53,7 +53,7 @@ services:
       - GITEA__server__ROOT_URL=https://gitea.local.test/
       - GITEA__server__SSH_DOMAIN=gitea.local.test
       - GITEA__service__DISABLE_REGISTRATION=false
-      - GITEA__security__ALLOWED_HOST_LIST=woodpecker.local.test
+      - GITEA__security__ALLOWED_HOST_LIST=woodpecker.local.test,infra_woodpecker_server:8000,127.0.0.1
       - GITEA__security__SKIP_VERIFY=true
     restart: unless-stopped
     extra_hosts:
