@@ -16,13 +16,8 @@ from role import Work
 
 
 class WorkManagementAdapter:
-    def __init__(
-        self,
-        org_plane: OrganisationControlPlane,
-        agent_store: object | None = None,
-    ) -> None:
+    def __init__(self, org_plane: OrganisationControlPlane) -> None:
         self._org = org_plane
-        self._agent_store = agent_store
 
     def create_work(self, request: WorkCreateRequest) -> WorkReference:
         base_id = f"work-{request.title.lower().replace(' ', '-')[:20]}"
@@ -36,32 +31,13 @@ class WorkManagementAdapter:
             accountable_role_id=request.accountable_role_id,
             coordinating_role_id=request.coordinating_role_id,
             required_capability_ids=list(request.required_capability_ids),
-            develops_capability_id=request.develops_capability_id,
             context=request.context or {},
         )
-
-        assignee = None
-        if request.assignee_actor_id:
-            if self._agent_store is None:
-                raise ValueError(
-                    "agent_store is not available — cannot resolve assignee_actor_id "
-                    f"{request.assignee_actor_id!r}. An AgentStore is required to assign work by actor."
-                )
-            actor = self._agent_store.get_actor(request.assignee_actor_id)
-            if actor is None:
-                raise ValueError(
-                    f"Cannot assign work to actor {request.assignee_actor_id!r}: "
-                    "actor not found in AgentStore"
-                )
-            assignee = actor
-            work.assignee_actor_id = request.assignee_actor_id
-
+        assignee = self._org.get_role(request.accountable_role_id)
         if assignee is None:
-            assignee = self._org.get_role(request.accountable_role_id)
-            if assignee is None:
-                assignee = self._org.get_role("default")
-            if assignee is None:
-                assignee = type("Role", (), {"id": request.accountable_role_id})()
+            assignee = self._org.get_role("default")
+        if assignee is None:
+            assignee = type("Role", (), {"id": request.accountable_role_id})()
         self._org.assign_work(work, assignee)
         return WorkReference(work_id=work.id, status=work.status.value)
 

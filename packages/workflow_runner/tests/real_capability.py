@@ -5,8 +5,6 @@ invoke through CapabilityExecutionPort to prove the real end-to-end path:
   User → Chat → Assistant (inside Organisation) → Organisation Control Plane → Worker → CapabilityExecutionPort → Capability → Result
 """
 
-from typing import Any
-
 
 def run(context: dict[str, Any]) -> dict[str, Any]:
     """Execute the capability.

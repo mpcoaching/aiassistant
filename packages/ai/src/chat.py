@@ -803,8 +803,6 @@ class AssistantChatService:
         capability_selection_telemetry: Any | None = None,
         enterprise_capability_query: EnterpriseCapabilityQueryPort | None = None,
         ai_response: AIResponseService | None = None,
-        agent_id: str | None = None,
-        solution_selection: Any | None = None,
     ) -> None:
         self._reasoning = reasoning_service or AssistantReasoningService()
         self._capability_discovery = capability_discovery
@@ -819,8 +817,6 @@ class AssistantChatService:
         self._capability_selection_telemetry = capability_selection_telemetry
         self._enterprise_capability_query = enterprise_capability_query
         self._ai_response = ai_response
-        self._agent_id = agent_id
-        self._solution_selection = solution_selection
         self._pending_planning_contexts: dict[str, dict[str, Any]] = {}
         self._analysis_contexts: dict[str, dict[str, Any]] = {}
         self._validation_contexts: dict[str, dict[str, Any]] = {}
@@ -868,34 +864,6 @@ class AssistantChatService:
             if isinstance(action, AskUserToSelect):
                 return self._capability_selection_response(intent, frame, action.candidates, action.interaction, session_id)
             # NoCapabilityMatch falls through to pattern execution
-
-        if (
-            self._solution_selection is not None
-            and self._work_management is not None
-        ):
-            try:
-                path_result = self._solution_selection.select_execution_path(
-                    intent=request.message,
-                    context={"required_capability_ids": []},
-                )
-            except TypeError:
-                path_result = self._solution_selection.select_execution_path(
-                    intent=request.message,
-                )
-            if path_result is not None:
-                path_str = (
-                    path_result.path.value
-                    if hasattr(path_result.path, "value")
-                    else path_result.path
-                )
-                if path_str == "new_capability_required":
-                    return self._handle_new_capability_required_response(
-                        path_result, intent, frame, session_id
-                    )
-                elif path_str == "human_team_investigation":
-                    return self._handle_human_team_investigation_response(
-                        path_result, intent, frame, session_id
-                    )
 
         if self._ai_response is not None and self._is_clearly_conversational(request.message):
             actionable_response = self._check_actionable_intent(request, session_id, frame)
@@ -1712,7 +1680,6 @@ class AssistantChatService:
                 organisation_id="default",
                 required_capability_ids=required_capability_ids or [],
                 context=work_context,
-                assignee_actor_id=self._agent_id,
             )
         )
         self._work_management.mark_ready(work_ref.work_id)
@@ -1877,9 +1844,7 @@ class AssistantChatService:
                     work_type="capability_development",
                     priority="normal",
                     organisation_id="default",
-                     required_capability_ids=[],
-                     develops_capability_id=candidate.id,
-                     assignee_actor_id=self._agent_id,
+                    required_capability_ids=[],
                 )
             )
 
@@ -1908,122 +1873,6 @@ class AssistantChatService:
                 "capability_id": candidate.id,
                 "capability_name": candidate.name,
                 "gap": True,
-                "work_created": work_ref is not None,
-                "work_id": work_ref.work_id if work_ref else None,
-            },
-        )
-
-    def _handle_new_capability_required_response(
-        self,
-        path_result: Any,
-        intent: Intent,
-        frame: ProblemFrame,
-        session_id: str,
-    ) -> ChatResponse:
-        """Handle NEW_CAPABILITY_REQUIRED: create capability-development Work
-        with develops_capability_id from path_result.capability_id.
-        """
-        capability_id = getattr(path_result, "capability_id", None)
-        work_ref = None
-        if self._work_management is not None:
-            request_text = intent.raw.get("text", "")
-            title = f"Develop capability: {capability_id or 'Unknown'}"
-            if capability_id:
-                title = f"Develop capability: {capability_id}"
-            work_ref = self._work_management.create_work(
-                WorkCreateRequest(
-                    title=title,
-                    description=(
-                        f"Capability development work generated from "
-                        f"new_capability_required path.\n"
-                        f"Intent: {request_text}\n"
-                        f"Capability ID: {capability_id or 'anonymous'}"
-                    ),
-                    accountable_role_id="default",
-                    work_type="capability_development",
-                    priority="normal",
-                    organisation_id="default",
-                    required_capability_ids=[],
-                    develops_capability_id=capability_id,
-                    assignee_actor_id=self._agent_id,
-                    context={},
-                )
-            )
-            self._work_management.mark_ready(work_ref.work_id)
-
-        return ChatResponse(
-            message=(
-                "The enterprise does not currently have the capability for this request"
-                + (f" ({capability_id})" if capability_id else "")
-                + ". "
-                + ("I've initiated work to develop this capability "
-                   f"(Work ID: {work_ref.work_id})." if work_ref else "No work management available.")
-            ),
-            session_id=session_id,
-            status="capability_gap",
-            reasoning=(
-                f"New capability required: {capability_id or 'anonymous'}. "
-                f"Capability development work created."
-                if work_ref
-                else f"New capability required: {capability_id or 'anonymous'}."
-            ),
-            telemetry={
-                "recognition_level": frame.recognition_level.value,
-                "capability_id": capability_id,
-                "gap": True,
-                "work_created": work_ref is not None,
-                "work_id": work_ref.work_id if work_ref else None,
-            },
-        )
-
-    def _handle_human_team_investigation_response(
-        self,
-        path_result: Any,
-        intent: Intent,
-        frame: ProblemFrame,
-        session_id: str,
-    ) -> ChatResponse:
-        """Handle HUMAN_TEAM_INVESTIGATION: create Work with the
-        capability_id in required_capability_ids (not develops_capability_id).
-        """
-        capability_id = getattr(path_result, "capability_id", None)
-        work_ref = None
-        if self._work_management is not None:
-            request_text = intent.raw.get("text", "")
-            work_ref = self._work_management.create_work(
-                WorkCreateRequest(
-                    title="Human team investigation",
-                    description=(
-                        f"Human team investigation requested for: {request_text}\n"
-                        f"Capability ID: {capability_id or 'unknown'}"
-                    ),
-                    accountable_role_id="default",
-                    work_type="bau",
-                    priority="normal",
-                    organisation_id="default",
-                    required_capability_ids=[capability_id] if capability_id else [],
-                    assignee_actor_id=self._agent_id,
-                    context={},
-                )
-            )
-            self._work_management.mark_ready(work_ref.work_id)
-
-        return ChatResponse(
-            message=(
-                "This requires human team investigation"
-                + (f" for capability {capability_id}." if capability_id else ".")
-            ),
-            session_id=session_id,
-            status="human_team_investigation",
-            reasoning=(
-                f"Human team investigation required: {capability_id or 'unknown'}. "
-                f"Work created."
-                if work_ref
-                else f"Human team investigation required: {capability_id or 'unknown'}."
-            ),
-            telemetry={
-                "recognition_level": frame.recognition_level.value,
-                "capability_id": capability_id,
                 "work_created": work_ref is not None,
                 "work_id": work_ref.work_id if work_ref else None,
             },

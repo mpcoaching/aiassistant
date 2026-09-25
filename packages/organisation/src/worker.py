@@ -21,13 +21,13 @@ Design constraints:
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from contracts.capability_execution import CapabilityExecutionPort, ExecutionResult
-
 from role import Agent, Work, WorkStatus
+from contracts.capability_execution import CapabilityExecutionPort, ExecutionResult
 
 
 class Worker:
@@ -60,8 +60,9 @@ class Worker:
             if work.status in (
                 WorkStatus.PENDING,
                 WorkStatus.ASSIGNED,
-            ) and (work.assignee_agent_id == self._agent_id or work.assignee_agent_id is None):
-                return work
+            ):
+                if work.assignee_agent_id == self._agent_id or work.assignee_agent_id is None:
+                    return work
         return None
 
     def execute(self, work: Work, org_plane: Any) -> dict[str, Any]:
@@ -94,7 +95,7 @@ class Worker:
             work.updated_at = datetime.now(UTC)
             org_plane._work[work.id] = work
             return result
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             work.status = WorkStatus.FAILED
             work.outcome = {
                 "status": "failed",

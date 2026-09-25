@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 
 
-def create_organisation_control_plane(capability_registry=None):
+def create_organisation_control_plane():
     """Create the Organisation control plane based on deployment configuration.
 
     If PAPERCLIP_URL is set, creates a Paperclip-backed control plane.
@@ -30,6 +30,6 @@ def create_organisation_control_plane(capability_registry=None):
         )
     from organisation_control_plane import InMemoryOrganisationControlPlane
     from role import Role
-    plane = InMemoryOrganisationControlPlane(capability_registry=capability_registry)
+    plane = InMemoryOrganisationControlPlane()
     plane.register_role(Role(id="researcher", name="Researcher", authority_ids=[]))
     return plane

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime, timezone
 
-from contracts.organisational_context import OrganisationalContext
+import pytest
+
 from contracts.organisational_events import (
     AgentEvent,
     AgentEventType,
@@ -12,12 +13,14 @@ from contracts.organisational_events import (
     CapabilityEvent,
     CapabilityEventType,
     CapacityPressureSignal,
+    OrganisationalSignal,
     WorkEvent,
     WorkEventType,
     WorkSLARiskSignal,
 )
-
+from contracts.organisational_context import OrganisationalContext
 from role import Work, WorkStatus
+
 
 # ---- OrganisationalContext --------------------------------------------------
 
@@ -201,8 +204,7 @@ class TestOrganisationEventEmission:
         from organisation.src.organisation_control_plane import (
             InMemoryOrganisationControlPlane,
         )
-
-        from role import Role
+        from role import Role, Work, WorkStatus
 
         events: list[Any] = []
         org = InMemoryOrganisationControlPlane()
@@ -225,8 +227,7 @@ class TestOrganisationEventEmission:
         from organisation.src.organisation_control_plane import (
             InMemoryOrganisationControlPlane,
         )
-
-        from role import Role, WorkStatus
+        from role import Role, Work, WorkStatus
 
         events: list[Any] = []
         org = InMemoryOrganisationControlPlane()
@@ -253,8 +254,7 @@ class TestOrganisationEventEmission:
         from organisation.src.organisation_control_plane import (
             InMemoryOrganisationControlPlane,
         )
-
-        from role import Role
+        from role import Role, Work
 
         events: list[Any] = []
         org = InMemoryOrganisationControlPlane()
@@ -300,6 +300,7 @@ class TestOrganisationEventEmission:
         from organisation.src.organisation_control_plane import (
             InMemoryOrganisationControlPlane,
         )
+        from role import Work
 
         signals: list[Any] = []
         org = InMemoryOrganisationControlPlane()
@@ -322,6 +323,7 @@ class TestOrganisationEventEmission:
         from organisation.src.organisation_control_plane import (
             InMemoryOrganisationControlPlane,
         )
+        from role import Work
 
         org = InMemoryOrganisationControlPlane()
         signal = org.detect_capacity_pressure("nonexistent")

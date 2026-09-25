@@ -16,7 +16,6 @@ Run:
 from __future__ import annotations
 
 import importlib.util
-import os
 import sys
 from pathlib import Path
 
@@ -36,8 +35,6 @@ for _pkg in ["workflow_runner"]:
     _root = _packages_root / _pkg
     if _root.exists() and str(_root) not in sys.path:
         sys.path.insert(0, str(_root))
-
-os.environ.pop("PAPERCLIP_URL", None)
 
 _api_path = _packages_root / "workflow_runner" / "api.py"
 _spec = importlib.util.spec_from_file_location("workflow_runner_api_platform", _api_path)

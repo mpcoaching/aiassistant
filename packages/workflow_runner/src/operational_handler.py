@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from contracts.organisational_events import WorkEvent, WorkEventType
 from role import Work, WorkStatus
 
 logger = logging.getLogger("workflow_runner.operational")

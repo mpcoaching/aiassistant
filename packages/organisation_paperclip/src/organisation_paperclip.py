@@ -21,7 +21,6 @@ from typing import Any
 from uuid import uuid4
 
 import httpx
-from actor import Actor
 from contracts.organisational_events import WorkEvent, WorkEventType
 from organisation_control_plane import OrganisationControlPlane
 from role import (
@@ -77,7 +76,6 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
         timeout: float = 30.0,
         poll_interval: float = 2.0,
         max_poll_attempts: int = 30,
-        capability_registry: Any = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key or ""
@@ -85,7 +83,6 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
         self._timeout = timeout
         self._poll_interval = poll_interval
         self._max_poll_attempts = max_poll_attempts
-        self._capability_registry = capability_registry
         self._client = httpx.Client(
             base_url=self._base_url,
             headers=self._headers(),
@@ -194,23 +191,20 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
         self._emit_work_event(WorkEventType.CREATED, work)
         return work
 
-    def assign_work(self, work: Work, assignee: Role | Person | Agent | Actor) -> Assignment:
+    def assign_work(self, work: Work, assignee: Role | Person | Agent) -> Assignment:
         """Assign work to a role, person, or agent via Paperclip."""
         assignee_id = assignee.id
         if isinstance(assignee, (Agent, _PaperclipAgentRole)):
             assignee_type = "agent"
         elif isinstance(assignee, Person):
             assignee_type = "person"
-        elif isinstance(assignee, Actor):
-            assignee_type = "actor"
         else:
             assignee_type = "role"
 
         try:
             patch_body: dict[str, Any] = {}
-            if assignee_type in ("agent", "actor"):
-                ref_id = getattr(assignee, "reference_id", assignee_id)
-                patch_body["assigneeAgentId"] = ref_id if assignee_type == "actor" else assignee_id
+            if assignee_type == "agent":
+                patch_body["assigneeAgentId"] = assignee_id
             elif assignee_type == "person":
                 patch_body["assigneeUserId"] = assignee_id
             if patch_body:
@@ -224,12 +218,6 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
             work.assignee_role_id = assignee_id
         elif assignee_type == "person":
             work.assignee_person_id = assignee_id
-        elif assignee_type == "actor":
-            work.assignee_actor_id = assignee_id
-            if getattr(assignee, "actor_type", None) and getattr(assignee.actor_type, "value", None) == "agent":
-                work.assignee_agent_id = getattr(assignee, "reference_id", assignee_id)
-            elif getattr(assignee, "actor_type", None) and getattr(assignee.actor_type, "value", None) == "person":
-                work.assignee_person_id = getattr(assignee, "reference_id", assignee_id)
         elif assignee_type == "agent":
             work.assignee_agent_id = assignee_id
 
@@ -244,80 +232,6 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
         self._assignment_cache[assignment.id] = assignment
         self._emit_work_event(WorkEventType.ASSIGNED, work, assignee_id=assignee_id)
         return assignment
-
-    def execute_organisational_change(
-        self,
-        work: Work,
-        actor: Any,
-        capability_ids: list[str] | None = None,
-    ) -> dict[str, Any]:
-        """Execute an organisational change via Paperclip.
-
-        Checks authority delegation before applying changes. Returns a
-        result dict with status and details.
-        """
-
-        actor_id = getattr(actor, "id", None) or str(actor)
-        actor_role_ids: list[str] = []
-        if hasattr(actor, "fulfilled_role_ids"):
-            actor_role_ids = list(actor.fulfilled_role_ids)
-        elif hasattr(actor, "role_ids"):
-            actor_role_ids = list(actor.role_ids)
-
-        authority_checked = False
-        authorised = False
-
-        for role_id in actor_role_ids:
-            role = self._role_cache.get(role_id)
-            if role is None:
-                role = self.get_role(role_id)
-            if role is None:
-                continue
-            authority_checked = True
-            for auth_id in role.authority_ids:
-                for delegation in getattr(self, "_delegations", {}).values():
-                    if (
-                        delegation.authority_id == auth_id
-                        and delegation.from_role_id == getattr(delegation, "grantor_role_id", None)
-                        and delegation.to_role_id == role_id
-                    ):
-                        authorised = True
-                        break
-                if authorised:
-                    break
-            if authorised:
-                break
-
-        if not authorised:
-            return {
-                "status": "unauthorised",
-                "authority_checked": authority_checked,
-                "assignee_actor_id": actor_id,
-            }
-
-        work.assignee_actor_id = actor_id
-        work.status = WorkStatus.ASSIGNED
-        work.updated_at = datetime.now(UTC)
-
-        try:
-            patch_body: dict[str, Any] = {}
-            if hasattr(actor, "actor_type") and getattr(actor.actor_type, "value", "") == "agent":
-                ref_id = getattr(actor, "reference_id", actor_id)
-                patch_body["assigneeAgentId"] = ref_id
-            elif hasattr(actor, "actor_type") and getattr(actor.actor_type, "value", "") == "person":
-                ref_id = getattr(actor, "reference_id", actor_id)
-                patch_body["assigneeUserId"] = ref_id
-            if patch_body:
-                self._request("PATCH", f"/api/issues/{work.id}", json=patch_body)
-        except PaperclipAdapterError:
-            pass
-
-        return {
-            "status": "executed",
-            "authority_checked": authority_checked,
-            "assignee_actor_id": actor_id,
-            "capability_ids": capability_ids or [],
-        }
 
     def get_work(self, work_id: str) -> Work | None:
         """Retrieve work by ID from Paperclip."""
@@ -433,7 +347,6 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
                         title=work.title,
                         work_type=work.work_type,
                         assignee_role_id=work.assignee_role_id,
-                        assignee_actor_id=work.assignee_actor_id,
                         assignee_agent_id=work.assignee_agent_id,
                         required_capability_ids=list(work.required_capability_ids),
                         status=work.status.value,
@@ -463,7 +376,6 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
                         title=work.title,
                         work_type=work.work_type,
                         assignee_role_id=work.assignee_role_id,
-                        assignee_actor_id=work.assignee_actor_id,
                         assignee_agent_id=work.assignee_agent_id,
                         required_capability_ids=list(work.required_capability_ids),
                         status=work.status.value,
@@ -506,80 +418,14 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
             "reason": "Capability is available",
         }
 
-    def register_capability(self, capability: Any, work_id: str | None = None) -> None:
+    def register_capability(self, capability: Any) -> None:
         """Register a capability in the organisational capability store."""
-        if self._capability_registry is not None:
-            self._capability_registry.register(capability)
+        # Paperclip does not have a native capability registry; we maintain
+        # this locally in the adapter to preserve the Organisation abstraction.
 
     def get_capability(self, capability_id: str) -> Any | None:
         """Retrieve a registered capability by ID."""
-        if self._capability_registry is not None:
-            return self._capability_registry.get(capability_id)
         return None
-
-    def select_execution_path(
-        self,
-        intent: str,
-        context: dict[str, Any],
-        capability_query: Any = None,
-        workflow_lookup: Any = None,
-    ) -> Any:
-        """Select execution path. Paperclip delegates to the same logic as
-        the in-memory OCP — the decision boundary is organisation-level.
-        """
-        from execution_path import ExecutionPath, ExecutionPathResult
-
-        required_ids: list[str] = list(context.get("required_capability_ids", []) or [])
-
-        if workflow_lookup is not None:
-            try:
-                workflows = workflow_lookup(intent)
-            except TypeError:
-                workflows = workflow_lookup(intent, context=context)
-            if workflows:
-                return ExecutionPathResult(
-                    path=ExecutionPath.EXISTING_WORKFLOW,
-                    workflow=workflows[0],
-                    capability_id=None,
-                    reason="Matching workflow found",
-                )
-
-        candidate_capabilities: list[dict[str, Any]] = context.get("candidate_capabilities", []) or []
-        candidate_ids: list[str] = [c.get("id") for c in candidate_capabilities if c.get("id")]
-        all_ids = list(required_ids)
-
-        for cap_id in all_ids:
-            avail = capability_query(cap_id) if capability_query is not None else None
-            if avail is None:
-                return ExecutionPathResult(
-                    path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
-                    capability_id=cap_id,
-                    reason="Capability not found",
-                )
-            if getattr(avail, "available", True):
-                return ExecutionPathResult(
-                    path=ExecutionPath.CAPABILITY_PATH,
-                    capability_id=cap_id,
-                    reason="Capability is available",
-                )
-            return ExecutionPathResult(
-                path=ExecutionPath.HUMAN_TEAM_INVESTIGATION,
-                capability_id=cap_id,
-                reason="Capability exists but is unavailable",
-            )
-
-        for cand_id in candidate_ids:
-            return ExecutionPathResult(
-                path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
-                capability_id=cand_id,
-                reason="Candidate capability not found",
-            )
-
-        return ExecutionPathResult(
-            path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
-            capability_id=None,
-            reason="No matching workflow or capability found",
-        )
 
     def emit_event(self, event: Any) -> None:
         """Emit an operational event through the organisation's event boundary."""
@@ -721,7 +567,6 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
             title=work.title,
             work_type=work.work_type,
             assignee_role_id=work.assignee_role_id,
-            assignee_actor_id=work.assignee_actor_id,
             assignee_agent_id=work.assignee_agent_id,
             required_capability_ids=list(work.required_capability_ids),
             status=work.status.value,

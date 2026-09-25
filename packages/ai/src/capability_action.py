@@ -10,8 +10,6 @@ it does not call ports, execute capabilities, or manage state.
 
 from __future__ import annotations
 
-from typing import Any
-
 from contracts.capability_discovery import CapabilityCandidate
 
 

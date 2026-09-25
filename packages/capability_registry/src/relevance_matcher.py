@@ -14,8 +14,9 @@ from __future__ import annotations
 import re
 
 from capability import Capability, CapabilityStatus
-from capability_matcher import MatchResult
+from capability_matcher import CapabilityMatcher, MatchResult
 from enterprise_context import ContextRecord
+from pydantic import BaseModel
 
 
 _STOP_WORDS: frozenset[str] = frozenset(

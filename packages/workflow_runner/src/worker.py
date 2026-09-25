@@ -13,12 +13,13 @@ Design constraints:
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from contracts.capability_execution import CapabilityExecutionPort, ExecutionResult
 from role import Agent, Work, WorkStatus
+from contracts.capability_execution import CapabilityExecutionPort, ExecutionResult
 
 
 class Worker:
@@ -51,8 +52,9 @@ class Worker:
             if work.status in (
                 WorkStatus.PENDING,
                 WorkStatus.ASSIGNED,
-            ) and (work.assignee_agent_id == self._agent_id or work.assignee_agent_id is None):
-                return work
+            ):
+                if work.assignee_agent_id == self._agent_id or work.assignee_agent_id is None:
+                    return work
         return None
 
     def execute(self, work: Work, org_plane: Any) -> dict[str, Any]:
@@ -77,7 +79,7 @@ class Worker:
             else:
                 result = self._do_work(work)
             return result
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             outcome = {
                 "status": "failed",
                 "error": str(exc),
@@ -114,14 +116,14 @@ class Worker:
         """Develop a new capability from a capability-gap work item."""
         from capability import Capability, CapabilityKind, CapabilityStatus
 
-        capability_id = work.develops_capability_id or f"cap-{work.id}"
-        capability_name = work.title.replace("Develop capability: ", "").strip() if work.title.startswith("Develop capability:") else work.title
+        capability_id = f"cap-{work.id}"
+        capability_name = work.title.replace("Develop capability: ", "").strip()
         capability = Capability(
             id=capability_id,
             name=capability_name,
             description=work.description,
             capability_kind=CapabilityKind.SKILL,
-            status=CapabilityStatus.DRAFT,
+            status=CapabilityStatus.ACTIVE,
             owner=self._agent_id,
             created_by="worker",
             interface={
@@ -130,7 +132,7 @@ class Worker:
             },
         )
 
-        org_plane.register_capability(capability, work_id=work.id)
+        org_plane.register_capability(capability)
 
         if self._capability_registry is not None:
             self._capability_registry.register(capability)
@@ -467,7 +469,7 @@ class Worker:
         """Build planning phases based on detected activity type and entities."""
         activity_type = activity.get("type", "General")
         has_people = bool(entities.get("people"))
-        bool(entities.get("quantities"))
+        has_quantities = bool(entities.get("quantities"))
         has_time = bool(entities.get("time"))
         has_locations = bool(entities.get("locations"))
 
@@ -746,7 +748,7 @@ class Worker:
                 "name": "Assign and Schedule",
                 "description": "Allocate work and set timelines.",
                 "tasks": [
-                    "Assign tasks to team members or roles",
+                    f"Assign tasks to team members or roles",
                     "Create project timeline and milestones",
                     "Set up tracking and reporting cadence",
                 ],
@@ -1015,7 +1017,7 @@ class Worker:
             "only", "same", "so", "than", "too", "very", "just", "about",
             "into", "through", "during", "before", "after", "above", "below",
             "between", "under", "again", "further", "then", "once", "here",
-            "there", "up", "down", "out", "off", "over", "please",
+            "there", "up", "down", "out", "off", "over", "under", "please",
             "thank", "thanks", "help", "need", "want", "like", "make",
             "get", "got", "know", "think", "see", "look", "come", "go",
         }
@@ -1348,7 +1350,7 @@ class Worker:
         lines.extend([
             "",
             "## Summary",
-            "- Both approaches have distinct trade-offs",
+            f"- Both approaches have distinct trade-offs",
             f"- {approaches[0]} may offer different advantages depending on priorities",
             f"- {approaches[1]} may be preferable in other contexts",
             "- Consider hybrid approaches where appropriate",
@@ -1538,7 +1540,7 @@ class Worker:
             "only", "same", "so", "than", "too", "very", "just", "about",
             "into", "through", "during", "before", "after", "above", "below",
             "between", "under", "again", "further", "then", "once", "here",
-            "there", "up", "down", "out", "off", "over", "please",
+            "there", "up", "down", "out", "off", "over", "under", "please",
             "thank", "thanks", "help", "need", "want", "like", "make",
             "get", "got", "know", "think", "see", "look", "come", "go",
         }
@@ -1550,8 +1552,8 @@ class Worker:
                     word_freq[word] = word_freq.get(word, 0) + 1
 
         max_freq = max(word_freq.values()) if word_freq else 1
-        for word, freq in list(word_freq.items()):
-            word_freq[word] = freq / max_freq
+        for word in word_freq:
+            word_freq[word] = word_freq[word] / max_freq
 
         scored = []
         total_sentences = len(sentences)

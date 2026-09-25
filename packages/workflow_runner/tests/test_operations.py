@@ -16,17 +16,19 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from contracts.organisational_events import WorkEvent, WorkEventType
 from role import Work, WorkStatus
-
-from workflow_runner.src.operational_handler import (
-    PaperclipExecutionHandler,
-    WorkerExecutionHandler,
-)
 from workflow_runner.src.operations import (
+    ExecutionBackend,
     Operations,
     PaperclipBackend,
     WorkerBackend,
+)
+from workflow_runner.src.operational_handler import (
+    PaperclipExecutionHandler,
+    WorkerExecutionHandler,
 )
 
 

@@ -212,7 +212,7 @@ class CapabilitySelectionTelemetry:
         """
         with self._lock:
             reformulations = []
-            for _session_id, events in self._session_events.items():
+            for session_id, events in self._session_events.items():
                 if len(events) > 1:
                     reformulations.extend(events)
             return reformulations

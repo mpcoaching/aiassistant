@@ -10,6 +10,8 @@ from __future__ import annotations
 import ast
 import os
 
+import pytest
+
 
 def test_api_does_not_import_paperclip() -> None:
     """The API transport layer must not import Paperclip modules."""
@@ -78,7 +80,6 @@ def test_organisation_control_plane_has_no_execution_methods() -> None:
 def test_composition_boundary_exists() -> None:
     """Organisation composition must be the single point of backend selection."""
     from organisation.src.composition import create_organisation_control_plane
-
     from organisation_control_plane import OrganisationControlPlane
 
     plane = create_organisation_control_plane()

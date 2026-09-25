@@ -7,6 +7,7 @@ by keyword relevance without changing existing behaviour.
 
 from __future__ import annotations
 
+from capability_matcher import MatchResult
 from capabilities import Capability, CapabilityKind, CapabilityStatus
 from enterprise_context import ContextRecord
 
@@ -221,7 +222,7 @@ def test_duplicate_request_tokens_do_not_change_ranking() -> None:
 
 
 def test_meaningful_capability_terms_are_not_stop_words() -> None:
-    RelevanceMatcher()
+    matcher = RelevanceMatcher()
     stop_words = RelevanceMatcher._STOP_WORDS
     meaningful_terms = [
         "create", "send", "analyse", "generate", "data", "email", "report",

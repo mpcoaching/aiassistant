@@ -5,8 +5,8 @@ Tests for OrganisationControlPlane and InMemoryOrganisationControlPlane.
 from __future__ import annotations
 
 import pytest
-from contracts.work_management import WorkCreateRequest
 
+from contracts.work_management import WorkCreateRequest
 from organisation_control_plane import (
     InMemoryOrganisationControlPlane,
     OrganisationControlPlane,
@@ -222,7 +222,6 @@ def test_ocp_has_no_pathway_runtime_import() -> None:
 def test_backend_interchangeable_via_organisation_interface() -> None:
     """Paperclip and InMemory implementations are interchangeable through OrganisationControlPlane."""
     from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
-
     from role import Work
 
     in_memory = InMemoryOrganisationControlPlane()

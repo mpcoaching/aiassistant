@@ -18,13 +18,17 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi.testclient import TestClient
+
 from capability_selection_telemetry import CapabilitySelectionTelemetry
+
 
 _packages_root = Path(__file__).resolve().parent.parent.parent
 for _pkg in ["bus", "capability_registry", "ai", "workflow_runner", "langgraph"]:
@@ -85,16 +89,15 @@ class TestTelemetryLifecycle:
 
     def test_chat_request_creates_persistent_telemetry_event(self, client):
         """A real /assistant/chat request must create a telemetry event that survives."""
-        client_obj, _telemetry_path = client
+        client_obj, telemetry_path = client
         
         with patch("workflow_runner_api_tel._assistant") as mock_assistant:
-            from datetime import datetime
-
             from capability_selection_telemetry import CapabilitySelectionEvent
+            from datetime import datetime, timezone
             
             mock_event = CapabilitySelectionEvent(
                 event_id="test-event-1",
-                timestamp=datetime.now(UTC),
+                timestamp=datetime.now(timezone.utc),
                 request_text="create something",
                 session_id="ses-lifecycle-1",
                 candidate_ids=["cap-a", "cap-b"],
@@ -138,7 +141,7 @@ class TestTelemetryLifecycle:
 
     def test_feedback_attaches_to_correct_event(self, client):
         """Feedback must update the correct telemetry event."""
-        client_obj, _telemetry_path = client
+        client_obj, telemetry_path = client
         
         with patch("workflow_runner_api_tel._assistant") as mock_assistant:
             mock_assistant.record_capability_feedback.return_value = None
@@ -164,18 +167,17 @@ class TestTelemetryLifecycle:
 
     def test_session_correlation_across_requests(self, client):
         """Multiple requests in the same session must be correlated."""
-        client_obj, _telemetry_path = client
+        client_obj, telemetry_path = client
         
-        with patch("workflow_runner_api_tel._assistant"), \
+        with patch("workflow_runner_api_tel._assistant") as mock_assistant, \
              patch("workflow_runner_api_tel._capability_selection_telemetry") as mock_telemetry:
-            from datetime import datetime
-
             from capability_selection_telemetry import CapabilitySelectionEvent
+            from datetime import datetime, timezone
             
             events = [
                 CapabilitySelectionEvent(
                     event_id="event-1",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(timezone.utc),
                     request_text="first request",
                     session_id="ses-correlation-1",
                     candidate_ids=["cap-a"],
@@ -186,7 +188,7 @@ class TestTelemetryLifecycle:
                 ),
                 CapabilitySelectionEvent(
                     event_id="event-2",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(timezone.utc),
                     request_text="second request",
                     session_id="ses-correlation-1",
                     candidate_ids=["cap-a", "cap-b"],
@@ -206,18 +208,17 @@ class TestTelemetryLifecycle:
 
     def test_reformulation_detection(self, client):
         """Sessions with multiple events must be detected as reformulations."""
-        client_obj, _telemetry_path = client
+        client_obj, telemetry_path = client
         
-        with patch("workflow_runner_api_tel._assistant"), \
+        with patch("workflow_runner_api_tel._assistant") as mock_assistant, \
              patch("workflow_runner_api_tel._capability_selection_telemetry") as mock_telemetry:
-            from datetime import datetime
-
             from capability_selection_telemetry import CapabilitySelectionEvent
+            from datetime import datetime, timezone
             
             events = [
                 CapabilitySelectionEvent(
                     event_id="event-1",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(timezone.utc),
                     request_text="first request",
                     session_id="ses-reformulation-1",
                     candidate_ids=["cap-a"],
@@ -228,7 +229,7 @@ class TestTelemetryLifecycle:
                 ),
                 CapabilitySelectionEvent(
                     event_id="event-2",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(timezone.utc),
                     request_text="second request",
                     session_id="ses-reformulation-1",
                     candidate_ids=["cap-a", "cap-b"],
@@ -254,7 +255,7 @@ class TestTelemetryLifecycle:
         events = [
             {
                 "event_id": "event-1",
-                "timestamp": datetime.now(UTC).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "request_text": "create something",
                 "session_id": "ses-restart-1",
                 "candidate_ids": ["cap-a"],
@@ -268,7 +269,7 @@ class TestTelemetryLifecycle:
             },
             {
                 "event_id": "event-2",
-                "timestamp": datetime.now(UTC).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "request_text": "send something",
                 "session_id": "ses-restart-2",
                 "candidate_ids": ["cap-b", "cap-c"],
@@ -282,7 +283,8 @@ class TestTelemetryLifecycle:
             },
         ]
         with open(telemetry_path, "w", encoding="utf-8") as f:
-            f.writelines(json.dumps(event) + "\n" for event in events)
+            for event in events:
+                f.write(json.dumps(event) + "\n")
         
         # Create new telemetry instance (simulates process restart)
         telemetry = CapabilitySelectionTelemetry(persistence_path=telemetry_path)
@@ -303,7 +305,7 @@ class TestTelemetryLifecycle:
 
     def test_telemetry_failure_does_not_break_chat(self, client):
         """Telemetry failures must not affect chat functionality."""
-        client_obj, _telemetry_path = client
+        client_obj, telemetry_path = client
         
         with patch("workflow_runner_api_tel._assistant") as mock_assistant:
             mock_assistant.chat.return_value = MagicMock(
@@ -329,18 +331,17 @@ class TestTelemetryLifecycle:
 
     def test_telemetry_export_produces_usable_data(self, client, tmp_path):
         """Export must produce valid JSON with all required fields."""
-        client_obj, _telemetry_path = client
+        client_obj, telemetry_path = client
         export_path = str(tmp_path / "export.json")
         
         with patch("workflow_runner_api_tel._capability_selection_telemetry") as mock_telemetry:
-            from datetime import datetime
-
             from capability_selection_telemetry import CapabilitySelectionEvent
+            from datetime import datetime, timezone
             
             mock_events = [
                 CapabilitySelectionEvent(
                     event_id="event-export-1",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(timezone.utc),
                     request_text="create something",
                     session_id="ses-export-1",
                     candidate_ids=["cap-a"],
@@ -372,14 +373,13 @@ class TestTelemetryLifecycle:
         telemetry = CapabilitySelectionTelemetry(persistence_path=telemetry_path)
         
         # Record a match event
-        from datetime import datetime
-
         from capability_selection_telemetry import CapabilitySelectionEvent
+        from datetime import datetime, timezone
         
         candidates = [
             CapabilitySelectionEvent(
                 event_id="e1",
-                timestamp=datetime.now(UTC),
+                timestamp=datetime.now(timezone.utc),
                 request_text="create something",
                 session_id="ses-persist-1",
                 candidate_ids=["cap-a"],
@@ -416,17 +416,16 @@ class TestTelemetryLifecycle:
 
     def test_telemetry_stats_computed_correctly(self, client):
         """Stats endpoint must compute correct distributions."""
-        client_obj, _telemetry_path = client
+        client_obj, telemetry_path = client
         
         with patch("workflow_runner_api_tel._capability_selection_telemetry") as mock_telemetry:
-            from datetime import datetime
-
             from capability_selection_telemetry import CapabilitySelectionEvent
+            from datetime import datetime, timezone
             
             mock_events = [
                 CapabilitySelectionEvent(
                     event_id="e1",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(timezone.utc),
                     request_text="request 1",
                     session_id="ses-stats-1",
                     candidate_ids=["cap-a"],
@@ -439,7 +438,7 @@ class TestTelemetryLifecycle:
                 ),
                 CapabilitySelectionEvent(
                     event_id="e2",
-                    timestamp=datetime.now(UTC),
+                    timestamp=datetime.now(timezone.utc),
                     request_text="request 2",
                     session_id="ses-stats-2",
                     candidate_ids=["cap-a", "cap-b"],
@@ -465,7 +464,7 @@ class TestTelemetryLifecycle:
 
     def test_telemetry_endpoints_reachable(self, client):
         """All telemetry endpoints must be reachable and return valid responses."""
-        client_obj, _telemetry_path = client
+        client_obj, telemetry_path = client
         
         with patch("workflow_runner_api_tel._assistant") as mock_assistant:
             mock_assistant._capability_selection_telemetry = MagicMock()

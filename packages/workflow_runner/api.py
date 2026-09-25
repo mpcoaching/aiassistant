@@ -91,6 +91,7 @@ from db import (
 )
 from loader import load_workflow, resolve_workflow_path
 from models import Step, WorkflowDefinition
+from workflow_runner.src.worker import Worker
 from runtime_client import configure as _configure_runtime_client
 from scheduler import (
     _build_scheduler,
@@ -644,9 +645,8 @@ class _ExecutionResultResponse(BaseModel):
     artifacts: list[str] = Field(default_factory=list)
     telemetry: dict[str, Any] = Field(default_factory=dict)
 
-from capability_selection_telemetry import CapabilitySelectionTelemetry
-
 from workflow_runner.src.composition import create_assistant
+from capability_selection_telemetry import CapabilitySelectionTelemetry
 
 _telemetry_persistence_path = os.environ.get("CAPABILITY_TELEMETRY_PATH", "data/capability_selection_telemetry.jsonl")
 _capability_selection_telemetry = CapabilitySelectionTelemetry(persistence_path=_telemetry_persistence_path)
@@ -658,7 +658,6 @@ _assistant = create_assistant(capability_selection_telemetry=_capability_selecti
 _org_plane = None
 _work_management = None
 _capability_query = None
-_paperclip_assistant = None
 
 try:
     from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
@@ -670,7 +669,7 @@ try:
         EnterpriseCapabilityQueryAdapter,
     )
     _capability_query = EnterpriseCapabilityQueryAdapter(_org_plane)
-except Exception:  # noqa: BLE001
+except Exception:
     _org_plane = None
     _work_management = None
     _capability_query = None
@@ -697,7 +696,7 @@ try:
         tags=["skill"],
     )
     _capability_registry.register(_real_capability)
-except Exception:  # noqa: BLE001
+except Exception:
     _capability_registry = None
 
 try:
@@ -711,7 +710,7 @@ try:
             registry=_capability_registry,
             matcher=_matcher,
         )
-except Exception:  # noqa: BLE001
+except Exception:
     _capability_discovery = None
 
 try:
@@ -741,7 +740,7 @@ try:
     def _capability_deployment_factory(capability: Capability) -> CapabilityDeployment | None:
         try:
             return _capability_resolver.resolve(capability.id, "default")
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None
 
     if _capability_registry is not None:
@@ -749,7 +748,7 @@ try:
             registry=_capability_registry,
             deployment_factory=_capability_deployment_factory,
         )
-except Exception:  # noqa: BLE001
+except Exception:
     _capability_execution = None
 
 _ai_response = None
@@ -757,7 +756,7 @@ if os.getenv("PORTKEY_MASTER_KEY"):
     try:
         from ai.src.ai_response import AIResponseService
         _ai_response = AIResponseService()
-    except Exception:  # noqa: BLE001, S110
+    except Exception:
         pass
 
 _assistant = create_assistant(
@@ -819,28 +818,6 @@ async def assistant_chat_resume(session_id: str, body: dict[str, Any]) -> _ChatR
         telemetry=response.telemetry,
         execution_outputs=response.execution_outputs,
         execution_artifacts=response.execution_artifacts,
-    )
-
-
-@app.post("/assistant/paperclip-chat", response_model=_ChatResponse)
-async def assistant_paperclip_chat(body: _ChatRequest) -> _ChatResponse:
-    if _paperclip_assistant is None:
-        return _ChatResponse(
-            message="Paperclip Assistant is not configured.",
-            session_id=body.session_id or "error",
-            status="error",
-            reasoning="Paperclip Assistant is not configured",
-        )
-    response = _paperclip_assistant.chat(
-        message=body.message,
-        session_id=body.session_id,
-    )
-    return _ChatResponse(
-        message=response.message,
-        session_id=response.session_id,
-        status=response.status,
-        reasoning=response.reasoning,
-        telemetry=response.telemetry,
     )
 
 
@@ -1125,7 +1102,7 @@ async def assistant_telemetry_stats() -> _TelemetryStatsResponse:
             bucket = "count>=5"
         count_distribution[bucket] = count_distribution.get(bucket, 0) + 1
 
-    total_sessions = len({event.session_id for event in events if event.session_id})
+    total_sessions = len(set(event.session_id for event in events if event.session_id))
 
     return _TelemetryStatsResponse(
         total_events=len(events),

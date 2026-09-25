@@ -15,9 +15,9 @@ from capability import Capability
 from contracts.capability_execution import ExecutionResult
 from contracts.invocation_recorder import InvocationRecorder
 from execution_authorisation import ExecutionAuthorisationPort
-from workflow_runner.src.executor import execute_capability
 
 from capability_deployment import CapabilityDeployment
+from workflow_runner.src.executor import execute_capability
 
 
 class CapabilityExecutionAdapter:

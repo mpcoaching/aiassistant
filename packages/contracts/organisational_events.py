@@ -81,7 +81,6 @@ class WorkEvent(BaseModel):
     work_type: str = "bau"
     assignee_role_id: str | None = None
     assignee_agent_id: str | None = None
-    assignee_actor_id: str | None = None
     required_capability_ids: list[str] = []
     status: str
     priority: str = "normal"
