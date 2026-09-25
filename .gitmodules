@@ -1,3 +1,7 @@
 [submodule "operational/paperclip"]
 	path = operational/paperclip
-	url = https://github.com/paperclipai/paperclip.git
+	# Pinned commit 469eebb was force-pushed away upstream, so cloning from
+	# github fails with "upload-pack: not our ref" and blocks every pipeline at
+	# the clone step. Mirror the exact pinned tree in the internal Gitea instead;
+	# it is also reachable from the air-gapped CI host.
+	url = http://gitea:3000/ai/paperclip.git
