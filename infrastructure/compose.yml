@@ -53,7 +53,7 @@ services:
       - GITEA__server__ROOT_URL=https://gitea.local.test/
       - GITEA__server__SSH_DOMAIN=gitea.local.test
       - GITEA__service__DISABLE_REGISTRATION=false
-      - GITEA__security__ALLOWED_HOST_LIST=woodpecker.local.test,infra_woodpecker_server:8000,127.0.0.1
+      - GITEA__security__ALLOWED_HOST_LIST=woodpecker.local.test,infra_woodpecker_server,127.0.0.1,172.20.0.4
       - GITEA__security__SKIP_VERIFY=true
     restart: unless-stopped
     extra_hosts:
@@ -198,11 +198,13 @@ services:
       - "8000:8000"
     volumes:
       - woodpecker-server-data:/var/lib/woodpecker
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./configs/woodpecker/docker-config.json:/etc/woodpecker/docker-config.json:ro
     environment:
       - WOODPECKER_OPEN=true
       - WOODPECKER_HOST=https://woodpecker.local.test
       - WOODPECKER_GITEA=true
-      - WOODPECKER_GITEA_URL=https://gitea.local.test
+      - WOODPECKER_GITEA_URL=http://gitea:3000
       - WOODPECKER_GITEA_CLIENT=${WOODPECKER_GITEA_CLIENT}
       - WOODPECKER_GITEA_SECRET=${WOODPECKER_GITEA_SECRET}
       - WOODPECKER_GITEA_SKIP_VERIFY=true
@@ -210,6 +212,7 @@ services:
       - WOODPECKER_GRPC_SECRET=${WOODPECKER_GRPC_SECRET}
       - WOODPECKER_BACKEND_DOCKER_HOST=unix:///var/run/docker.sock
       - WOODPECKER_BACKEND_DOCKER_VOLUMES=/var/run/docker.sock:/var/run/docker.sock
+      - WOODPECKER_DOCKER_CONFIG=/etc/woodpecker/docker-config.json
     dns:
       - 192.168.1.238
     extra_hosts:
@@ -231,9 +234,11 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - woodpecker-agent-config:/etc/woodpecker
+      - ./configs/woodpecker/docker-config.json:/root/.docker/config.json:ro
     environment:
       - WOODPECKER_SERVER=woodpecker-server:9000
       - WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET}
+      - WOODPECKER_GRPC_SECRET=${WOODPECKER_GRPC_SECRET}
       - WOODPECKER_LOG_LEVEL=debug
       - WOODPECKER_BACKEND_DOCKER_HOST=unix:///var/run/docker.sock
       - WOODPECKER_BACKEND_DOCKER_VOLUMES=/var/run/docker.sock:/var/run/docker.sock
