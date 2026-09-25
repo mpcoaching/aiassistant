@@ -21,6 +21,7 @@ from typing import Any
 from uuid import uuid4
 
 import httpx
+from actor import Actor
 from contracts.organisational_events import WorkEvent, WorkEventType
 from organisation_control_plane import OrganisationControlPlane
 from role import (
@@ -255,7 +256,6 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
         Checks authority delegation before applying changes. Returns a
         result dict with status and details.
         """
-        from role import Authority, Delegation
 
         actor_id = getattr(actor, "id", None) or str(actor)
         actor_role_ids: list[str] = []

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from capability_action import (
     CapabilityActionPolicy,
-    ExecuteCapability,
     AskUserToSelect,
     NoCapabilityMatch,
 )

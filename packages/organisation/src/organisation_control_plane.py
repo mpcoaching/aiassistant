@@ -23,6 +23,9 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from actor import Actor, ActorType
+from contracts.organisational_events import WorkEventType
+
 from role import (
     Agent,
     Assignment,
@@ -36,8 +39,6 @@ from role import (
     Work,
     WorkStatus,
 )
-from actor import Actor, ActorType
-from contracts.organisational_events import WorkEventType
 
 
 class OrganisationControlPlane(ABC):
@@ -486,7 +487,7 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
         work: Work,
         assignee_id: str | None = None,
     ) -> None:
-        from contracts.organisational_events import WorkEvent, WorkEventType
+        from contracts.organisational_events import WorkEvent
         event = WorkEvent(
             event_type=event_type,
             organisation_id="default",
@@ -650,7 +651,6 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
         Checks whether the actor's role has the authority to make
         organisational changes before applying them.
         """
-        from role import Authority, Delegation
 
         actor_id = getattr(actor, "id", None) or str(actor)
         actor_role_ids: list[str] = []

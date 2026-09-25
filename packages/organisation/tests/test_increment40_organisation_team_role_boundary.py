@@ -374,8 +374,9 @@ def test_assign_work_does_not_accept_team() -> None:
 
     Even if Team were desired, the mechanism to assign Work to Team doesn't exist.
     """
-    from organisation_control_plane import OrganisationControlPlane
     from typing import get_type_hints
+
+    from organisation_control_plane import OrganisationControlPlane
 
     hints = get_type_hints(OrganisationControlPlane.assign_work)
     assignee_hint = str(hints.get("assignee", ""))
@@ -389,8 +390,9 @@ def test_no_team_hierarchy_concept() -> None:
     OCP hierarchy is via Role.reports_to.
     No parent-child Team relationship exists in either.
     """
-    from role import Role
     from actor import Actor
+
+    from role import Role
 
     role_fields = set(Role.model_fields.keys())
     actor_fields = set(Actor.model_fields.keys())
@@ -491,7 +493,7 @@ def test_chief_of_staff_uses_existing_delegation() -> None:
     Delegation records authority transfers between Roles.
     Chief of Staff delegates via standard authority mechanism.
     """
-    from role import Delegation, Authority
+    from role import Delegation
 
     delegation_fields = set(Delegation.model_fields.keys())
     assert "from_role_id" in delegation_fields
@@ -611,8 +613,9 @@ def test_recursive_flow_uses_same_mechanisms_each_level() -> None:
 
     No privileged recursion mechanism needed — just the same pattern.
     """
-    from organisation_control_plane import InMemoryOrganisationControlPlane
     from capability_assignment import CapabilityAssignment
+
+    from organisation_control_plane import InMemoryOrganisationControlPlane
     from role import Role
 
     plane = InMemoryOrganisationControlPlane()
@@ -774,10 +777,11 @@ def test_no_new_concepts_required_for_organisation_model() -> None:
     Existing Role, Actor, Capability, CapabilityAssignment, Work, Assignment,
     Authority, Delegation are sufficient.
     """
-    from role import Role, Work, Assignment, Authority, Delegation
     from actor import Actor
     from capability import Capability
     from capability_assignment import CapabilityAssignment
+
+    from role import Assignment, Authority, Delegation, Role, Work
 
     # All required concepts exist without new definitions
     models = [Role, Work, Assignment, Authority, Delegation, Actor, Capability, CapabilityAssignment]

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import ClassVar
 
 import pytest
 
@@ -48,15 +49,16 @@ sys.path.insert(0, WORKFLOW_SRC)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from agent import Agent, AgentMarker, AgentStatus
-from agent_store import InMemoryAgentStore
-from actor import ActorType
-from contracts.work_management import WorkCreateRequest, WorkReference
-from organisation_control_plane import InMemoryOrganisationControlPlane
-from role import Role, Work, WorkStatus
-
 # Import AssistantChatService from the AI package
 import importlib
+
+from actor import ActorType
+from agent import AgentMarker
+from agent_store import InMemoryAgentStore
+from contracts.work_management import WorkCreateRequest
+
+from organisation_control_plane import InMemoryOrganisationControlPlane
+from role import Role, WorkStatus
 
 _chat_mod = importlib.import_module("chat")
 AssistantChatService = _chat_mod.AssistantChatService
@@ -66,10 +68,7 @@ from ai.tests.fixtures.in_memory_ports import (
     InMemoryCapabilityDiscoveryPort,
     InMemoryWorkManagementPort,
 )
-
 from contracts.capability_discovery import CapabilityCandidate
-from contracts.enterprise_capability_query import CapabilityAvailability
-
 
 # --------------------------------------------------------------------------- #
 # A. AssistantChatService receives the Assistant Agent identity
@@ -197,11 +196,10 @@ def test_capability_gap_path_supplies_assignee_actor_id() -> None:
     wm = InMemoryWorkManagementPort()
 
     class _FakeQueryPort:
-        queried: list[str] = []
+        queried: ClassVar[list[str]] = []
 
         def query_capability(self, capability_id: str):
             self.queried.append(capability_id)
-            return None
 
     service = AssistantChatService(
         capability_discovery=discovery,
@@ -282,7 +280,7 @@ def test_assistant_is_existing_agent_not_new_actor() -> None:
     """The 'assistant' actor_id refers to the existing bootstrapped Agent/Actor,
     not a newly created one."""
     store = InMemoryAgentStore()
-    agent, actor, _ = store.bootstrap_assistant(actor_id="assistant")
+    _agent, actor, _ = store.bootstrap_assistant(actor_id="assistant")
 
     retrieved = store.get_actor("assistant")
     assert retrieved is not None
@@ -317,9 +315,10 @@ def test_assistant_actor_is_same_as_bootstrap() -> None:
 def test_paperclip_backend_can_handle_assigned_work() -> None:
     """PaperclipBackend.can_handle returns True for work that has
     assignee_agent_id set (i.e. assigned to the Assistant Agent)."""
-    from workflow_runner.src.operations import PaperclipBackend
-    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
     from unittest.mock import MagicMock
+
+    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
+    from workflow_runner.src.operations import PaperclipBackend
 
     store = InMemoryAgentStore()
     store.bootstrap_assistant(actor_id="assistant")
@@ -349,9 +348,10 @@ def test_paperclip_backend_can_handle_assigned_work() -> None:
 def test_paperclip_backend_cannot_handle_unassigned_work() -> None:
     """PaperclipBackend.can_handle returns False for work without
     assignee_agent_id (backward compatibility — falls to WorkerBackend)."""
-    from workflow_runner.src.operations import PaperclipBackend
-    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
     from unittest.mock import MagicMock
+
+    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
+    from workflow_runner.src.operations import PaperclipBackend
 
     plane = InMemoryOrganisationControlPlane()
     plane.register_role(Role(id="default", name="Default"))

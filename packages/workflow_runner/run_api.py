@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+
 _packages_root = Path(__file__).resolve().parent.parent
 if str(_packages_root) not in sys.path:
     sys.path.insert(0, str(_packages_root))

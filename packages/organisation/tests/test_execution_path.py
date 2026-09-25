@@ -11,13 +11,14 @@ Tests the Org Control Plane's select_execution_path decision boundary:
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from organisation_control_plane import InMemoryOrganisationControlPlane
-from role import Role, Work
 from execution_path import ExecutionPath, ExecutionPathResult
+from organisation_control_plane import InMemoryOrganisationControlPlane
+from role import Role
 
 try:
     from capability import Capability, CapabilityKind, CapabilityStatus

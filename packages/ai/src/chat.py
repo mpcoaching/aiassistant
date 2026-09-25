@@ -1953,7 +1953,7 @@ class AssistantChatService:
 
         return ChatResponse(
             message=(
-                f"The enterprise does not currently have the capability for this request"
+                "The enterprise does not currently have the capability for this request"
                 + (f" ({capability_id})" if capability_id else "")
                 + ". "
                 + ("I've initiated work to develop this capability "
@@ -2010,7 +2010,7 @@ class AssistantChatService:
 
         return ChatResponse(
             message=(
-                f"This requires human team investigation"
+                "This requires human team investigation"
                 + (f" for capability {capability_id}." if capability_id else ".")
             ),
             session_id=session_id,

@@ -10,6 +10,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from contracts.work_management import WorkCreateRequest, WorkReference
+
 from organisation_control_plane import OrganisationControlPlane
 from role import Work
 

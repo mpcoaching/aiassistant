@@ -11,7 +11,6 @@ Tests prove architectural conclusions, not implementation details.
 
 from __future__ import annotations
 
-import ast
 import inspect
 import os
 
@@ -141,13 +140,14 @@ def test_capacity_is_derivable_from_assignment_and_actor_availability() -> None:
     Work.status gives workload.
     No Capacity entity required.
     """
-    from actor import Actor, ActorType
-    from capability_assignment import CapabilityAssignment, AssignmentStatus
+    from actor import Actor
+    from capability_assignment import AssignmentStatus, CapabilityAssignment
+
     from role import WorkStatus
 
     # Actor availability is encoded in Actor.status, not a separate Capacity model
-    actor_fields = set(Actor.model_fields.keys())
-    assert "status" not in actor_fields or True  # Actor has metadata but no capacity field
+    set(Actor.model_fields.keys())
+    assert True  # Actor has metadata but no capacity field
 
     # CapabilityAssignment status encodes whether the assignment is active
     ca_fields = set(CapabilityAssignment.model_fields.keys())
@@ -261,8 +261,8 @@ def test_actor_cost_requires_effective_dates_if_tracked() -> None:
     Promotion/increased responsibility would change cost but there's
     no mechanism to track cost history on Person/Agent.
     """
-    from person import Person
     from agent import Agent
+    from person import Person
 
     person_fields = set(Person.model_fields.keys())
     agent_fields = set(Agent.model_fields.keys())
@@ -315,7 +315,6 @@ def test_value_is_not_first_class_concept() -> None:
     interpretation of Work/outcome/economic data.
     """
     # Search all Python source for a Value model
-    import importlib
 
     # Capability has no value field
     from capability import Capability
@@ -435,9 +434,10 @@ def test_value_is_analytical_not_modelled() -> None:
     economic analysis, but no Value entity exists or is needed.
     """
     # Prove Value is not a domain concept anywhere
-    from capability import Capability
-    from role import Work
     from actor import Actor
+    from capability import Capability
+
+    from role import Work
 
     for model in [Capability, Work, Actor]:
         fields = set(model.model_fields.keys())
@@ -861,9 +861,7 @@ def test_actor_links_to_capability_via_assignment() -> None:
     Part 1 of traceability chain exists:
     Actor(id) → CapabilityAssignment(actor_id, capability_id) → Capability(id)
     """
-    from actor import Actor
     from capability_assignment import CapabilityAssignment
-    from capability import Capability
 
     ca_fields = set(CapabilityAssignment.model_fields.keys())
     assert "actor_id" in ca_fields

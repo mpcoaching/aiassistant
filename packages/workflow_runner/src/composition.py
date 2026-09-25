@@ -86,22 +86,16 @@ def _create_agent_store() -> Any:
 
 
 def create_application(capability_selection_telemetry: Any | None = None) -> dict[str, Any]:
-    from capability_registry.src.adapters.capability_discovery_adapter import (
-        CapabilityDiscoveryAdapter,
-    )
-    from organisation.src.adapters.enterprise_capability_query_adapter import (
-        EnterpriseCapabilityQueryAdapter,
-    )
-    from organisation.src.adapters.organisational_context_adapter import (
-        OrganisationalContextAdapter,
-    )
-    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
-    from capability_registry.src.adapters.execution_authorisation_adapter import InMemoryExecutionAuthorisationPort
-    from capability_registry.src.capabilities import ConceptKind
-    from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
     from capabilities import CapabilityRegistry
     from capability import Capability
     from capability_matcher import RelevanceMatcher
+    from capability_registry.src.adapters.capability_discovery_adapter import (
+        CapabilityDiscoveryAdapter,
+    )
+    from capability_registry.src.adapters.execution_authorisation_adapter import (
+        InMemoryExecutionAuthorisationPort,
+    )
+    from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
     from concepts import ConceptStore
     from contracts.capability_outcome_assessor import CapabilityOutcomeAssessor
     from contracts.enterprise_capability_query import EnterpriseCapabilityQueryPort
@@ -110,16 +104,22 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     from execution_authorisation import ExecutionAuthorisationPort
     from invocation_recorder import InvocationRecorder
     from langgraph_runtime import LangGraphRuntime
-    from organisation_control_plane import InMemoryOrganisationControlPlane
     from organisation.src.adapters.capability_outcome_assessor_adapter import (
         CapabilityOutcomeAssessorAdapter,
     )
+    from organisation.src.adapters.enterprise_capability_query_adapter import (
+        EnterpriseCapabilityQueryAdapter,
+    )
+    from organisation.src.adapters.organisational_context_adapter import (
+        OrganisationalContextAdapter,
+    )
+    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
+
+    from capability_deployment import CapabilityDeployment
+    from deployment_resolver import DeploymentNotFoundError, DeploymentResolver
     from runtime import PatternRuntime
     from workflow_runner.src.adapters.capability_execution_adapter import (
         CapabilityExecutionAdapter,
-    )
-    from workflow_runner.src.adapters.capability_outcome_assessor_adapter import (
-        CapabilityOutcomeAssessorAdapter,
     )
     from workflow_runner.src.adapters.invocation_recorder_adapter import (
         InvocationRecorderAdapter,
@@ -130,8 +130,6 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     from workflow_runner.src.adapters.session_factory_adapter import (
         SessionFactoryAdapter,
     )
-    from capability_deployment import CapabilityDeployment
-    from deployment_resolver import DeploymentNotFoundError, DeploymentResolver
 
     store = ConceptStore()
     repository = ConceptStoreCapabilityRepository(store)
@@ -175,17 +173,17 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     org_context_port: OrganisationalContextPort = OrganisationalContextAdapter(org_plane)
 
     agent_store = _create_agent_store()
-    from organisation.src.adapters.work_management_adapter import WorkManagementAdapter
     work_management_port: WorkManagementPort = WorkManagementAdapter(
         org_plane, agent_store=agent_store
     )
+    enterprise_capability_query_port: EnterpriseCapabilityQueryPort = EnterpriseCapabilityQueryAdapter(org_plane)
+
     from organisation.src.adapters.solution_selection_adapter import SolutionSelectionAdapter
     solution_selection_port = SolutionSelectionAdapter(
         org_plane=org_plane,
         workflow_lookup=None,
         capability_query=enterprise_capability_query_port.query_capability,
     )
-    enterprise_capability_query_port: EnterpriseCapabilityQueryPort = EnterpriseCapabilityQueryAdapter(org_plane)
 
     from ai.src.ai_response import AIResponseService
 

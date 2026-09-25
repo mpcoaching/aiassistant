@@ -428,7 +428,7 @@ def test_operations_processes_actor_assigned_work() -> None:
             executed.append(work)
             return {"status": "completed", "outputs": {"summary": "done"}}
 
-    ops = Operations(
+    Operations(
         org_plane=plane,
         backends=[_DummyBackend()],
         capability_registry=None,

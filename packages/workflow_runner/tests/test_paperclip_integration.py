@@ -185,9 +185,9 @@ class TestPaperclipExecutionBoundary:
 
     def test_solution_selection_boundary_is_independent_of_execution_backend(self):
         """The OCP select_execution_path decision does not depend on Paperclip."""
-        from organisation_paperclip import PaperclipOrganisationControlPlane
-        from organisation_control_plane import InMemoryOrganisationControlPlane
         from execution_path import ExecutionPath
+        from organisation_control_plane import InMemoryOrganisationControlPlane
+        from organisation_paperclip import PaperclipOrganisationControlPlane
 
         in_memory = InMemoryOrganisationControlPlane()
         paperclip = PaperclipOrganisationControlPlane(base_url="http://localhost:3101")
