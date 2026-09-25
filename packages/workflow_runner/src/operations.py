@@ -171,7 +171,7 @@ class Operations:
             result = backend.execute(work)
             self._org_plane.complete_work(work_id, result)
         except Exception as exc:
-            logger.exception("Execution failed for work %s: %s", work_id, exc)
+            logger.exception("Execution failed for work %s", work_id)
             self._org_plane.fail_work(work_id, {"error": str(exc)})
 
     def _select_backend(self, work: Work) -> ExecutionBackend | None:

@@ -23,10 +23,10 @@ import time
 from typing import Any
 
 import pytest
-
-from organisation_paperclip import PaperclipOrganisationControlPlane
 from role import WorkStatus
 from workflow_runner.src.operations import Operations, PaperclipBackend
+
+from organisation_paperclip import PaperclipOrganisationControlPlane
 
 PAPERCLIP_URL = os.getenv("PAPERCLIP_URL", "http://localhost:3100")
 PAPERCLIP_API_KEY = os.getenv("PAPERCLIP_API_KEY", "")

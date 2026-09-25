@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -141,7 +141,7 @@ def test_telemetry_events_endpoint_returns_events(client):
     mock_events = [
         CapabilitySelectionEvent(
             event_id="event-1",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             request_text="create something",
             session_id="ses-1",
             candidate_ids=["cap-a"],
@@ -171,7 +171,7 @@ def test_telemetry_session_endpoint_returns_session_events(client):
     mock_events = [
         CapabilitySelectionEvent(
             event_id="event-1",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             request_text="first request",
             session_id="ses-123",
             candidate_ids=["cap-a"],
@@ -183,7 +183,7 @@ def test_telemetry_session_endpoint_returns_session_events(client):
         ),
         CapabilitySelectionEvent(
             event_id="event-2",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             request_text="second request",
             session_id="ses-123",
             candidate_ids=["cap-a", "cap-b"],
@@ -209,7 +209,7 @@ def test_telemetry_reformulations_endpoint_returns_reformulation_candidates(clie
     mock_events = [
         CapabilitySelectionEvent(
             event_id="event-1",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             request_text="first request",
             session_id="ses-123",
             candidate_ids=["cap-a"],
@@ -235,7 +235,7 @@ def test_telemetry_stats_endpoint_returns_statistics(client):
     mock_events = [
         CapabilitySelectionEvent(
             event_id="event-1",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             request_text="request 1",
             session_id="ses-1",
             candidate_ids=["cap-a"],
@@ -248,7 +248,7 @@ def test_telemetry_stats_endpoint_returns_statistics(client):
         ),
         CapabilitySelectionEvent(
             event_id="event-2",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             request_text="request 2",
             session_id="ses-2",
             candidate_ids=["cap-a", "cap-b"],
@@ -307,8 +307,9 @@ def test_get_work_returns_404_when_missing(client):
 
 
 def test_process_work_executes_real_worker_and_creates_output(client, tmp_path):
+    from organisation.src.role import Work
+
     from workflow_runner.src.worker import Worker
-    from organisation.src.role import Work, WorkStatus
 
     work = Work(id="w1", title="Test task", accountable_role_id="r1", description="Test description")
     mock_org = MagicMock()
@@ -394,8 +395,9 @@ def test_worker_pickup_returns_none_when_no_assigned_work(tmp_path):
 
 
 def test_worker_run_endpoint_processes_assigned_work(client, tmp_path):
+    from organisation.src.role import Work
+
     from workflow_runner.src.worker import Worker
-    from organisation.src.role import Work, WorkStatus
 
     work = Work(id="w1", title="Worker task", accountable_role_id="default", assignee_agent_id="worker-agent")
     mock_org = MagicMock()
@@ -413,13 +415,12 @@ def test_worker_run_endpoint_processes_assigned_work(client, tmp_path):
 
 
 def test_worker_run_returns_404_when_no_work(client):
-    with patch("workflow_runner_api._org_plane") as mock_org:
-        with patch("workflow_runner_api.Worker") as MockWorker:
-            mock_worker = MockWorker.return_value
-            mock_worker.pickup.return_value = None
+    with patch("workflow_runner_api._org_plane"), patch("workflow_runner_api.Worker") as MockWorker:
+        mock_worker = MockWorker.return_value
+        mock_worker.pickup.return_value = None
 
-            response = client.post("/worker/run")
-            assert response.status_code == 404
+        response = client.post("/worker/run")
+        assert response.status_code == 404
 
 
 # ---- Worker Tests ---------------------------------------------------------
@@ -457,7 +458,6 @@ def test_worker_handles_failure(tmp_path):
     work = Work(id="w1", title="Failing task", accountable_role_id="r1", description="Will fail")
 
     worker = Worker(output_dir=str(tmp_path))
-    original_do_work = worker._do_work
     worker._do_work = lambda w: (_ for _ in ()).throw(RuntimeError("Simulated failure"))
 
     result = worker.execute(work, org_plane)
@@ -470,7 +470,7 @@ def test_worker_handles_failure(tmp_path):
 
 def test_worker_preserves_session_correlation(tmp_path):
     from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
-    from organisation.src.role import Work, WorkStatus
+    from organisation.src.role import Work
     from organisation.src.worker import Worker
 
     org_plane = InMemoryOrganisationControlPlane()
@@ -493,11 +493,10 @@ def test_worker_preserves_session_correlation(tmp_path):
 
 
 def test_end_to_end_delegation_worker_result(client, tmp_path):
-    from chat import ChatRequest
-    from chat import AssistantChatService
+    from chat import AssistantChatService, ChatRequest
     from in_memory_ports import InMemoryCapabilityDiscoveryPort, InMemoryWorkManagementPort
     from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
-    from organisation.src.role import Role, Work, WorkStatus
+    from organisation.src.role import Role, Work
     from organisation.src.worker import Worker
 
     discovery = InMemoryCapabilityDiscoveryPort(candidates=[])
@@ -600,7 +599,7 @@ def test_query_capability_returns_none_when_no_role_has_capability():
 
 def test_query_capability_returns_available_when_role_has_capability():
     from organisation.src.organisation_control_plane import InMemoryOrganisationControlPlane
-    from organisation.src.role import Role, Work, WorkStatus
+    from organisation.src.role import Role
 
     org_plane = InMemoryOrganisationControlPlane()
     org_plane.register_role(Role(id="r1", name="Researcher", authority_ids=[], required_capability_ids=["cap-1"]))
@@ -1072,11 +1071,11 @@ def test_chat_summarise_longer_document_compresses_content(client):
     assert summary_words < input_words * 0.7
 
     summary_lower = summary.lower()
-    input_tokens = set(
+    input_tokens = {
         w.strip(".,!?;:\"'()[]{}").lower()
         for w in PRODUCT_LAUNCH_DOC.split()
         if len(w.strip(".,!?;:\"'()[]{}")) > 4
-    )
+    }
     summary_tokens = set(summary_lower.split())
     overlap = input_tokens & summary_tokens
     assert len(overlap) >= 3

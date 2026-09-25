@@ -24,8 +24,8 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
 from role import Work, WorkStatus
+
 from workflow_runner.src.operations import (
     ExecutionBackend,
     PaperclipBackend,

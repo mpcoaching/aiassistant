@@ -23,6 +23,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from contracts.organisational_events import WorkEventType
+
 from role import (
     Agent,
     Assignment,
@@ -36,7 +38,6 @@ from role import (
     Work,
     WorkStatus,
 )
-from contracts.organisational_events import WorkEventType
 
 
 class OrganisationControlPlane(ABC):
@@ -440,7 +441,7 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
         work: Work,
         assignee_id: str | None = None,
     ) -> None:
-        from contracts.organisational_events import WorkEvent, WorkEventType
+        from contracts.organisational_events import WorkEvent
         event = WorkEvent(
             event_type=event_type,
             organisation_id="default",

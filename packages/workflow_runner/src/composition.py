@@ -77,12 +77,13 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     from adapters.enterprise_capability_query_adapter import EnterpriseCapabilityQueryAdapter
     from adapters.organisational_context_adapter import OrganisationalContextAdapter
     from adapters.work_management_adapter import WorkManagementAdapter
-    from capability_registry.src.adapters.execution_authorisation_adapter import InMemoryExecutionAuthorisationPort
-    from capability_registry.src.capabilities import ConceptKind
-    from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
     from capabilities import CapabilityRegistry
     from capability import Capability
     from capability_matcher import RelevanceMatcher
+    from capability_registry.src.adapters.execution_authorisation_adapter import (
+        InMemoryExecutionAuthorisationPort,
+    )
+    from capability_registry.src.concept_store_adapter import ConceptStoreCapabilityRepository
     from concepts import ConceptStore
     from contracts.capability_outcome_assessor import CapabilityOutcomeAssessor
     from contracts.enterprise_capability_query import EnterpriseCapabilityQueryPort
@@ -91,16 +92,15 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     from execution_authorisation import ExecutionAuthorisationPort
     from invocation_recorder import InvocationRecorder
     from langgraph_runtime import LangGraphRuntime
-    from organisation_control_plane import InMemoryOrganisationControlPlane
     from organisation.src.adapters.capability_outcome_assessor_adapter import (
         CapabilityOutcomeAssessorAdapter,
     )
+
+    from capability_deployment import CapabilityDeployment
+    from deployment_resolver import DeploymentNotFoundError, DeploymentResolver
     from runtime import PatternRuntime
     from workflow_runner.src.adapters.capability_execution_adapter import (
         CapabilityExecutionAdapter,
-    )
-    from workflow_runner.src.adapters.capability_outcome_assessor_adapter import (
-        CapabilityOutcomeAssessorAdapter,
     )
     from workflow_runner.src.adapters.invocation_recorder_adapter import (
         InvocationRecorderAdapter,
@@ -111,8 +111,6 @@ def create_application(capability_selection_telemetry: Any | None = None) -> dic
     from workflow_runner.src.adapters.session_factory_adapter import (
         SessionFactoryAdapter,
     )
-    from capability_deployment import CapabilityDeployment
-    from deployment_resolver import DeploymentNotFoundError, DeploymentResolver
 
     store = ConceptStore()
     repository = ConceptStoreCapabilityRepository(store)

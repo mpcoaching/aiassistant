@@ -91,7 +91,6 @@ from db import (
 )
 from loader import load_workflow, resolve_workflow_path
 from models import Step, WorkflowDefinition
-from workflow_runner.src.worker import Worker
 from runtime_client import configure as _configure_runtime_client
 from scheduler import (
     _build_scheduler,
@@ -645,8 +644,9 @@ class _ExecutionResultResponse(BaseModel):
     artifacts: list[str] = Field(default_factory=list)
     telemetry: dict[str, Any] = Field(default_factory=dict)
 
-from workflow_runner.src.composition import create_assistant
 from capability_selection_telemetry import CapabilitySelectionTelemetry
+
+from workflow_runner.src.composition import create_assistant
 
 _telemetry_persistence_path = os.environ.get("CAPABILITY_TELEMETRY_PATH", "data/capability_selection_telemetry.jsonl")
 _capability_selection_telemetry = CapabilitySelectionTelemetry(persistence_path=_telemetry_persistence_path)
@@ -669,7 +669,7 @@ try:
         EnterpriseCapabilityQueryAdapter,
     )
     _capability_query = EnterpriseCapabilityQueryAdapter(_org_plane)
-except Exception:
+except Exception:  # noqa: BLE001
     _org_plane = None
     _work_management = None
     _capability_query = None
@@ -696,7 +696,7 @@ try:
         tags=["skill"],
     )
     _capability_registry.register(_real_capability)
-except Exception:
+except Exception:  # noqa: BLE001
     _capability_registry = None
 
 try:
@@ -710,7 +710,7 @@ try:
             registry=_capability_registry,
             matcher=_matcher,
         )
-except Exception:
+except Exception:  # noqa: BLE001
     _capability_discovery = None
 
 try:
@@ -740,7 +740,7 @@ try:
     def _capability_deployment_factory(capability: Capability) -> CapabilityDeployment | None:
         try:
             return _capability_resolver.resolve(capability.id, "default")
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
 
     if _capability_registry is not None:
@@ -748,7 +748,7 @@ try:
             registry=_capability_registry,
             deployment_factory=_capability_deployment_factory,
         )
-except Exception:
+except Exception:  # noqa: BLE001
     _capability_execution = None
 
 _ai_response = None
@@ -756,7 +756,7 @@ if os.getenv("PORTKEY_MASTER_KEY"):
     try:
         from ai.src.ai_response import AIResponseService
         _ai_response = AIResponseService()
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
 _assistant = create_assistant(
@@ -1102,7 +1102,7 @@ async def assistant_telemetry_stats() -> _TelemetryStatsResponse:
             bucket = "count>=5"
         count_distribution[bucket] = count_distribution.get(bucket, 0) + 1
 
-    total_sessions = len(set(event.session_id for event in events if event.session_id))
+    total_sessions = len({event.session_id for event in events if event.session_id})
 
     return _TelemetryStatsResponse(
         total_events=len(events),

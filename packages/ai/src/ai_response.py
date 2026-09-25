@@ -207,7 +207,7 @@ class AIResponseService:
             messages.append({"role": "user", "content": f"Conversation history:\n{history_text}"})
         messages.append({"role": "user", "content": f"Current message: {user_message}{context_text}"})
 
-        start = time.perf_counter()
+        time.perf_counter()
         try:
             response = self._client.post(
                 f"{self.base_url}/v1/chat/completions",
