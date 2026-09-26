@@ -22,6 +22,11 @@ COPY packages/organisation /packages/organisation
 # contracts has no src/ layout; its modules sit at the package root.
 COPY packages/contracts /packages/contracts
 
+# api.py does `from workflow_runner.src.composition import create_assistant`,
+# so the package must be importable under its own name. /app holds the
+# flattened copy that uvicorn loads as `api:app`; /packages holds the real
+# package tree. /packages is already on PYTHONPATH.
+COPY packages/workflow_runner /packages/workflow_runner
 COPY packages/workflow_runner/. /app/
 
 RUN printf '%s\n' '#!/usr/bin/env python3' \
