@@ -14,6 +14,13 @@ COPY packages/ai /packages/ai
 COPY packages/bus /packages/bus
 COPY packages/langgraph /packages/langgraph
 COPY packages/capability_registry /packages/capability_registry
+# Sibling packages imported by api.py. These are resolved at runtime from
+# source, so the image must carry them; `install`/`test` miss this because
+# packages/conftest.py injects the same paths into sys.path for pytest.
+COPY packages/people_capability /packages/people_capability
+COPY packages/organisation /packages/organisation
+# contracts has no src/ layout; its modules sit at the package root.
+COPY packages/contracts /packages/contracts
 
 COPY packages/workflow_runner/. /app/
 
@@ -49,7 +56,7 @@ RUN printf '%s\n' '#!/usr/bin/env python3' \
     'if __name__ == "__main__":' \
     '    main()' > /wait_for.py && chmod +x /wait_for.py
 
-ENV PYTHONPATH=/app:/app/src:/packages:/packages/configuration/src:/packages/ai/src:/packages/bus/src:/packages/langgraph/src:/packages/capability_registry/src
+ENV PYTHONPATH=/app:/app/src:/packages:/packages/configuration/src:/packages/ai/src:/packages/bus/src:/packages/langgraph/src:/packages/capability_registry/src:/packages/people_capability/src:/packages/organisation/src:/packages/contracts
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
