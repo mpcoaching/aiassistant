@@ -270,11 +270,22 @@ steps:
       # playwright.config.ts, the @playwright/test dependency and the specs
       # live. Running `npx playwright` from the repo root finds no config, so
       # E2E_BASE_URL is ignored and relative page.goto("/") has no base URL.
-      - cd packages/control-center-ui && npm install && npx playwright install --with-deps chromium
-      - cd packages/control-center-ui && npx playwright test tests/e2e/critical-path.spec.ts --reporter=list,junit
-      - mkdir -p /tmp/playwright-artifacts
-      - cp packages/control-center-ui/playwright-results.xml /tmp/playwright-artifacts/ || true
-      - if [ -d packages/control-center-ui/playwright-report ]; then cp -r packages/control-center-ui/playwright-report /tmp/playwright-artifacts/; fi
+      #
+      # This has to be one command: Woodpecker concatenates every command
+      # into a single `sh` script, so a `cd` in an earlier command persists
+      # and a relative `cd` in a later one silently fails the step instead of
+      # running the tests. --reporter=list,junit keeps the junit output the
+      # artifact collection below expects.
+      - |
+        cd packages/control-center-ui || exit 1
+        npm install || exit 1
+        npx playwright install --with-deps chromium || exit 1
+        npx playwright test tests/e2e/critical-path.spec.ts --reporter=list,junit
+        status=$?
+        mkdir -p /tmp/playwright-artifacts
+        cp playwright-results.xml /tmp/playwright-artifacts/ 2>/dev/null || true
+        if [ -d playwright-report ]; then cp -r playwright-report /tmp/playwright-artifacts/; fi
+        exit $status
 
   - name: deploy
     image: registry.local.test/aiassistant/docker-client:latest
