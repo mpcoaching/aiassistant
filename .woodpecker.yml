@@ -188,7 +188,17 @@ steps:
       - "docker push registry.local.test/aiassistant/langgraph:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/control-center-ui:$IMAGE_TAG"
       - "docker push registry.local.test/aiassistant/ci-runner:$IMAGE_TAG"
-      - "docker push registry.local.test/aiassistant/paperclip:$IMAGE_TAG"
+      # build-paperclip is path-filtered, so on commits that do not touch
+      # operational/paperclip/** the image is absent and an unconditional push
+      # would fail the whole pipeline. Push it only when it was actually built.
+      - |
+        if docker image inspect "registry.local.test/aiassistant/paperclip:$IMAGE_TAG" >/dev/null 2>&1; then
+          docker push "registry.local.test/aiassistant/paperclip:$IMAGE_TAG"
+          docker tag "registry.local.test/aiassistant/paperclip:$IMAGE_TAG" registry.local.test/aiassistant/paperclip:latest
+          docker push registry.local.test/aiassistant/paperclip:latest
+        else
+          echo "paperclip image not built in this run; skipping paperclip push"
+        fi
       - "docker tag registry.local.test/aiassistant/workflow_runner:$IMAGE_TAG registry.local.test/aiassistant/workflow_runner:latest"
       - "docker push registry.local.test/aiassistant/workflow_runner:latest"
       - "docker tag registry.local.test/aiassistant/langgraph:$IMAGE_TAG registry.local.test/aiassistant/langgraph:latest"
@@ -197,8 +207,6 @@ steps:
       - "docker push registry.local.test/aiassistant/control-center-ui:latest"
       - "docker tag registry.local.test/aiassistant/ci-runner:$IMAGE_TAG registry.local.test/aiassistant/ci-runner:latest"
       - "docker push registry.local.test/aiassistant/ci-runner:latest"
-      - "docker tag registry.local.test/aiassistant/paperclip:$IMAGE_TAG registry.local.test/aiassistant/paperclip:latest"
-      - "docker push registry.local.test/aiassistant/paperclip:latest"
 
   - name: test-e2e
     image: registry.local.test/aiassistant/ci-runner:latest
@@ -247,9 +255,12 @@ steps:
           sleep 5
         done
         if [ "$ready" -ne 1 ]; then echo "UI did not become ready in time"; docker compose -f environments/dev/compose.yml logs; exit 1; fi
+      # Playwright must run from packages/control-center-ui: that is where
+      # playwright.config.ts, the @playwright/test dependency and the specs
+      # live. Running `npx playwright` from the repo root finds no config, so
+      # E2E_BASE_URL is ignored and relative page.goto("/") has no base URL.
       - cd packages/control-center-ui && npm install && npx playwright install --with-deps chromium
-      - cd ../..
-      - npx playwright test packages/control-center-ui/tests/e2e/critical-path.spec.ts --reporter=list
+      - cd packages/control-center-ui && npx playwright test tests/e2e/critical-path.spec.ts --reporter=list,junit
       - mkdir -p /tmp/playwright-artifacts
       - cp packages/control-center-ui/playwright-results.xml /tmp/playwright-artifacts/ || true
       - if [ -d packages/control-center-ui/playwright-report ]; then cp -r packages/control-center-ui/playwright-report /tmp/playwright-artifacts/; fi
