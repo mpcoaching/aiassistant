@@ -3,5 +3,8 @@
 	# Pinned commit 469eebb was force-pushed away upstream, so cloning from
 	# github fails with "upload-pack: not our ref" and blocks every pipeline at
 	# the clone step. Mirror the exact pinned tree in the internal Gitea instead;
-	# it is also reachable from the air-gapped CI host.
-	url = http://gitea:3000/ai/paperclip.git
+	# it is also reachable from the air-gapped CI host. The URL deliberately uses
+	# the same host as the parent clone: the step container resolves
+	# gitea.local.test but not the compose service name, and matching the parent
+	# URL reuses its credentials.
+	url = https://gitea.local.test/ai/paperclip.git
