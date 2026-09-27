@@ -23,6 +23,7 @@ local.test:53 {
         192.168.1.238 agent.dev.local.test
         192.168.1.238 api.dev.local.test
         192.168.1.238 langgraph.dev.local.test
+        192.168.1.238 n8n.dev.local.test
         192.168.1.238 agent.live.local.test
         192.168.1.238 api.live.local.test
         192.168.1.238 langgraph.live.local.test

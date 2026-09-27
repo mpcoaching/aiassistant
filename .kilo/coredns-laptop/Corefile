@@ -1,0 +1,18 @@
+# Local split-horizon resolver on the Fedora laptop.
+# *.local.test is forwarded to the remote platform CoreDNS (192.168.1.238:53).
+# Everything else goes to public resolvers. If the remote CoreDNS is down,
+# local.test queries fail, but all other DNS keeps working.
+
+local.test:5350 {
+    errors
+    cache 30
+    reload 10s
+    forward . 192.168.1.238:53
+}
+
+.:5350 {
+    errors
+    cache 30
+    reload 10s
+    forward . 8.8.8.8 1.1.1.1 8.8.4.4
+}

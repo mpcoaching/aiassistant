@@ -38,6 +38,9 @@ services:
     image: coredns/coredns:1.11.1
     container_name: infra_dns
     command: -conf /etc/coredns/Corefile
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
     volumes:
       - ./configs/coredns/Corefile:/etc/coredns/Corefile:ro
     networks:
