@@ -330,6 +330,7 @@ services:
       - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
       - N8N_PROXY_HOPS=${N8N_PROXY_HOPS}
+      - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
       - DB_TYPE=${N8N_DB_TYPE}
       - DB_POSTGRESDB_HOST=${N8N_DB_HOST}
       - DB_POSTGRESDB_PORT=${N8N_DB_PORT}
@@ -347,6 +348,7 @@ services:
       - platform-network
     volumes:
       - n8n_data:/home/node/.n8n
+      - ./custom-nodes:/home/.n8n/custom
 
 networks:
   platform-network:
