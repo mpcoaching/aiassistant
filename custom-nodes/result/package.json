@@ -1,0 +1,19 @@
+{
+  "name": "ai-assistant-result",
+  "version": "1.0.0",
+  "description": "Result node: copies a value from a dot-notation path in each item's JSON to a target path, preserving all other fields.",
+  "main": "Result.node.js",
+  "n8n": "1.0.0",
+  "keywords": ["n8n", "n8n-community-node"],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "n8n-workflow": "2.40.1",
+    "typescript": "^5.6.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test Result.test.js",
+    "pretest": "tsc"
+  }
+}

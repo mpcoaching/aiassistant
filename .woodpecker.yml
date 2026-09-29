@@ -318,4 +318,111 @@ steps:
     when:
       event: [push, manual]
       branch: main
+
+  # Deploy the AUTHORITATIVE n8n service on the Ubuntu platform host
+  # (192.168.1.238). Runs only on push to main, and only when the platform
+  # stack definition or the custom n8n nodes change. Hands-off: the CI
+  # commit SHA ($CI_COMMIT_SHA) is passed to the host script, which checks
+  # out and deploys exactly that revision.
+  #
+  # Required Woodpecker secrets (set in the Woodpecker UI for the repo,
+  # never committed to this file):
+  #   deploy_ssh_key        - private key for the deploy user (no passphrase)
+  #   deploy_known_hosts    - host key line(s) from a ONE-TIME, out-of-band
+  #                            operator command: `ssh-keyscan -H 192.168.1.238`,
+  #                            reviewed by hand and then stored as this secret.
+  #                            CI never runs ssh-keyscan; it consumes this secret
+  #                            with StrictHostKeyChecking=strict.
+  #
+  # DEPLOY_HOST and DEPLOY_USER are fixed values (not secrets): 192.168.1.238
+  # and agent99 respectively. They are set as plain environment variables.
+  #
+  # NOTE: does not replace/alter the dev `deploy` step above; both run
+  # independently. Does not pull/build images or touch sibling services.
+  - name: deploy-platform
+    image: registry.local.test/aiassistant/docker-client:latest
+    when:
+      event: [push]
+      branch: main
+      path:
+        - "platform/compose.yml"
+        - "custom-nodes/**"
+    environment:
+      DEPLOY_SSH_KEY:
+        from_secret: deploy_ssh_key
+      DEPLOY_KNOWN_HOSTS:
+        from_secret: deploy_known_hosts
+      DEPLOY_HOST: 192.168.1.238
+      DEPLOY_USER: agent99
+    commands:
+      - command -v ssh >/dev/null 2>&1 || apk add --no-cache openssh
+      - |
+        set -eu
+        COMMIT_SHA="${CI_COMMIT_SHA:-}"
+        test -n "$COMMIT_SHA" || { echo "ERROR: CI_COMMIT_SHA is empty; cannot deploy." >&2; exit 1; }
+        KEY_FILE="$(mktemp)"
+        KNOWN_FILE="$(mktemp)"
+        trap 'rm -f "$KEY_FILE" "$KNOWN_FILE"' EXIT
+        printf '%s\n' "$DEPLOY_SSH_KEY" > "$KEY_FILE"
+        chmod 600 "$KEY_FILE"
+        printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$KNOWN_FILE"
+        # The CI commit SHA is passed to the remote as argv ($1) and is NEVER
+        # interpolated into the command string: a later push cannot redirect
+        # THIS build's deploy to a different revision. Bootstrap (fetch + exact
+        # SHA checkout) is performed INLINE on the host so a host on ANY prior
+        # commit can deploy; the versioned script is then invoked from the
+        # freshly checked-out tree. StrictHostKeyChecking=strict + the known-hosts
+        # secret (no ssh-keyscan in CI); the private key is never echoed.
+        ssh -o StrictHostKeyChecking=strict \
+            -o UserKnownHostsFile="$KNOWN_FILE" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i "$KEY_FILE" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            'bash -s "$1"' "$COMMIT_SHA" <<'WPC_REMOTE'
+        set -euo pipefail
+        COMMIT_SHA="${1:-}"
+        DEPLOY_DIR="/home/agent99/projects/aiassistant"
+        export GIT_TERMINAL_PROMPT=0
+        cd "$DEPLOY_DIR"
+        echo ">> [host] deploying commit ${COMMIT_SHA}"
+        # ---- Serialize concurrent platform deployments (checkout + deploy) ----
+        LOCK_FILE="/tmp/aiassistant-platform-deploy.lock"
+        exec 9>"$LOCK_FILE"
+        if ! flock -w 300 9; then
+          echo "ERROR: [host] another platform deployment is in progress." >&2
+          exit 1
+        fi
+        # ---- Dirty working tree guard (never git reset --hard) ----
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "ERROR: [host] working tree dirty; refusing to deploy." >&2
+          git status --porcelain >&2
+          exit 1
+        fi
+        # ---- Fetch Gitea state and resolve the EXACT commit ----
+        resolved=0
+        for remote in gitea origin; do
+          if git remote get-url "$remote" >/dev/null 2>&1; then
+            echo ">> [host] fetching from ${remote}"
+            git fetch --tags "$remote" >/dev/null 2>&1 || true
+            git cat-file -t "$COMMIT_SHA" >/dev/null 2>&1 && { resolved=1; break; }
+            # Ask the server for the precise SHA as a last resort.
+            git fetch "$remote" "$COMMIT_SHA" >/dev/null 2>&1 || true
+            git cat-file -t "$COMMIT_SHA" >/dev/null 2>&1 && { resolved=1; break; }
+          fi
+        done
+        if [ "$resolved" -ne 1 ]; then
+          echo "ERROR: [host] commit ${COMMIT_SHA} could not be resolved." >&2
+          exit 1
+        fi
+        # ---- Check out EXACTLY the requested commit (detached HEAD) ----
+        git checkout -q --detach "$COMMIT_SHA"
+        if [ "$(git rev-parse HEAD)" != "$COMMIT_SHA" ]; then
+          echo "ERROR: [host] HEAD != ${COMMIT_SHA} after checkout." >&2
+          exit 1
+        fi
+        echo ">> [host] checked out ${COMMIT_SHA}"
+        # ---- Deployment logic from the exact checked-out commit ----
+        bash cicd/scripts/deploy-platform.sh "$COMMIT_SHA"
+        WPC_REMOTE
 # trigger deploy

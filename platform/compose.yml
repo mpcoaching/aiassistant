@@ -348,7 +348,7 @@ services:
       - platform-network
     volumes:
       - n8n_data:/home/node/.n8n
-      - ./custom-nodes:/home/.n8n/custom
+      - ./custom-nodes:/home/node/.n8n/custom
 
 networks:
   platform-network:

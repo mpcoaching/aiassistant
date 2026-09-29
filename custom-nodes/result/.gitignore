@@ -1,0 +1,4 @@
+node_modules/
+@types/
+Result.test.js
+tsconfig.tsbuildinfo
