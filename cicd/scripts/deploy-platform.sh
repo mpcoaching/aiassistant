@@ -4,16 +4,17 @@
 #
 #   Usage: deploy-platform.sh <commit-sha>
 #
-# INVOKED BY: the CI `deploy-platform` step, AFTER the calling (bootstrap)
-# command has already, on the host:
-#   1. cd'd to $DEPLOY_DIR
-#   2. verified the working tree is clean (never `git reset --hard`)
-#   3. fetched Gitea state and verified the EXACT commit SHA exists
+# INVOKED BY: the CI `deploy-platform` step, which runs this script inside a
+# container on the deployment host, AFTER the calling command has already:
+#   1. bind-mounted the authoritative checkout at its real host path
+#      (DEPLOY_DIR), so the relative custom-nodes bind resolves to real files
+#   2. verified the tracked working tree is clean (never `git reset --hard`)
+#   3. fetched origin and verified the EXACT commit SHA exists
 #   4. checked out EXACTLY that SHA (detached HEAD)
 #
-# Because bootstrap is performed by the caller BEFORE this script runs, a host
-# on ANY prior commit can deploy a NEWER commit that introduces this script:
-# this script itself is never required to pre-exist on the host.
+# Because steps 1-4 run BEFORE this script, a host on ANY prior commit can
+# deploy a NEWER commit that introduces this script: this script is never
+# required to pre-exist on the host.
 #
 # This script therefore ONLY:
 #   - re-verifies HEAD == requested SHA (defensive double-check)
@@ -32,7 +33,7 @@
 set -euo pipefail
 
 COMMIT_SHA="${1:-}"
-DEPLOY_DIR="${DEPLOY_DIR:-/home/agent99/projects/aiassistant}"
+DEPLOY_DIR="${DEPLOY_DIR:-/home/martinp/Documents/projects/aiassistant}"
 
 if [ -z "$COMMIT_SHA" ]; then
   echo "ERROR: missing commit SHA argument." >&2
@@ -43,17 +44,26 @@ fi
 cd "$DEPLOY_DIR"
 
 # Defensive: confirm we are exactly on the requested commit before converging.
+# Resolve the argument to a full object id first so an abbreviated SHA is
+# accepted and compared correctly.
 HEAD_SHA="$(git rev-parse HEAD)"
-if [ "$HEAD_SHA" != "$COMMIT_SHA" ]; then
-  echo "ERROR: HEAD ($HEAD_SHA) != requested SHA ($COMMIT_SHA). Aborting deploy." >&2
+WANTED_SHA="$(git rev-parse "${COMMIT_SHA}^{commit}")"
+if [ "$HEAD_SHA" != "$WANTED_SHA" ]; then
+  echo "ERROR: HEAD ($HEAD_SHA) != requested SHA ($WANTED_SHA). Aborting deploy." >&2
   exit 1
 fi
 
 # --- Converge ONLY n8n -------------------------------------------------------
 # --force-recreate ensures the n8n container is recreated and re-reads its
-# bind mount (./custom-nodes:/home/node/.n8n/custom) so a custom-node change is
-# loaded at startup (n8n reads N8N_CUSTOM_EXTENSIONS only at startup). No
-# --pull / --build is used, so the n8n image tag on the host is unchanged.
+# bind mount (../custom-nodes:/home/node/.n8n/custom) so a custom-node change
+# is loaded at startup (n8n reads N8N_CUSTOM_EXTENSIONS only at startup, and a
+# custom-nodes-only change produces no compose config drift to trigger a
+# recreate on its own). No --pull / --build is used, so the n8n image tag is
+# unchanged and no image is rebuilt.
+#
+# The bind source is relative to THIS file's compose file (platform/), so it
+# resolves to the repository root's custom-nodes. This script must therefore
+# run from the authoritative checkout that holds those files.
 docker compose \
   -f platform/compose.yml \
   --env-file .env \
