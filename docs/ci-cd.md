@@ -30,6 +30,23 @@ The per-repository `mirror_interval` is set to `10m`, which is Gitea's hard mini
 
 The Gitea → Woodpecker hop is **webhook-based**: an active repo-level webhook delivers `push` events to `https://woodpecker.local.test/api/hook`.
 
+## Step networking
+
+Woodpecker agent step containers must run on `infrastructure-network`
+(`WOODPECKER_BACKEND_DOCKER_NETWORK`), not Docker's default `bridge`.
+
+This is load-bearing and asymmetric on this host. The host's `/etc/resolv.conf` lists
+`nameserver 127.0.0.1` first, so Docker copies a loopback-derived address into every
+`bridge` container. Nothing answers on port 53 there, so any container on `bridge` fails
+public name resolution with `Temporary failure in name resolution` while internal Docker
+aliases such as `gitea` may still resolve. On `infrastructure-network` Docker's embedded
+resolver (`127.0.0.11`) is used and external names resolve correctly.
+
+Consequence: steps that need the public internet — `install` (PyPI), `test-e2e` (Playwright
+browser download) — are only reliable on `infrastructure-network`. `deploy.yaml` already
+works around this explicitly with `docker run --network infrastructure-network` for its
+nested container.
+
 ## Components
 
 - **CI/CD engine:** Woodpecker `v3` server + agent (`infrastructure/compose.yml`), Docker backend via the host socket.
