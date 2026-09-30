@@ -18,8 +18,13 @@ services:
       - "80:80"
       - "443:443"
     networks:
-      - infrastructure-network
-      - platform-network
+      infrastructure-network:
+        aliases:
+          # Containers cannot reach the host LAN address, so the public Gitea
+          # FQDN is resolved to this proxy. CI clone steps need port 443, which
+          # only the proxy terminates.
+          - gitea.local.test
+      platform-network:
     volumes:
       - ./configs/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./configs/nginx/certs/local.test.crt:/etc/nginx/certs/local.test.crt:ro
@@ -58,7 +63,19 @@ services:
       - GITEA__service__DISABLE_REGISTRATION=false
       - GITEA__security__ALLOWED_HOST_LIST=woodpecker.local.test,infra_woodpecker_server,127.0.0.1,172.20.0.4
       - GITEA__security__SKIP_VERIFY=true
+      # GitHub is the authoritative source repository. Gitea holds a pull
+      # mirror of it so GitHub pushes reach Woodpecker (which is integrated
+      # with Gitea). Creating a pull mirror goes through the migration
+      # service, which only accepts hosts on its allowlist.
+      - GITEA__MIGRATIONS__ALLOWED_DOMAINS=github.com
     restart: unless-stopped
+    # The mirror has to resolve github.com. Docker's embedded resolver on
+    # these networks only answers *.local.test, so public names are forwarded
+    # to public resolvers explicitly; inter-container discovery is unaffected
+    # because Docker keeps 127.0.0.11 and uses these only as upstreams.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     extra_hosts:
       - "woodpecker.local.test:192.168.1.238"
     networks:
@@ -207,7 +224,7 @@ services:
       - WOODPECKER_OPEN=true
       - WOODPECKER_HOST=https://woodpecker.local.test
       - WOODPECKER_GITEA=true
-      - WOODPECKER_GITEA_URL=http://gitea:3000
+      - WOODPECKER_GITEA_URL=https://gitea.local.test
       - WOODPECKER_GITEA_CLIENT=${WOODPECKER_GITEA_CLIENT}
       - WOODPECKER_GITEA_SECRET=${WOODPECKER_GITEA_SECRET}
       - WOODPECKER_GITEA_SKIP_VERIFY=true
@@ -240,6 +257,7 @@ services:
       - ./configs/woodpecker/docker-config.json:/root/.docker/config.json:ro
     environment:
       - WOODPECKER_SERVER=woodpecker-server:9000
+      - WOODPECKER_BACKEND_DOCKER_NETWORK=infrastructure-network
       - WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET}
       - WOODPECKER_GRPC_SECRET=${WOODPECKER_GRPC_SECRET}
       - WOODPECKER_LOG_LEVEL=debug
