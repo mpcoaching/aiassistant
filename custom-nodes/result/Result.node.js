@@ -88,30 +88,35 @@ class Result {
             name: 'aiAssistantResult',
             group: ['transform'],
             version: 1,
-            description: 'Additive result accumulator. Reads a value from the RESULT input (input 1) and writes it into the PAYLOAD input (input 2) at a target path, emitting the accumulated payload. Chain multiple Result nodes to accumulate results across operations. (CI deploy marker rev4)',
+            description: 'Additive result accumulator. Takes the PAYLOAD input (input 2) as the base object, takes a value from the RESULT input (input 1), and writes that value into the payload at the target path. Emits the accumulated payload, so Result nodes can be chained. (CI deploy marker rev4)',
             defaults: {
                 name: 'Result',
             },
-            // Two main inputs: 0 = RESULT (value source), 1 = PAYLOAD (carried forward).
-            // One main output: the accumulated payload items.
-            inputs: [n8n_workflow_1.NodeConnectionTypes.Main, n8n_workflow_1.NodeConnectionTypes.Main],
+            // Two labelled main inputs: 0 = RESULT (value source), 1 = PAYLOAD (carried
+            // forward). One main output: the accumulated payload items.
+            inputs: [
+                { type: n8n_workflow_1.NodeConnectionTypes.Main, displayName: 'RESULT' },
+                { type: n8n_workflow_1.NodeConnectionTypes.Main, displayName: 'PAYLOAD' },
+            ],
             outputs: [n8n_workflow_1.NodeConnectionTypes.Main],
             properties: [
-                {
-                    displayName: 'Result Source',
-                    name: 'resultSource',
-                    type: 'string',
-                    default: '',
-                    description: 'Dot-notation path in the RESULT input item to read the value from, e.g. "value" or "data.total".',
-                    placeholder: 'e.g. value',
-                },
                 {
                     displayName: 'Target Path',
                     name: 'targetPath',
                     type: 'string',
                     default: '',
-                    description: 'Dot-notation path in the PAYLOAD input item to write the value to, e.g. "results.newResult". Missing intermediate objects are created; an existing value at this path is overwritten.',
-                    placeholder: 'e.g. results.newResult',
+                    required: true,
+                    description: 'Dot-notation path in the PAYLOAD input item to write the result to, e.g. "ginaNode" or "ginaNode.result". Missing intermediate objects are created; an existing value at this path is overwritten.',
+                    placeholder: 'e.g. ginaNode.result',
+                },
+                {
+                    displayName: 'Result Source',
+                    name: 'resultSource',
+                    type: 'string',
+                    default: '',
+                    required: false,
+                    description: 'Optional dot-notation path within the RESULT input item selecting what gets written, e.g. "status" or "data.total". Leave empty to write the entire RESULT item.',
+                    placeholder: 'leave empty for the whole item',
                 },
             ],
         };
@@ -121,14 +126,15 @@ class Result {
         const payloadItems = this.getInputData(PAYLOAD_INPUT_INDEX);
         const resultSource = this.getNodeParameter('resultSource', 0, '');
         const targetPath = this.getNodeParameter('targetPath', 0, '');
-        const sourceSegments = splitPath(resultSource);
-        if (sourceSegments.length === 0) {
-            throw new n8n_workflow_2.NodeOperationError(this.getNode(), "'Result Source' must be a non-empty dot-notation path, e.g. 'value'.", { description: 'The RESULT input is the first main input of the Result node.' });
-        }
+        // targetPath is required: without it there is nowhere to write the result.
         const targetSegments = splitPath(targetPath);
         if (targetSegments.length === 0) {
-            throw new n8n_workflow_2.NodeOperationError(this.getNode(), "'Target Path' must be a non-empty dot-notation path, e.g. 'results.newResult'.", { description: 'The PAYLOAD input is the second main input of the Result node.' });
+            throw new n8n_workflow_2.NodeOperationError(this.getNode(), "'Target Path' must be a non-empty dot-notation path, e.g. 'ginaNode.result'.", { description: 'The PAYLOAD input is the second main input of the Result node.' });
         }
+        // resultSource is optional. An empty (or non-string) value means "write the
+        // entire RESULT item"; a supplied path means "write the value at that path".
+        const sourceSegments = splitPath(resultSource);
+        const writeWholeResultItem = sourceSegments.length === 0;
         // Inputs pair by item index. When the two inputs carry different item
         // counts, pairs up to the shorter input are accumulated, PAYLOAD items
         // without a corresponding RESULT item are passed through unchanged, and
@@ -143,15 +149,22 @@ class Result {
             const json = copyValue(payloadItem.json);
             if (index < pairedCount) {
                 const resultJson = resultItems[index].json;
-                if (!hasPath(resultJson, sourceSegments)) {
-                    throw new n8n_workflow_2.NodeOperationError(this.getNode(), `RESULT item ${index} has no value at the configured Result Source path '${resultSource}'.`, {
-                        description: `RESULT item ${index} JSON keys: ${Object.keys(resultJson).join(', ') || '(none)'}.`,
-                        itemIndex: index,
-                    });
+                let value;
+                if (writeWholeResultItem) {
+                    value = resultJson;
                 }
-                // Deep copy the value too, so the output shares no references
-                // with the RESULT input item.
-                setPath(json, targetSegments, copyValue(getPath(resultJson, sourceSegments)));
+                else {
+                    if (!hasPath(resultJson, sourceSegments)) {
+                        throw new n8n_workflow_2.NodeOperationError(this.getNode(), `RESULT item ${index} has no value at the configured Result Source path '${resultSource}'.`, {
+                            description: `RESULT item ${index} JSON keys: ${Object.keys(resultJson).join(', ') || '(none)'}.`,
+                            itemIndex: index,
+                        });
+                    }
+                    value = getPath(resultJson, sourceSegments);
+                }
+                // Deep copy the value too, so the output shares no references with
+                // the RESULT input item.
+                setPath(json, targetSegments, copyValue(value));
             }
             output.push({ ...payloadItem, json: json });
         }
