@@ -28,27 +28,36 @@ steps:
           printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /etc/resolv.conf
           getent hosts pypi.org || echo ">> WARNING: pypi.org still unresolvable after fallback"
         fi
-      # Retry the whole install. uv already retries three times per request,
-      # but the resolver failure is per-process and the step is a single long
-      # shell, so one unlucky process used to fail the entire pipeline.
+      # Retry each package on its own. The previous shape retried the WHOLE
+      # loop, so one package failing on a transient index error discarded the
+      # packages that had already installed and restarted the run from zero;
+      # with ~15 packages that turned one timeout into a 47 minute step.
       - |
-        install_pkgs() {
-          for pkg in packages/*/; do
-            if [ -f "$pkg/pyproject.toml" ]; then
-              echo "Installing $pkg"
-              uv pip install --system -e "$pkg[dev]" 2>&1 \
-                || uv pip install --system -e "$pkg" 2>&1 \
-                || pip install --break-system-packages -e "$pkg"
-            fi
-          done
+        install_one() {
+          uv pip install --system -e "$1[dev]" 2>&1 \
+            || uv pip install --system -e "$1" 2>&1 \
+            || pip install --break-system-packages -e "$1"
         }
-        attempt=1
-        until install_pkgs; do
-          if [ "$attempt" -ge 5 ]; then echo "ERROR: install failed after $attempt attempts"; exit 1; fi
-          echo ">> install attempt $attempt failed; retrying in 20s"
-          attempt=$((attempt + 1))
-          sleep 20
-        done
+        install_pkgs() {
+          failed=""
+          for pkg in packages/*/; do
+            [ -f "$pkg/pyproject.toml" ] || continue
+            echo "Installing $pkg"
+            attempt=1
+            until install_one "$pkg"; do
+              if [ "$attempt" -ge 5 ]; then
+                echo "ERROR: $pkg failed after $attempt attempts"
+                failed="$failed $pkg"
+                break
+              fi
+              echo ">> $pkg attempt $attempt failed; retrying in 20s"
+              attempt=$((attempt + 1))
+              sleep 20
+            done
+          done
+          [ -z "$failed" ]
+        }
+        install_pkgs
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
 
   # Custom n8n nodes under custom-nodes/ are not covered by any other step
