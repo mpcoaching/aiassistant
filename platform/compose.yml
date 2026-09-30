@@ -361,6 +361,9 @@ networks:
   live-network:
     name: live-network
     external: true
+  infrastructure-network:
+    name: infrastructure-network
+    external: true
 
 volumes:
   postgres_db:
