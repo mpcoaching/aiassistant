@@ -16,6 +16,19 @@ steps:
       - for pkg in packages/*/; do if [ -f "$pkg/pyproject.toml" ]; then echo "Installing $pkg"; uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || pip install --system -e "$pkg"; fi; done
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
 
+  # Custom n8n nodes under custom-nodes/ are not covered by any other step
+  # here: the Python `test` step only walks packages/*, and the node build
+  # steps only build Docker images. `npm test` runs the node's own
+  # `pretest` (tsc) then its node:test suite, so this both type-checks and
+  # exercises the shipped Result.node.js behaviour.
+  - name: test-custom-nodes
+    image: registry.local.test/aiassistant/ci-runner:latest
+    when:
+      event: [push, manual]
+      path: ["custom-nodes/**", ".woodpecker/**"]
+    commands:
+      - for dir in custom-nodes/*/; do if [ -f "$dir/package.json" ]; then echo "Testing $dir"; (cd "$dir" && npm install --no-audit --no-fund --loglevel=error && npm test); fi; done
+
   - name: validate-contracts
     image: registry.local.test/aiassistant/ci-runner:latest
     when:
