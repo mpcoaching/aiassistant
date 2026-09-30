@@ -481,6 +481,26 @@ const tests: Array<{ name: string; run: () => Promise<void> | void }> = [
 		},
 	},
 	{
+		name: 'does not let a prototype-polluting targetPath segment pollute Object.prototype',
+		run: async () => {
+			const { execute, setInputs } = makeExecute('', '__proto__.polluted');
+			setInputs([{ json: RESULT_A }], [{ json: PAYLOAD_A }]);
+
+			await execute();
+
+			assert.strictEqual(
+				(Object.prototype as unknown as Record<string, unknown>).polluted,
+				undefined,
+				'Object.prototype must not gain a "polluted" property',
+			);
+			assert.strictEqual(
+				({} as Record<string, unknown>).polluted,
+				undefined,
+				'a freshly created object literal must not inherit "polluted"',
+			);
+		},
+	},
+	{
 		name: 'node description exposes two labelled main inputs and one main output',
 		run: () => {
 			assert.strictEqual(inputs.length, 2);

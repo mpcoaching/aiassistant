@@ -13,7 +13,11 @@ steps:
     when:
       event: [push, manual]
     commands:
-      - for pkg in packages/*/; do if [ -f "$pkg/pyproject.toml" ]; then echo "Installing $pkg"; uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || pip install --system -e "$pkg"; fi; done
+      # `pip install --system` is not a real option: --system belongs to `uv
+      # pip`, and plain pip spells it --break-system-packages. As written the
+      # third fallback could only ever fail with "no such option: --system",
+      # which turned any transient index error into a hard step failure.
+      - for pkg in packages/*/; do if [ -f "$pkg/pyproject.toml" ]; then echo "Installing $pkg"; uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || pip install --break-system-packages -e "$pkg"; fi; done
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
 
   # Custom n8n nodes under custom-nodes/ are not covered by any other step

@@ -84,7 +84,16 @@ function setPath(target: JsonObject, segments: string[], value: unknown): void {
 	let current: JsonObject = target;
 	for (let i = 0; i < segments.length - 1; i++) {
 		const segment = segments[i];
-		const existing = current[segment];
+		// The own-property check is load-bearing, not defensive noise. A bare
+		// `current[segment]` read makes an inherited key look like an existing
+		// branch, so a targetPath of `__proto__.polluted` would resolve the
+		// intermediate segment to Object.prototype and the final write would
+		// land there. getPath and hasPath already read through hasOwnProperty;
+		// this had to match, otherwise the write side stayed pollutable even
+		// though the read side looked safe.
+		const existing = Object.prototype.hasOwnProperty.call(current, segment)
+			? current[segment]
+			: undefined;
 		if (isPlainObject(existing)) {
 			current = existing;
 		} else {
