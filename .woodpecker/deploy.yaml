@@ -50,8 +50,12 @@ steps:
     - |
       set -eu
       COMMIT_SHA="${CI_COMMIT_SHA:-}"
+      # Only CI_COMMIT_SHA is checked here. The checkout existence check MUST
+      # NOT run in this step container: DEPLOY_DIR is a path on the deployment
+      # host, and the host checkout only becomes visible inside the nested
+      # `docker run` via its bind mount. Testing it out here always fails and
+      # aborts the deploy before it starts.
       test -n "$COMMIT_SHA" || { echo "ERROR: CI_COMMIT_SHA is empty; cannot deploy." >&2; exit 1; }
-      test -d "$DEPLOY_DIR/.git" || { echo "ERROR: no git checkout at $DEPLOY_DIR" >&2; exit 1; }
       # The helper joins the infrastructure network: that is where the
       # compose network and the registry/gitea FQDNs live, and it is the
       # only network from which public names resolve on every host. The
@@ -67,6 +71,10 @@ steps:
         registry.local.test/aiassistant/docker-client:latest \
         bash -c '
           set -eu
+          # The bind mount is in place here, so this is the first point at which
+          # the host checkout actually exists. `cd` alone would fail less
+          # clearly, so check explicitly and name the path.
+          test -d "$DEPLOY_DIR/.git" || { echo "ERROR: no git checkout at $DEPLOY_DIR" >&2; exit 1; }
           cd "$DEPLOY_DIR"
           git config --global --add safe.directory "$DEPLOY_DIR"
           # Serialize concurrent platform deployments (checkout + recreate).
