@@ -30,10 +30,15 @@ local.test:53 {
     }
 }
 
-# Default server - forward all other queries
+# Default server - forward all other queries.
+# The LAN resolver is listed first because the public resolvers are not
+# reachable from the container networks on every host. Without a resolver that
+# answers, containers cannot resolve public names at all: Docker's embedded
+# resolver forwards here, and the Gitea pull mirror of the authoritative
+# GitHub repository needs github.com.
 .:53 {
     log
     errors
-    forward . 1.1.1.1 8.8.8.8
+    forward . 192.168.1.1 1.1.1.1 8.8.8.8
     cache 30
 }
