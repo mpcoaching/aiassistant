@@ -82,7 +82,7 @@ class Result {
             name: 'aiAssistantResult',
             group: ['transform'],
             version: 1,
-            description: 'Copy a value from a dot-notation path in the item JSON to a target path, preserving all other fields. (CI deploy marker rev2)',
+            description: 'Copy a value from a dot-notation path in the item JSON to a target path, preserving all other fields. (CI deploy marker rev3)',
             defaults: {
                 name: 'Result',
             },
