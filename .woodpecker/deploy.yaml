@@ -1,4 +1,13 @@
 ---
+# This workflow does not use the CI workspace at all: the deployment runs
+# against the host's own checkout, bind-mounted at its real path (see
+# DEPLOY_DIR below), precisely so that ../custom-nodes resolves to real files.
+#
+# Cloning is therefore pointless work that also fails outright: the default
+# clone talks to https://gitea.local.test with a certificate the plugin-git
+# image does not trust, and unlike .woodpecker/ci.yaml this workflow has no
+# clone override pointing it at the plain-HTTP internal endpoint.
+skip_clone: true
 when:
   event: [push]
   branch: main
