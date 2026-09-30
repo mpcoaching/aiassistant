@@ -1,7 +1,7 @@
 {
   "name": "ai-assistant-result",
   "version": "1.0.0",
-  "description": "Result node: copies a value from a dot-notation path in each item's JSON to a target path, preserving all other fields.",
+  "description": "Result node: reads a value from the RESULT input and accumulates it into the PAYLOAD input at a dot-notation target path.",
   "main": "Result.node.js",
   "n8n": "1.0.0",
   "keywords": ["n8n", "n8n-community-node"],
