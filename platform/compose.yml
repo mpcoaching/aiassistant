@@ -346,6 +346,7 @@ services:
       - LANGCHAIN_PROJECT=${N8N_LANGCHAIN_PROJECT}
     networks:
       - platform-network
+      - infrastructure-network
     volumes:
       - n8n_data:/home/node/.n8n
       - ../custom-nodes:/home/node/.n8n/custom
