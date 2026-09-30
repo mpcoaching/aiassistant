@@ -44,10 +44,10 @@ steps:
         }
         attempt=1
         until install_pkgs; do
-          if [ "$attempt" -ge 3 ]; then echo "ERROR: install failed after $attempt attempts"; exit 1; fi
-          echo ">> install attempt $attempt failed; retrying in 15s"
+          if [ "$attempt" -ge 5 ]; then echo "ERROR: install failed after $attempt attempts"; exit 1; fi
+          echo ">> install attempt $attempt failed; retrying in 20s"
           attempt=$((attempt + 1))
-          sleep 15
+          sleep 20
         done
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
 
