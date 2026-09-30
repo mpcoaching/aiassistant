@@ -70,12 +70,14 @@ services:
       - GITEA__MIGRATIONS__ALLOWED_DOMAINS=github.com
     restart: unless-stopped
     # The mirror has to resolve github.com. Docker's embedded resolver on
-    # these networks only answers *.local.test, so public names are forwarded
-    # to public resolvers explicitly; inter-container discovery is unaffected
-    # because Docker keeps 127.0.0.11 and uses these only as upstreams.
+    # these networks only answers *.local.test, so a public-capable resolver
+    # is configured explicitly. The LAN resolver is listed first because the
+    # public resolvers are not reachable from every host's container network;
+    # inter-container discovery is unaffected, since Docker keeps 127.0.0.11
+    # and uses these only as upstreams for names it cannot answer itself.
     dns:
+      - 192.168.1.1
       - 8.8.8.8
-      - 1.1.1.1
     extra_hosts:
       - "woodpecker.local.test:192.168.1.238"
     networks:

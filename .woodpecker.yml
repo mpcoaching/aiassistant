@@ -373,10 +373,13 @@ deploy_platform:
             COMMIT_SHA="${CI_COMMIT_SHA:-}"
             test -n "$COMMIT_SHA" || { echo "ERROR: CI_COMMIT_SHA is empty; cannot deploy." >&2; exit 1; }
             test -d "$DEPLOY_DIR/.git" || { echo "ERROR: no git checkout at $DEPLOY_DIR" >&2; exit 1; }
-            # Explicit resolvers: the agent's default DNS cannot resolve github.com,
-            # so the fetch of the exact commit would fail without them.
+            # Explicit resolver: the agent's default DNS cannot resolve
+            # github.com, so the fetch of the exact commit would fail without
+            # it. The LAN resolver is listed first because the public
+            # resolvers are not reachable from the deployment host's
+            # container network.
             docker run --rm \
-              --dns 8.8.8.8 --dns 8.8.4.4 \
+              --dns 192.168.1.1 --dns 8.8.8.8 \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -e HOME=/tmp -e GIT_TERMINAL_PROMPT=0 \
               -e DEPLOY_DIR -e DEPLOY_SHA="$COMMIT_SHA" \
