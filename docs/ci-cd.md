@@ -47,6 +47,45 @@ browser download) — are only reliable on `infrastructure-network`. `deploy.yam
 works around this explicitly with `docker run --network infrastructure-network` for its
 nested container.
 
+### Step containers attach to `bridge` first
+
+`WOODPECKER_BACKEND_DOCKER_NETWORK` is additive, not exclusive. Every step container is
+attached to the agent's network *plus* Docker's default `bridge` first, so its default
+route points at `docker0`'s gateway (`172.17.0.1`). If `docker0` has no IPv4 address, no
+step container has any route off-box: `getent hosts pypi.org` fails and `curl`/`uv`/`npm`
+fail with connect timeouts, not name-resolution errors. The symptom is therefore a step
+that looks like a flaky index rather than a missing network, and the `install` step burns
+its whole retry budget on it.
+
+## Recovering a stripped Docker bridge network
+
+A `systemd-networkd` restart on this host flushes the IPv4 addresses Docker assigned to
+its bridges: `docker0` and every `br-<id>` keep their links and veths, and container to
+container traffic on a bridge still works, but the host loses the `172.16.0.0/12` routes.
+Everything that goes through a host port then dies silently — published ports 80/443
+accept a TCP connection and never answer, and `docker login registry.local.test` and
+Gitea → Woodpecker webhooks stop working. This looks exactly like the CI control plane
+being down while `docker ps` shows every container healthy.
+
+`journalctl` names the trigger (`Stopping systemd-networkd.service`, followed by
+`<bridge>: Link DOWN` / `Lost carrier` for every veth). Restore the addresses from the
+gateways Docker already has on record in `docker network inspect`; the kernel re-adds the
+routes on its own:
+
+```sh
+docker run --rm --privileged --network host nicolaka/netshoot sh -c '
+  for net in infrastructure-network platform-network dev-network live-network ai_net; do
+    gw=$(docker network inspect "$net" --format "{{index .IPAM.Config 0 .Gateway}}")
+    br=br-$(docker network inspect "$net" --format "{{.Id}}" | cut -c1-12)
+    ip -4 addr show dev "$br" | grep -q "inet $gw" || ip addr add "$gw/16" dev "$br"
+  done
+  ip addr add 172.17.0.1/16 dev docker0
+'
+```
+
+The addresses are runtime state, so this is only needed after such a restart, and only on
+a host whose Docker networks were created before it.
+
 ## Components
 
 - **CI/CD engine:** Woodpecker `v3` server + agent (`infrastructure/compose.yml`), Docker backend via the host socket.
