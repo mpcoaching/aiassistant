@@ -1,0 +1,90 @@
+---
+when:
+  event: [push]
+  branch: main
+  path:
+    - "platform/compose.yml"
+    - "custom-nodes/**"
+steps:
+# Converge the AUTHORITATIVE n8n service so a custom-node change actually
+# reaches the running container. n8n reads N8N_CUSTOM_EXTENSIONS only at
+# process startup, and the nodes arrive via the bind mount
+# ../custom-nodes -> /home/node/.n8n/custom, so a change to custom-nodes/**
+# alone causes NO compose config drift and no automatic recreate. This step
+# therefore always passes --force-recreate.
+#
+# It reuses the mechanism the dev `deploy` step above already uses: the
+# Woodpecker agent's mounted Docker socket. No SSH, no deploy secrets.
+#
+# It must NOT run `docker compose` against the CI workspace. The agent's
+# workspace lives inside the agent container and is NOT visible on the host,
+# so a relative bind source would resolve to a path that does not exist on
+# the host and n8n would be recreated against an EMPTY custom-nodes
+# directory. Instead the host's own checkout is bind-mounted at its real
+# path, which is what makes ../custom-nodes resolve to the real node files.
+#
+# $CI_COMMIT_SHA is passed as an argument and never interpolated into the
+# command string, so a later push cannot redirect THIS build's deploy to a
+# different revision. The host checkout is brought to that exact SHA and the
+# deployment is refused unless it succeeded.
+- name: deploy-platform
+  image: registry.local.test/aiassistant/docker-client:latest
+  when:
+    event: [push]
+    branch: main
+    path:
+      - "platform/compose.yml"
+      - "custom-nodes/**"
+  environment:
+    DEPLOY_DIR: /home/agent99/projects/aiassistant
+  commands:
+    - |
+      set -eu
+      COMMIT_SHA="${CI_COMMIT_SHA:-}"
+      test -n "$COMMIT_SHA" || { echo "ERROR: CI_COMMIT_SHA is empty; cannot deploy." >&2; exit 1; }
+      test -d "$DEPLOY_DIR/.git" || { echo "ERROR: no git checkout at $DEPLOY_DIR" >&2; exit 1; }
+      # The helper joins the infrastructure network: that is where the
+      # compose network and the registry/gitea FQDNs live, and it is the
+      # only network from which public names resolve on every host. The
+      # default bridge cannot reach a resolver, so the fetch of the exact
+      # commit would fail there.
+      docker run --rm \
+        --network infrastructure-network \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -e HOME=/tmp -e GIT_TERMINAL_PROMPT=0 \
+        -e DEPLOY_DIR -e DEPLOY_SHA="$COMMIT_SHA" \
+        -v "$DEPLOY_DIR":"$DEPLOY_DIR" \
+        -w "$DEPLOY_DIR" \
+        registry.local.test/aiassistant/docker-client:latest \
+        bash -c '
+          set -eu
+          cd "$DEPLOY_DIR"
+          git config --global --add safe.directory "$DEPLOY_DIR"
+          # Serialize concurrent platform deployments (checkout + recreate).
+          # This image ships BusyBox flock, which has no -w/--timeout, so the
+          # bounded wait is a retry loop around the non-blocking -n form.
+          exec 9>"$DEPLOY_DIR/.git/aiassistant-platform-deploy.lock"
+          waited=0
+          until flock -n 9; do
+            waited=$((waited + 5))
+            if [ "$waited" -ge 300 ]; then
+              echo "ERROR: another platform deployment is in progress; timed out." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          # Refuse to deploy over host work; never git reset --hard.
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "ERROR: tracked changes in $DEPLOY_DIR; refusing to deploy." >&2
+            git status --porcelain --untracked-files=no >&2
+            exit 1
+          fi
+          git fetch --tags origin
+          # Resolve to a full object id so the HEAD comparison below holds
+          # whether CI_COMMIT_SHA arrives abbreviated or full length.
+          RESOLVED="$(git rev-parse "$DEPLOY_SHA^{commit}")"
+          git checkout -q --detach "$RESOLVED"
+          test "$(git rev-parse HEAD)" = "$RESOLVED"
+          echo ">> checked out $RESOLVED"
+          bash cicd/scripts/deploy-platform.sh "$DEPLOY_SHA"
+        '
