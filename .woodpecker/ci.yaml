@@ -13,11 +13,42 @@ steps:
     when:
       event: [push, manual]
     commands:
-      # `pip install --system` is not a real option: --system belongs to `uv
-      # pip`, and plain pip spells it --break-system-packages. As written the
-      # third fallback could only ever fail with "no such option: --system",
-      # which turned any transient index error into a hard step failure.
-      - for pkg in packages/*/; do if [ -f "$pkg/pyproject.toml" ]; then echo "Installing $pkg"; uv pip install --system -e "$pkg[dev]" 2>&1 || uv pip install --system -e "$pkg" 2>&1 || pip install --break-system-packages -e "$pkg"; fi; done
+      # Step containers get Docker's embedded resolver (127.0.0.11), which
+      # resolves container aliases locally but forwards external names to the
+      # host resolvers. That forwarding is unreliable here: uv/pip fail with
+      # `Temporary failure in name resolution` for pypi.org even though the
+      # same image launched directly on the same networks resolves it. Probe
+      # first, fall back to a public resolver, and report which path was taken
+      # so a future failure is diagnosable from the step log alone.
+      - |
+        if getent hosts pypi.org >/dev/null 2>&1; then
+          echo ">> resolver: embedded DNS OK for pypi.org"
+        else
+          echo ">> resolver: embedded DNS FAILED for pypi.org; using 1.1.1.1/8.8.8.8"
+          printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /etc/resolv.conf
+          getent hosts pypi.org || echo ">> WARNING: pypi.org still unresolvable after fallback"
+        fi
+      # Retry the whole install. uv already retries three times per request,
+      # but the resolver failure is per-process and the step is a single long
+      # shell, so one unlucky process used to fail the entire pipeline.
+      - |
+        install_pkgs() {
+          for pkg in packages/*/; do
+            if [ -f "$pkg/pyproject.toml" ]; then
+              echo "Installing $pkg"
+              uv pip install --system -e "$pkg[dev]" 2>&1 \
+                || uv pip install --system -e "$pkg" 2>&1 \
+                || pip install --break-system-packages -e "$pkg"
+            fi
+          done
+        }
+        attempt=1
+        until install_pkgs; do
+          if [ "$attempt" -ge 3 ]; then echo "ERROR: install failed after $attempt attempts"; exit 1; fi
+          echo ">> install attempt $attempt failed; retrying in 15s"
+          attempt=$((attempt + 1))
+          sleep 15
+        done
       - if [ -d "packages/control-center-ui" ]; then cd packages/control-center-ui && npm install && cd ../..; fi
 
   # Custom n8n nodes under custom-nodes/ are not covered by any other step
@@ -31,6 +62,12 @@ steps:
       event: [push, manual]
       path: ["custom-nodes/**", ".woodpecker/**"]
     commands:
+      # Same resolver caveat as the install step; npm needs registry.npmjs.org.
+      - |
+        if ! getent hosts registry.npmjs.org >/dev/null 2>&1; then
+          echo ">> resolver: embedded DNS FAILED for registry.npmjs.org; using 1.1.1.1/8.8.8.8"
+          printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /etc/resolv.conf
+        fi
       - for dir in custom-nodes/*/; do if [ -f "$dir/package.json" ]; then echo "Testing $dir"; (cd "$dir" && npm install --no-audit --no-fund --loglevel=error && npm test); fi; done
 
   - name: validate-contracts
