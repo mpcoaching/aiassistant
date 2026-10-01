@@ -105,6 +105,57 @@ function setPath(target: JsonObject, segments: string[], value: unknown): void {
 	setSafeObjectProperty(current, segments[segments.length - 1], value);
 }
 
+/**
+ * Append `value` as a new last element of the array living at a dot-notation
+ * path, creating the array (and any intermediate objects) when the path does
+ * not exist yet.
+ *
+ * An existing array is appended to in place and reused, so sibling fields and
+ * earlier history entries survive. The same `setSafeObjectProperty` /
+ * `hasOwnProperty` discipline as `setPath` applies: a prototype-polluting
+ * segment must not resolve an intermediate branch to Object.prototype.
+ *
+ * Returns the array that was appended to, or `undefined` when the path already
+ * holds something that is not an array. The caller owns that decision because
+ * only it can raise a NodeOperationError against the running node.
+ */
+function appendToPathArray(
+	target: JsonObject,
+	segments: string[],
+	value: unknown,
+): unknown[] | undefined {
+	let current: JsonObject = target;
+	for (let i = 0; i < segments.length - 1; i++) {
+		const segment = segments[i];
+		const existing = Object.prototype.hasOwnProperty.call(current, segment)
+			? current[segment]
+			: undefined;
+		if (isPlainObject(existing)) {
+			current = existing;
+		} else {
+			const created: JsonObject = {};
+			setSafeObjectProperty(current, segment, created);
+			current = created;
+		}
+	}
+
+	const leaf = segments[segments.length - 1];
+	const existing = Object.prototype.hasOwnProperty.call(current, leaf)
+		? current[leaf]
+		: undefined;
+
+	if (existing !== undefined && existing !== null && !Array.isArray(existing)) {
+		return undefined;
+	}
+
+	// `existing` is either a plain array (reused, so order and identity hold) or
+	// nothing at all (initialised as an array).
+	const array = Array.isArray(existing) ? existing : [];
+	array.push(value);
+	setSafeObjectProperty(current, leaf, array);
+	return array;
+}
+
 export class Result implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Result',
@@ -112,7 +163,7 @@ export class Result implements INodeType {
 		group: ['transform'],
 		version: 1,
 		description:
-			'Additive result accumulator. Takes the PAYLOAD input (input 2) as the base object, takes a value from the RESULT input (input 1), and writes that value into the payload at the target path. Emits the accumulated payload, so Result nodes can be chained. (CI deploy marker rev4)',
+			'Additive result accumulator. Takes the PAYLOAD input (input 2) as the base object, takes a value from the RESULT input (input 1), and writes that value into the payload at the target path. Optionally appends that same value to a history array. Emits the accumulated payload, so Result nodes can be chained. (CI deploy marker rev5)',
 		defaults: {
 			name: 'Result',
 		},
@@ -144,6 +195,30 @@ export class Result implements INodeType {
 					'Optional dot-notation path within the RESULT input item selecting what gets written, e.g. "status" or "data.total". Leave empty to write the entire RESULT item.',
 				placeholder: 'leave empty for the whole item',
 			},
+			{
+				displayName: 'Add to History',
+				name: 'addToHistory',
+				type: 'boolean',
+				default: false,
+				required: false,
+				description:
+					'When enabled, the same value written to Target Path is also appended as one new element to the array at History Path. Off by default, in which case the node behaves exactly as before.',
+			},
+			{
+				displayName: 'History Path',
+				name: 'historyPath',
+				type: 'string',
+				default: 'context.history',
+				required: false,
+				displayOptions: {
+					show: {
+						addToHistory: [true],
+					},
+				},
+				description:
+					'Dot-notation path of the array to append to, e.g. "context.history". Missing intermediate objects and a missing array are created. Nothing outside this path is touched, so sibling fields such as context.stack are left as they are.',
+				placeholder: 'e.g. context.history',
+			},
 		],
 	};
 
@@ -153,6 +228,8 @@ export class Result implements INodeType {
 
 		const resultSource = this.getNodeParameter('resultSource', 0, '') as string;
 		const targetPath = this.getNodeParameter('targetPath', 0, '') as string;
+		const addToHistory = this.getNodeParameter('addToHistory', 0, false) === true;
+		const historyPath = this.getNodeParameter('historyPath', 0, 'context.history') as string;
 
 		// targetPath is required: without it there is nowhere to write the result.
 		const targetSegments = splitPath(targetPath);
@@ -168,6 +245,17 @@ export class Result implements INodeType {
 		// entire RESULT item"; a supplied path means "write the value at that path".
 		const sourceSegments = splitPath(resultSource);
 		const writeWholeResultItem = sourceSegments.length === 0;
+
+		// The history path is only validated when the option is on, so a node
+		// that never appends keeps working with an unset History Path.
+		const historySegments = addToHistory ? splitPath(historyPath) : [];
+		if (addToHistory && historySegments.length === 0) {
+			throw new NodeOperationError(
+				this.getNode(),
+				"'History Path' must be a non-empty dot-notation path when 'Add to History' is enabled, e.g. 'context.history'.",
+				{ description: "Turn off 'Add to History' to skip the history append entirely." },
+			);
+		}
 
 		// Inputs pair by item index. When the two inputs carry different item
 		// counts, pairs up to the shorter input are accumulated, PAYLOAD items
@@ -208,6 +296,23 @@ export class Result implements INodeType {
 				// Deep copy the value too, so the output shares no references with
 				// the RESULT input item.
 				setPath(json, targetSegments, copyValue(value));
+
+				if (addToHistory) {
+					// A separate copy of the value, so a later mutation of the
+					// target value cannot reach back into the history entry.
+					const appended = appendToPathArray(json, historySegments, copyValue(value));
+					if (appended === undefined) {
+						throw new NodeOperationError(
+							this.getNode(),
+							`'History Path' points at '${historyPath}', which exists on PAYLOAD item ${index} but is not an array.`,
+							{
+								description:
+									"'Add to History' appends to an array. Point History Path at an array path, e.g. 'context.history'.",
+								itemIndex: index,
+							},
+						);
+					}
+				}
 			}
 
 			output.push({ ...payloadItem, json: json as IDataObject });
