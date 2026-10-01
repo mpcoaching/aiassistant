@@ -350,6 +350,7 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
       - ../custom-nodes:/home/node/.n8n/custom
+      - ../packages/configuration/rootCA.pem:/etc/ssl/certs/mkcert-rootCA.pem:ro
 
 networks:
   platform-network:
