@@ -344,6 +344,7 @@ services:
       - LANGCHAIN_API_KEY=${N8N_LANGCHAIN_API_KEY}
       - LANGCHAIN_ENDPOINT=${N8N_LANGCHAIN_ENDPOINT}
       - LANGCHAIN_PROJECT=${N8N_LANGCHAIN_PROJECT}
+      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/mkcert-rootCA.pem
     networks:
       - platform-network
       - infrastructure-network
