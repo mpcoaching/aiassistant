@@ -76,21 +76,23 @@ function getPath(root: JsonObject, segments: string[]): unknown {
 }
 
 /**
- * Write `value` at a dot-notation path, creating intermediate plain objects as
- * needed and reusing existing ones so sibling fields survive. Uses
- * `setSafeObjectProperty` so prototype-polluting keys are never written.
+ * Resolve, creating as needed, the plain object that holds the FINAL segment of
+ * a dot-notation path. Missing intermediate objects are created and existing
+ * plain ones are reused so sibling fields survive; anything else sitting on an
+ * intermediate segment is replaced by a fresh object.
+ *
+ * Uses `setSafeObjectProperty` so prototype-polluting keys are never written.
+ * The own-property check is load-bearing, not defensive noise. A bare
+ * `current[segment]` read makes an inherited key look like an existing branch,
+ * so a path of `__proto__.polluted` would resolve the intermediate segment to
+ * Object.prototype and the write would land there. getPath and hasPath already
+ * read through hasOwnProperty; this has to match, otherwise the write side
+ * stayed pollutable even though the read side looked safe.
  */
-function setPath(target: JsonObject, segments: string[], value: unknown): void {
+function resolveParentObject(target: JsonObject, segments: string[]): JsonObject {
 	let current: JsonObject = target;
 	for (let i = 0; i < segments.length - 1; i++) {
 		const segment = segments[i];
-		// The own-property check is load-bearing, not defensive noise. A bare
-		// `current[segment]` read makes an inherited key look like an existing
-		// branch, so a targetPath of `__proto__.polluted` would resolve the
-		// intermediate segment to Object.prototype and the final write would
-		// land there. getPath and hasPath already read through hasOwnProperty;
-		// this had to match, otherwise the write side stayed pollutable even
-		// though the read side looked safe.
 		const existing = Object.prototype.hasOwnProperty.call(current, segment)
 			? current[segment]
 			: undefined;
@@ -102,58 +104,45 @@ function setPath(target: JsonObject, segments: string[], value: unknown): void {
 			current = created;
 		}
 	}
-	setSafeObjectProperty(current, segments[segments.length - 1], value);
+	return current;
 }
 
 /**
- * Append `value` as a new last element of the array living at a dot-notation
- * path, creating the array (and any intermediate objects) when the path does
- * not exist yet.
- *
- * An existing array is appended to in place and reused, so sibling fields and
- * earlier history entries survive. The same `setSafeObjectProperty` /
- * `hasOwnProperty` discipline as `setPath` applies: a prototype-polluting
- * segment must not resolve an intermediate branch to Object.prototype.
- *
- * Returns the array that was appended to, or `undefined` when the path already
- * holds something that is not an array. The caller owns that decision because
- * only it can raise a NodeOperationError against the running node.
+ * Write `value` at a dot-notation path, creating intermediate plain objects as
+ * needed and reusing existing ones so sibling fields survive.
  */
-function appendToPathArray(
-	target: JsonObject,
-	segments: string[],
-	value: unknown,
-): unknown[] | undefined {
-	let current: JsonObject = target;
-	for (let i = 0; i < segments.length - 1; i++) {
-		const segment = segments[i];
-		const existing = Object.prototype.hasOwnProperty.call(current, segment)
-			? current[segment]
-			: undefined;
-		if (isPlainObject(existing)) {
-			current = existing;
-		} else {
-			const created: JsonObject = {};
-			setSafeObjectProperty(current, segment, created);
-			current = created;
-		}
+function setPath(target: JsonObject, segments: string[], value: unknown): void {
+	const parent = resolveParentObject(target, segments);
+	setSafeObjectProperty(parent, segments[segments.length - 1], value);
+}
+
+/** What currently sits at a dot-notation path that is meant to hold an array. */
+type PathArrayState =
+	| { kind: 'absent' }
+	| { kind: 'array'; array: unknown[] }
+	| { kind: 'invalid' };
+
+/**
+ * Report whether a dot-notation path holds an array, holds nothing (or an
+ * explicit `null`, which is treated as "not initialised yet"), or holds
+ * something else entirely.
+ *
+ * This deliberately reads through hasPath/getPath rather than creating anything
+ * on the way: inspecting a path must not have write side effects. Use setPath
+ * to materialise the array once the caller has decided to create it.
+ */
+function inspectPathArray(target: JsonObject, segments: string[]): PathArrayState {
+	if (!hasPath(target, segments)) {
+		return { kind: 'absent' };
 	}
-
-	const leaf = segments[segments.length - 1];
-	const existing = Object.prototype.hasOwnProperty.call(current, leaf)
-		? current[leaf]
-		: undefined;
-
-	if (existing !== undefined && existing !== null && !Array.isArray(existing)) {
-		return undefined;
+	const existing = getPath(target, segments);
+	if (existing === null) {
+		return { kind: 'absent' };
 	}
-
-	// `existing` is either a plain array (reused, so order and identity hold) or
-	// nothing at all (initialised as an array).
-	const array = Array.isArray(existing) ? existing : [];
-	array.push(value);
-	setSafeObjectProperty(current, leaf, array);
-	return array;
+	if (Array.isArray(existing)) {
+		return { kind: 'array', array: existing };
+	}
+	return { kind: 'invalid' };
 }
 
 export class Result implements INodeType {
@@ -163,7 +152,7 @@ export class Result implements INodeType {
 		group: ['transform'],
 		version: 1,
 		description:
-			'Additive result accumulator. Takes the PAYLOAD input (input 2) as the base object, takes a value from the RESULT input (input 1), and writes that value into the payload at the target path. Optionally appends that same value to a history array. Emits the accumulated payload, so Result nodes can be chained. (CI deploy marker rev5)',
+			'Additive result accumulator. Takes the PAYLOAD input (input 2) as the base object, takes a value from the RESULT input (input 1), and writes that value into the payload at the target path. Optionally appends that value to an execution-context stack, and optionally closes that stack into a history entry. Emits the accumulated payload, so Result nodes can be chained. (CI deploy marker rev6)',
 		defaults: {
 			name: 'Result',
 		},
@@ -196,13 +185,37 @@ export class Result implements INodeType {
 				placeholder: 'leave empty for the whole item',
 			},
 			{
-				displayName: 'Add to History',
-				name: 'addToHistory',
+				displayName: 'Add to Stack',
+				name: 'addToStack',
 				type: 'boolean',
 				default: false,
 				required: false,
 				description:
-					'When enabled, the same value written to Target Path is also appended as one new element to the array at History Path. Off by default, in which case the node behaves exactly as before.',
+					'When enabled, the same value written to Target Path is appended to the array at Stack Path. The existing stack is kept and the new value becomes its last element. Off by default, in which case the stack is left alone.',
+			},
+			{
+				displayName: 'Stack Path',
+				name: 'stackPath',
+				type: 'string',
+				default: 'context.stack',
+				required: false,
+				displayOptions: {
+					show: {
+						addToStack: [true],
+					},
+				},
+				description:
+					'Dot-notation path of the array to append to, e.g. "context.stack". Missing intermediate objects and a missing array are created. Nothing outside this path is touched.',
+				placeholder: 'e.g. context.stack',
+			},
+			{
+				displayName: 'Finalise',
+				name: 'finalise',
+				type: 'boolean',
+				default: false,
+				required: false,
+				description:
+					'When enabled, takes the complete stack at Stack Path, appends ONE history entry containing a copy of it to the array at History Path, and then clears the live stack. Use it on the last node of a context to close it out.',
 			},
 			{
 				displayName: 'History Path',
@@ -212,11 +225,11 @@ export class Result implements INodeType {
 				required: false,
 				displayOptions: {
 					show: {
-						addToHistory: [true],
+						finalise: [true],
 					},
 				},
 				description:
-					'Dot-notation path of the array to append to, e.g. "context.history". Missing intermediate objects and a missing array are created. Nothing outside this path is touched, so sibling fields such as context.stack are left as they are.',
+					'Dot-notation path of the array that closed stacks are appended to, e.g. "context.history". Missing intermediate objects and a missing array are created. Each finalisation adds one entry of the shape { stack: [...] } holding an independent copy of the stack, so later stack changes cannot alter past entries.',
 				placeholder: 'e.g. context.history',
 			},
 		],
@@ -228,7 +241,13 @@ export class Result implements INodeType {
 
 		const resultSource = this.getNodeParameter('resultSource', 0, '') as string;
 		const targetPath = this.getNodeParameter('targetPath', 0, '') as string;
-		const addToHistory = this.getNodeParameter('addToHistory', 0, false) === true;
+		const addToStack = this.getNodeParameter('addToStack', 0, false) === true;
+		const finalise = this.getNodeParameter('finalise', 0, false) === true;
+		// Both paths are read even when only one option is on: Finalise reads and
+		// then clears the stack, so it needs a stack path of its own, and the
+		// defaults keep a node that only enabled one option working without
+		// having to configure the other one's path.
+		const stackPath = this.getNodeParameter('stackPath', 0, 'context.stack') as string;
 		const historyPath = this.getNodeParameter('historyPath', 0, 'context.history') as string;
 
 		// targetPath is required: without it there is nowhere to write the result.
@@ -246,14 +265,23 @@ export class Result implements INodeType {
 		const sourceSegments = splitPath(resultSource);
 		const writeWholeResultItem = sourceSegments.length === 0;
 
-		// The history path is only validated when the option is on, so a node
-		// that never appends keeps working with an unset History Path.
-		const historySegments = addToHistory ? splitPath(historyPath) : [];
-		if (addToHistory && historySegments.length === 0) {
+		// Stack and history paths are only validated when the option that uses them is
+		// on, so a node that never touches either keeps working with them unset.
+		const stackSegments = splitPath(stackPath);
+		if (addToStack && stackSegments.length === 0) {
 			throw new NodeOperationError(
 				this.getNode(),
-				"'History Path' must be a non-empty dot-notation path when 'Add to History' is enabled, e.g. 'context.history'.",
-				{ description: "Turn off 'Add to History' to skip the history append entirely." },
+				"'Stack Path' must be a non-empty dot-notation path when 'Add to Stack' is enabled, e.g. 'context.stack'.",
+				{ description: "Turn off 'Add to Stack' to skip the stack append entirely." },
+			);
+		}
+
+		const historySegments = splitPath(historyPath);
+		if (finalise && historySegments.length === 0) {
+			throw new NodeOperationError(
+				this.getNode(),
+				"'History Path' must be a non-empty dot-notation path when 'Finalise' is enabled, e.g. 'context.history'.",
+				{ description: "Turn off 'Finalise' to skip the finalisation entirely." },
 			);
 		}
 
@@ -297,21 +325,83 @@ export class Result implements INodeType {
 				// the RESULT input item.
 				setPath(json, targetSegments, copyValue(value));
 
-				if (addToHistory) {
-					// A separate copy of the value, so a later mutation of the
-					// target value cannot reach back into the history entry.
-					const appended = appendToPathArray(json, historySegments, copyValue(value));
-					if (appended === undefined) {
+				// Order matters when both options are on: this node contributes its
+				// own value to the stack first, and Finalise then closes the stack
+				// that includes it. That is what lets a final Result node push its
+				// own value and close the context in a single execution.
+				if (addToStack) {
+					const stackState = inspectPathArray(json, stackSegments);
+					if (stackState.kind === 'invalid') {
+						throw new NodeOperationError(
+							this.getNode(),
+							`'Stack Path' points at '${stackPath}', which exists on PAYLOAD item ${index} but is not an array.`,
+							{
+								description:
+									"'Add to Stack' appends to an array. Point Stack Path at an array path, e.g. 'context.stack'.",
+								itemIndex: index,
+							},
+						);
+					}
+					if (stackState.kind === 'array') {
+						// Appended in place so the existing stack, its order, and any
+						// sibling fields on the same parent object all survive.
+						stackState.array.push(copyValue(value));
+					} else {
+						// The path does not hold an array yet: create the array and the
+						// intermediate objects the path needs.
+						setPath(json, stackSegments, [copyValue(value)]);
+					}
+				}
+
+				if (finalise) {
+					// Snapshot the complete stack BEFORE clearing it. Each element is
+					// deep copied so the history entry is a snapshot: mutating the live
+					// stack afterwards must never reach back into past history.
+					const stackState = inspectPathArray(json, stackSegments);
+					if (stackState.kind === 'invalid') {
+						throw new NodeOperationError(
+							this.getNode(),
+							`'Stack Path' points at '${stackPath}', which exists on PAYLOAD item ${index} but is not an array.`,
+							{
+								description:
+									"'Finalise' reads the stack before clearing it. Point Stack Path at an array path, e.g. 'context.stack'.",
+								itemIndex: index,
+							},
+						);
+					}
+					const stackBeforeFinalise = stackState.kind === 'array' ? stackState.array : [];
+					const snapshot = stackBeforeFinalise.map((entry) => copyValue(entry));
+
+					const historyState = inspectPathArray(json, historySegments);
+					if (historyState.kind === 'invalid') {
 						throw new NodeOperationError(
 							this.getNode(),
 							`'History Path' points at '${historyPath}', which exists on PAYLOAD item ${index} but is not an array.`,
 							{
 								description:
-									"'Add to History' appends to an array. Point History Path at an array path, e.g. 'context.history'.",
+									"'Finalise' appends one entry per finalisation. Point History Path at an array path, e.g. 'context.history'.",
 								itemIndex: index,
 							},
 						);
 					}
+					// One entry per finalisation, holding the complete stack. Never one
+					// entry per stack element.
+					const historyEntry = { stack: snapshot };
+					if (historyState.kind === 'array') {
+						historyState.array.push(historyEntry);
+					} else {
+						setPath(json, historySegments, [historyEntry]);
+					}
+
+					// Clear the live stack last, after the snapshot has been taken and
+					// the history entry is stored. A fresh array replaces the old one,
+					// which is what keeps the snapshot independent of the cleared stack.
+					//
+					// Stack Path and History Path are expected to be sibling arrays under
+					// the same context object (the default context.stack / context.history).
+					// A configuration that nests one inside the other is contradictory
+					// and is the user's to avoid; it is not special-cased here.
+					setPath(json, stackSegments, []);
 				}
 			}
 
