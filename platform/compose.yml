@@ -270,6 +270,52 @@ services:
       - platform-network
     restart: always
 
+  # ---------- SearXNG: private metasearch for the search path ----------
+  # Two access paths, both required by the platform's existing conventions:
+  #   n8n     -> searxng:8080   (direct on platform-network, never via nginx)
+  #   browser -> nginx -> searxng:8080  (https://searxng.local.test)
+  # No published host port: `expose` keeps 8080 reachable only from the Docker
+  # networks this container joins, so the instance is never on the public
+  # Internet. Image pinned (immutability, ADR-006) — dated SearXNG build tag,
+  # which is published once per release and never re-pointed.
+  searxng:
+    image: searxng/searxng:2026.10.2-19ffbcd30
+    # Same resolver override as postgres/portkey: the embedded Docker resolver's
+    # upstream forwarding is unreliable on this host, and SearXNG has to resolve
+    # the public search engines it queries. Docker still injects 127.0.0.11 for
+    # container-name discovery on this user-defined network.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    expose:
+      - 8080
+    env_file:
+      - ../.env
+    environment:
+      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL}
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+    # Renders the settings template (SECRET/BASE_URL resolved from ../.env)
+    # and hands over to the image entrypoint. Same pattern as the Portkey
+    # gateway: config file in Git, secrets from the environment.
+    entrypoint: ["/etc/searxng/platform-entrypoint.sh"]
+    healthcheck:
+      # /healthz is SearXNG's own liveness route and is exempt from bot
+      # detection, so the probe stays valid regardless of the limiter setting.
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - ./configs/searxng/settings.template.yml:/etc/searxng/platform-settings.template.yml:ro
+      - ./configs/searxng/entrypoint.sh:/etc/searxng/platform-entrypoint.sh:ro
+    # Deliberately NO named volume: with no limiter and no Valkey cache this
+    # instance holds no persistent state. Its configuration is version-
+    # controlled in Git, so containers stay disposable (docs/deployment.md).
+    networks:
+      - platform-network
+    restart: unless-stopped
+
   # ---------- Per-environment access gateways ----------
   # dev-platform-gateway: ONLY bridge dev-network <-> platform-network.
   dev-platform-gateway:
