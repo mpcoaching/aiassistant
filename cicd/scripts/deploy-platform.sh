@@ -33,7 +33,7 @@
 set -euo pipefail
 
 COMMIT_SHA="${1:-}"
-DEPLOY_DIR="${DEPLOY_DIR:-/home/martinp/Documents/projects/aiassistant}"
+DEPLOY_DIR="${DEPLOY_DIR:-/home/agent99/projects/aiassistant}"
 
 if [ -z "$COMMIT_SHA" ]; then
   echo "ERROR: missing commit SHA argument." >&2

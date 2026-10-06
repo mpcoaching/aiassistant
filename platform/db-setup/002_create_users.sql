@@ -5,48 +5,69 @@
 -- Two statements per role, both idempotent:
 --   CREATE USER  -- only when the role does not exist yet
 --   ALTER  ...   -- ALWAYS, to converge an existing role's password onto the
---                   value in the current .env
+--                   value in the current environment
 --
 -- The ALTER is not cosmetic. Roles are created once, when the Postgres volume
 -- is first seeded, and PostgreSQL never re-reads their password afterwards.
 -- A `CREATE ... WHERE NOT EXISTS`-only script therefore silently freezes the
--- password from that first run: any later .env edit diverges from the live
+-- password from that first run: any later env edit diverges from the live
 -- database, and services start reporting
 --   "password authentication failed for user <role>"
--- even though .env looks correct. Setting the password on every run makes the
--- committed .env.template the single source of truth and removes that drift.
+-- even though the env file looks correct. Setting the password on every run makes
+-- the environment the single source of truth and removes that drift.
 --
--- Passwords come from the environment via envsubst (see bootstrap.sh).
-SELECT 'CREATE USER "' || user_name || '" WITH ENCRYPTED PASSWORD ''' || pass || ''';'
+-- Values come from the container environment via psql \getenv (see bootstrap.sh).
+-- %I quotes the role name and %L quotes the password literal, so a password
+-- containing a quote can no longer break the generated statement.
+\getenv agent_dev_user       AGENT_DEV_DB_USER
+\getenv agent_dev_pass       AGENT_DEV_DB_PASSWORD
+\getenv agent_live_user      AGENT_LIVE_DB_USER
+\getenv agent_live_pass      AGENT_LIVE_DB_PASSWORD
+\getenv n8n_user             N8N_DB_USER
+\getenv n8n_pass             N8N_DB_PASSWORD
+\getenv langgraph_user       LANGGRAPH_DB_USER
+\getenv langgraph_pass       LANGGRAPH_DB_PASSWORD
+\getenv langgraph_dev_user   LANGGRAPH_DEV_DB_USER
+\getenv langgraph_dev_pass   LANGGRAPH_DEV_DB_PASSWORD
+\getenv langgraph_live_user  LANGGRAPH_LIVE_DB_USER
+\getenv langgraph_live_pass  LANGGRAPH_LIVE_DB_PASSWORD
+\getenv langfuse_user        LANGFUSE_DB_USER
+\getenv langfuse_pass        LANGFUSE_DB_PASSWORD
+\getenv openobserve_user     OPENOBSERVE_DB_USER
+\getenv openobserve_pass     OPENOBSERVE_DB_PASSWORD
+\getenv clickhouse_user      CLICKHOUSE_DB_USER
+\getenv clickhouse_pass      CLICKHOUSE_DB_PASSWORD
+
+SELECT format('CREATE USER %I WITH ENCRYPTED PASSWORD %L', usr, pwd) AS stmt
 FROM (VALUES
-    ('${AGENT_DEV_DB_USER}',   '${AGENT_DEV_DB_PASSWORD}'),
-    ('${AGENT_LIVE_DB_USER}',  '${AGENT_LIVE_DB_PASSWORD}'),
-    ('${N8N_DB_USER}',         '${N8N_DB_PASSWORD}'),
-    ('${LANGGRAPH_DB_USER}',   '${LANGGRAPH_DB_PASSWORD}'),
-    ('${LANGGRAPH_DEV_DB_USER}',   '${LANGGRAPH_DEV_DB_PASSWORD}'),
-    ('${LANGGRAPH_LIVE_DB_USER}',  '${LANGGRAPH_LIVE_DB_PASSWORD}'),
-    ('${LANGFUSE_DB_USER}',    '${LANGFUSE_DB_PASSWORD}'),
-    ('${OPENOBSERVE_DB_USER}', '${OPENOBSERVE_DB_PASSWORD}'),
-    ('${CLICKHOUSE_DB_USER}',  '${CLICKHOUSE_DB_PASSWORD}')
-) AS users(user_name, pass)
-WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = user_name)
+    (:'agent_dev_user',      :'agent_dev_pass'),
+    (:'agent_live_user',     :'agent_live_pass'),
+    (:'n8n_user',            :'n8n_pass'),
+    (:'langgraph_user',      :'langgraph_pass'),
+    (:'langgraph_dev_user',  :'langgraph_dev_pass'),
+    (:'langgraph_live_user', :'langgraph_live_pass'),
+    (:'langfuse_user',       :'langfuse_pass'),
+    (:'openobserve_user',    :'openobserve_pass'),
+    (:'clickhouse_user',     :'clickhouse_pass')
+) AS wanted(usr, pwd)
+WHERE usr <> ''
+  AND NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = usr)
 \gexec
 
--- Converge passwords for roles that already exist. ALTER ROLE also works on a
--- role that does not exist yet in older setups, but every role above is
--- created by the block above on a fresh volume, so this always finds its
--- target.
-SELECT 'ALTER ROLE "' || user_name || '" WITH LOGIN PASSWORD ''' || pass || ''';'
+-- Converge passwords for roles that already exist. Every role above is created
+-- by the block above on a fresh volume, so this always finds its target.
+SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', usr, pwd) AS stmt
 FROM (VALUES
-    ('${AGENT_DEV_DB_USER}',   '${AGENT_DEV_DB_PASSWORD}'),
-    ('${AGENT_LIVE_DB_USER}',  '${AGENT_LIVE_DB_PASSWORD}'),
-    ('${N8N_DB_USER}',         '${N8N_DB_PASSWORD}'),
-    ('${LANGGRAPH_DB_USER}',   '${LANGGRAPH_DB_PASSWORD}'),
-    ('${LANGGRAPH_DEV_DB_USER}',   '${LANGGRAPH_DEV_DB_PASSWORD}'),
-    ('${LANGGRAPH_LIVE_DB_USER}',  '${LANGGRAPH_LIVE_DB_PASSWORD}'),
-    ('${LANGFUSE_DB_USER}',    '${LANGFUSE_DB_PASSWORD}'),
-    ('${OPENOBSERVE_DB_USER}', '${OPENOBSERVE_DB_PASSWORD}'),
-    ('${CLICKHOUSE_DB_USER}',  '${CLICKHOUSE_DB_PASSWORD}')
-) AS users(user_name, pass)
-WHERE EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = user_name)
+    (:'agent_dev_user',      :'agent_dev_pass'),
+    (:'agent_live_user',     :'agent_live_pass'),
+    (:'n8n_user',            :'n8n_pass'),
+    (:'langgraph_user',      :'langgraph_pass'),
+    (:'langgraph_dev_user',  :'langgraph_dev_pass'),
+    (:'langgraph_live_user', :'langgraph_live_pass'),
+    (:'langfuse_user',       :'langfuse_pass'),
+    (:'openobserve_user',    :'openobserve_pass'),
+    (:'clickhouse_user',     :'clickhouse_pass')
+) AS wanted(usr, pwd)
+WHERE usr <> ''
+  AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = usr)
 \gexec

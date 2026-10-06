@@ -19,10 +19,10 @@ npm run infra:down    # docker compose -f infrastructure/compose.yml down
 Removes containers AND all named volumes (Postgres, registry, Gitea, TeamCity, …). Take a backup
 first (`bash cicd/scripts/backup-all.sh`).
 ```bash
-docker compose -f environments/dev/compose.yml  down -v
-docker compose -f environments/live/compose.yml down -v
-docker compose -f platform/compose.yml          down -v
-docker compose -f infrastructure/compose.yml    down -v
+docker compose -f environments/dev/compose.yml  --env-file .env down -v
+docker compose -f environments/live/compose.yml --env-file .env down -v
+docker compose -f platform/compose.yml          --env-file .env down -v
+docker compose -f infrastructure/compose.yml    --env-file .env down -v
 docker network rm infrastructure-network platform-network dev-network live-network
 ```
 

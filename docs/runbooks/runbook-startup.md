@@ -18,7 +18,7 @@ npm run infra:up
 
 # 2. Platform (shared services + the two gateways)
 npm run platform:up
-#    or: docker compose -f platform/compose.yml up -d
+#    or: docker compose -f platform/compose.yml --env-file .env up -d
 
 # 3. Dev (or Live)
 npm run dev:up

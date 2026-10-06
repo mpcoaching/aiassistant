@@ -2,7 +2,13 @@
 # Platform stack — shared services + per-environment access gateways.
 # Owns platform-network (single owner). dev/live networks are EXTERNAL
 # (created by infrastructure/compose.yml). Gateways bridge platform<->env.
-#   docker compose -f platform/compose.yml up -d
+#   docker compose -f platform/compose.yml --env-file .env up -d
+#
+# `--env-file .env` is NOT optional. The Compose project directory is the
+# directory of the first -f file (platform/), so Compose looks for platform/.env
+# and never finds the repository-root .env. Without the flag every ${VAR} below
+# interpolates to an empty string and n8n comes up with a blank database
+# password. The ${VAR:?} entries on n8n turn that mistake into a hard error.
 #
 # IMMUTABILITY: every third-party image below MUST be pinned to a specific
 # version (or @sha256 digest) before first promotion. `latest`/moving tags
@@ -33,28 +39,27 @@ services:
     volumes:
       - postgres_db:/var/lib/postgresql/data
 
+  # Creates/aligns databases, roles and grants. This MUST actually run: it is the
+  # only thing that reconciles the Postgres volume with the current environment.
+  # It used to be a no-op guard (python image without psql, air-gapped apk), which
+  # let the platform start with agent_dev/agent_live missing and left migrate-*
+  # crash-looping forever. postgres:16-alpine ships psql, and the SQL reads values
+  # from the environment via psql \getenv, so no envsubst/gettext is needed.
   db-bootstrapper:
-    image: python:3.11-alpine
+    image: postgres:16-alpine
+    entrypoint: ["/bin/sh", "/db-setup/bootstrap.sh"]
     volumes:
       - ./db-setup:/db-setup:ro
     env_file:
       - ../.env
     environment:
       - PGPASSWORD=${POSTGRES_DB_PASSWORD}
-    command:
-      - sh
-      - -c
-      - |
-        # The platform network is air-gapped: `apk add` cannot reach the Alpine
-        # mirror, and the python:3.11-alpine image has no psql. The DB is
-        # bootstrapped from the host already (all 9 databases + users exist), so
-        # this container is a no-op guard. Exit 0 either way so dependent
-        # services (migrate-dev, migrate-live, langfuse) can start.
-        if command -v psql >/dev/null 2>&1; then
-          sh /db-setup/bootstrap.sh
-        else
-          echo "psql not available in bootstrapper image; DB already bootstrapped on host."
-        fi
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_DB_USER=${POSTGRES_DB_USER}
+      - POSTGRES_DB_PASSWORD=${POSTGRES_DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - platform-network
     restart: on-failure
@@ -366,31 +371,63 @@ services:
     restart: unless-stopped
 
   n8n:
-    image: n8nio/n8n:latest
+    # Pinned by digest (n8n 2.40.6, the image this host already runs). `latest`
+    # silently upgrades n8n and its DB migrations on any pull, which is how a
+    # "no-op" recreate turns into an outage.
+    image: n8nio/n8n:latest@sha256:9c7871d5cc4fc2565bb905e4df5bf7d6a5a4bf2f4313fb99a2b3fa380f331d7c
+    # n8n was the only service in this file without a restart policy. Docker
+    # reports a missing policy as "no", so after every host reboot the container
+    # stayed down until somebody started it by hand - which is the whole of
+    # "n8n isn't running again".
+    restart: unless-stopped
     ports:
       - "${N8N_PORT}:5678"
     environment:
       - N8N_HOST=${N8N_HOST}
       - N8N_PORT=${N8N_PORT}
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      # ${VAR:?} makes Compose fail loudly when .env was not loaded, instead of
+      # handing n8n a blank password that only fails on the next container start.
+      - DB_TYPE=${N8N_DB_TYPE:?N8N_DB_TYPE unset - run compose with --env-file .env}
+      - DB_POSTGRESDB_HOST=${N8N_DB_HOST:?N8N_DB_HOST unset - run compose with --env-file .env}
+      - DB_POSTGRESDB_PORT=${N8N_DB_PORT:?N8N_DB_PORT unset - run compose with --env-file .env}
+      - DB_POSTGRESDB_DATABASE=${N8N_DB_DATABASE:?N8N_DB_DATABASE unset - run compose with --env-file .env}
+      - DB_POSTGRESDB_USER=${N8N_DB_USER:?N8N_DB_USER unset - run compose with --env-file .env}
+      - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD:?N8N_DB_PASSWORD unset - run compose with --env-file .env}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
       - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
       - N8N_PROXY_HOPS=${N8N_PROXY_HOPS}
       - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
-      - DB_TYPE=${N8N_DB_TYPE}
-      - DB_POSTGRESDB_HOST=${N8N_DB_HOST}
-      - DB_POSTGRESDB_PORT=${N8N_DB_PORT}
-      - DB_POSTGRESDB_DATABASE=${N8N_DB_DATABASE}
-      - DB_POSTGRESDB_USER=${N8N_DB_USER}
-      - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD}
       - N8N_OTEL_ENABLED=${N8N_OTEL_ENABLED}
       - N8N_OTEL_SERVICE_NAME=${N8N_OTEL_SERVICE_NAME}
       - N8N_OTEL_EXPORTER_OTLP_ENDPOINT=${N8N_OTEL_EXPORTER_OTLP_ENDPOINT}
+      - N8N_UNVERIFIED_PACKAGES_ENABLED=${N8N_UNVERIFIED_PACKAGES_ENABLED}
+      - N8N_RUNNERS_MODE=${N8N_RUNNERS_MODE}
+      - N8N_RUNNERS_TASK_TIMEOUT=${N8N_RUNNERS_TASK_TIMEOUT}
+      - N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES=${N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES}
+      - N8N_COMPRESSION_NODE_MAX_ZIP_ENTRIES=${N8N_COMPRESSION_NODE_MAX_ZIP_ENTRIES}
+      - N8N_DIAGNOSTICS_ENABLED=${N8N_DIAGNOSTICS_ENABLED}
+      - N8N_PERSONALIZATION_ENABLED=${N8N_PERSONALIZATION_ENABLED}
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=${N8N_VERSION_NOTIFICATIONS_ENABLED}
       - LANGCHAIN_TRACING_V2=${N8N_LANGCHAIN_TRACING_V2}
       - LANGCHAIN_API_KEY=${N8N_LANGCHAIN_API_KEY}
       - LANGCHAIN_ENDPOINT=${N8N_LANGCHAIN_ENDPOINT}
       - LANGCHAIN_PROJECT=${N8N_LANGCHAIN_PROJECT}
       - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/mkcert-rootCA.pem
+    # Without this, `docker compose ps` and any depends_on: service_healthy report
+    # n8n as "running" while it is still initialising or has already failed on DB
+    # auth, which is how a broken n8n stayed invisible until a user hit the UI.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz | grep -q '\"status\":\"ok\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    # Docker's default 10s grace SIGKILLs n8n mid-shutdown, so every recreate
+    # left an unclean session behind ("Last session crashed" on the next boot,
+    # plus a "Database ping failed" during shutdown). 60s lets it drain the
+    # runner pool and Postgres connections cleanly.
+    stop_grace_period: 60s
     networks:
       - platform-network
       - infrastructure-network
