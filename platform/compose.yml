@@ -380,6 +380,9 @@ services:
     # stayed down until somebody started it by hand - which is the whole of
     # "n8n isn't running again".
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "${N8N_PORT}:5678"
     environment:

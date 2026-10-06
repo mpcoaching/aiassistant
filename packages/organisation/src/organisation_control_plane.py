@@ -19,12 +19,14 @@ Imports: role module only. No capability_registry, no concepts, no Paperclip, no
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 from contracts.organisational_events import WorkEventType
 
+from execution_path import ExecutionPath, ExecutionPathResult
 from role import (
     Agent,
     Assignment,
@@ -181,6 +183,24 @@ class OrganisationControlPlane(ABC):
         Returns a CapacityPressureSignal if pressure is detected, otherwise None.
         This is a minimal proof-of-concept; real implementations may use
         sliding windows, percentile analysis, or predictive models.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def select_execution_path(
+        self,
+        intent: str,
+        context: dict[str, Any],
+        workflow_lookup: Callable[[str], list[Any]] | None = None,
+        capability_query: Callable[[str], Any] | None = None,
+    ) -> ExecutionPathResult:
+        """Select how an intent should be executed.
+
+        Returns an ExecutionPathResult describing the chosen path:
+        - EXISTING_WORKFLOW if a matching workflow is found
+        - CAPABILITY_PATH if a registered capability is available
+        - HUMAN_TEAM_INVESTIGATION if a capability exists but is unavailable
+        - NEW_CAPABILITY_REQUIRED otherwise
         """
         raise NotImplementedError
 
@@ -434,6 +454,77 @@ class InMemoryOrganisationControlPlane(OrganisationControlPlane):
                 reason=f"{total_load} work items compete for this capability",
             )
         return None
+
+    def select_execution_path(
+        self,
+        intent: str,
+        context: dict[str, Any],
+        workflow_lookup: Callable[[str], list[Any]] | None = None,
+        capability_query: Callable[[str], Any] | None = None,
+    ) -> ExecutionPathResult:
+        required_ids: list[str] = list(context.get("required_capability_ids", []) or [])
+        candidates: list[dict[str, Any]] = list(context.get("candidate_capabilities", []) or [])
+
+        if workflow_lookup is not None:
+            matches = workflow_lookup(intent)
+            if matches:
+                return ExecutionPathResult(
+                    path=ExecutionPath.EXISTING_WORKFLOW,
+                    workflow=matches[0],
+                    reason=f"Matched workflow: {getattr(matches[0], 'name', matches[0])}",
+                )
+
+        def _is_unavailable(query_result: Any) -> bool:
+            if query_result is None:
+                return False
+            available = getattr(query_result, "available", None)
+            if available is None and isinstance(query_result, dict):
+                available = query_result.get("available")
+            return available is False
+
+        for cap_id in required_ids:
+            if not cap_id:
+                continue
+            registered = cap_id in self._capabilities
+            if registered:
+                if capability_query is not None and _is_unavailable(capability_query(cap_id)):
+                    return ExecutionPathResult(
+                        path=ExecutionPath.HUMAN_TEAM_INVESTIGATION,
+                        capability_id=cap_id,
+                        reason=f"Registered capability {cap_id} is unavailable",
+                    )
+                return ExecutionPathResult(
+                    path=ExecutionPath.CAPABILITY_PATH,
+                    capability_id=cap_id,
+                    reason=f"Registered capability {cap_id} is available",
+                )
+            if capability_query is not None and _is_unavailable(capability_query(cap_id)):
+                return ExecutionPathResult(
+                    path=ExecutionPath.HUMAN_TEAM_INVESTIGATION,
+                    capability_id=cap_id,
+                    reason=f"Capability {cap_id} is unavailable",
+                )
+            return ExecutionPathResult(
+                path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
+                capability_id=cap_id,
+                reason=f"Capability {cap_id} is not registered",
+            )
+
+        for candidate in candidates:
+            cap_id = candidate.get("id")
+            if not cap_id:
+                continue
+            if capability_query is None or not _is_unavailable(capability_query(cap_id)):
+                return ExecutionPathResult(
+                    path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
+                    capability_id=cap_id,
+                    reason=f"Capability {cap_id} identified from candidates",
+                )
+
+        return ExecutionPathResult(
+            path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
+            reason="No matching workflow or capability",
+        )
 
     def _emit_work_event(
         self,

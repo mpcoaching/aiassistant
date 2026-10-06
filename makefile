@@ -53,6 +53,11 @@ platform-up: infra-up
 REMOTE_HOST := agent99@192.168.1.238
 REMOTE_DIR := /home/agent99/projects/aiassistant
 
+.PHONY: remote-backup
+remote-backup:
+	@echo "Running full backup on $(REMOTE_HOST)..."
+	@REMOTE_HOST=$(REMOTE_HOST) REMOTE_DIR=$(REMOTE_DIR) bash scripts/backup.sh
+
 remote-infra-up:
 	ssh -o StrictHostKeyChecking=accept-new $(REMOTE_HOST) "cd $(REMOTE_DIR) && make infra-up"
 

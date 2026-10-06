@@ -14,6 +14,7 @@
 \getenv agent_live_db     AGENT_LIVE_DB_NAME
 \getenv agent_live_user   AGENT_LIVE_DB_USER
 \getenv n8n_db            N8N_DB_NAME
+\getenv n8n_sandbox_db    N8N_SANDBOX_DB_NAME
 \getenv n8n_user          N8N_DB_USER
 \getenv langgraph_db      LANGGRAPH_DB_NAME
 \getenv langgraph_user    LANGGRAPH_DB_USER
@@ -36,6 +37,7 @@ FROM (VALUES
     (:'agent_dev_db',      :'agent_dev_user'),
     (:'agent_live_db',     :'agent_live_user'),
     (:'n8n_db',            :'n8n_user'),
+    (:'n8n_sandbox_db',    :'n8n_user'),
     (:'langgraph_db',      :'langgraph_user'),
     (:'langgraph_dev_db',  :'langgraph_dev_user'),
     (:'langgraph_live_db', :'langgraph_live_user'),

@@ -22,6 +22,7 @@ from uuid import uuid4
 
 import httpx
 from contracts.organisational_events import WorkEvent, WorkEventType
+from execution_path import ExecutionPath, ExecutionPathResult
 from organisation_control_plane import OrganisationControlPlane
 from role import (
     Agent,
@@ -470,6 +471,18 @@ class PaperclipOrganisationControlPlane(OrganisationControlPlane):
                 reason=f"{total_load} work items compete for this capability",
             )
         return None
+
+    def select_execution_path(
+        self,
+        intent: str,
+        context: dict[str, Any],
+        workflow_lookup: Callable[[str], list[Any]] | None = None,
+        capability_query: Callable[[str], Any] | None = None,
+    ) -> ExecutionPathResult:
+        return ExecutionPathResult(
+            path=ExecutionPath.NEW_CAPABILITY_REQUIRED,
+            reason="Paperclip adapter does not perform solution selection",
+        )
 
     def delegate_authority(self, from_role: Role, to_role: Role, authority: Authority) -> Delegation:
         """Delegate authority from one role to another."""

@@ -11,6 +11,7 @@
 \getenv agent_dev_db      AGENT_DEV_DB_NAME
 \getenv agent_live_db     AGENT_LIVE_DB_NAME
 \getenv n8n_db            N8N_DB_NAME
+\getenv n8n_sandbox_db    N8N_SANDBOX_DB_NAME
 \getenv langgraph_db      LANGGRAPH_DB_NAME
 \getenv langgraph_dev_db  LANGGRAPH_DEV_DB_NAME
 \getenv langgraph_live_db LANGGRAPH_LIVE_DB_NAME
@@ -23,6 +24,7 @@ FROM (VALUES
     (:'agent_dev_db'),
     (:'agent_live_db'),
     (:'n8n_db'),
+    (:'n8n_sandbox_db'),
     (:'langgraph_db'),
     (:'langgraph_dev_db'),
     (:'langgraph_live_db'),
