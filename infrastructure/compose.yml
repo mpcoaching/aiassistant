@@ -36,16 +36,16 @@ services:
       retries: 5
 
   # ----- DNS: internal only — resolves *.local.test for Docker network containers -----
-  # Not exposed on host port 53 (dnsmasq may be running on host; binding fails).
-  # Docker's built-in DNS (127.0.0.11) handles inter-container service discovery.
-  # CoreDNS is only for *.local.test FQDN resolution within infrastructure-network.
+  # NOT exposed on host port 53: dnsmasq already binds 53 on the host, so publishing
+  # it here makes the container fail to come up (address already in use) and the
+  # container ends up with no network attachments at all. CoreDNS is reachable
+  # only from inside infrastructure-network via Docker's embedded resolver (127.0.0.11).
+  # The laptop reaches *.local.test through its own split-horizon resolver that
+  # forwards local.test queries to this container's network IP.
   core_dns:
     image: coredns/coredns:1.11.1
     container_name: infra_dns
     command: -conf /etc/coredns/Corefile
-    ports:
-      - "53:53/udp"
-      - "53:53/tcp"
     volumes:
       - ./configs/coredns/Corefile:/etc/coredns/Corefile:ro
     networks:
