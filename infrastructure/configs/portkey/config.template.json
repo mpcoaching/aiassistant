@@ -1,0 +1,103 @@
+{
+  "plugins_enabled": ["default"],
+  "cache": false,
+  "integrations": [
+    {
+      "provider": "openai",
+      "slug": "ollama-local",
+      "credentials": {
+        "apiKey": "ollama"
+      },
+      "base_url": "http://192.168.1.68:11434/v1",
+      "models": [
+        { "slug": "qwen2.5-coder:7b", "status": "active" },
+        { "slug": "qwen2.5:1.5b", "status": "active" },
+        { "slug": "llama3.1:8b", "status": "active" },
+        { "slug": "qwen2.5:7b", "status": "active" },
+        { "slug": "deepseek-r1:8b", "status": "active" }
+      ]
+    },
+    {
+      "provider": "groq",
+      "slug": "groq-cloud",
+      "credentials": {
+        "apiKey": "${GROQ_API_KEY}"
+      },
+      "base_url": "https://api.groq.com/openai/v1",
+      "models": [
+        { "slug": "qwen/qwen3.8-27b", "status": "active" },
+        { "slug": "llama-3.3-70b-versatile", "status": "active" },
+        { "slug": "llama-3.1-8b-instant", "status": "active" }
+      ]
+    },
+    {
+      "provider": "openai",
+      "slug": "github-models",
+      "credentials": {
+        "apiKey": "${GITHUB_PAT}"
+      },
+      "base_url": "https://models.inference.ai.azure.com",
+      "models": [
+        { "slug": "gpt-4o", "status": "active" },
+        { "slug": "gpt-4o-mini", "status": "active" }
+      ]
+    },
+    {
+      "provider": "openai",
+      "slug": "openrouter",
+      "credentials": {
+        "apiKey": "${OPENROUTER_API_KEY}"
+      },
+      "base_url": "https://openrouter.ai/api/v1",
+      "models": [
+        { "slug": "meta-llama/llama-3.3-70b-instruct:free", "status": "active" },
+        { "slug": "meta-llama/llama-3.1-8b-instruct:free", "status": "active" }
+      ]
+    },
+    {
+      "provider": "openai",
+      "slug": "gemini-cloud",
+      "credentials": {
+        "apiKey": "${GEMINI_API_KEY}"
+      },
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "models": [
+        { "slug": "gemini-2.5-flash", "status": "active" },
+        { "slug": "gemini-2.5-pro", "status": "active" }
+      ]
+    }
+  ],
+  "defaultConfig": {
+    "strategy": { "mode": "fallback" },
+    "retry": { "attempts": 3, "on_status_codes": [429, 500, 502, 503, 504] },
+    "request_timeout": 30000,
+    "targets": [
+      {
+        "provider": "openai",
+        "api_key": "ollama",
+        "custom_host": "http://192.168.1.68:11434/v1",
+        "override_params": { "model": "qwen2.5-coder:7b" }
+      },
+      {
+        "provider": "groq",
+        "api_key": "${GROQ_API_KEY}",
+        "override_params": { "model": "qwen/qwen3.8-27b" }
+      },
+      {
+        "provider": "openai",
+        "api_key": "${GITHUB_PAT}",
+        "override_params": { "model": "gpt-4o" }
+      },
+      {
+        "provider": "openai",
+        "api_key": "${OPENROUTER_API_KEY}",
+        "override_params": { "model": "meta-llama/llama-3.3-70b-instruct:free" }
+      },
+      {
+        "provider": "openai",
+        "api_key": "${GEMINI_API_KEY}",
+        "override_params": { "model": "gemini-2.5-flash" }
+      }
+    ]
+  }
+}

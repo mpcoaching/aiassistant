@@ -1,0 +1,5 @@
+[2026-08-30 03:36:00] Starting workflow: test.execute
+[2026-08-30 03:36:00] Total steps: 3
+[2026-08-30 03:36:00] Step 1/3: test.create-scenarios (skill)
+[2026-08-30 03:36:14] Step 'test.create-scenarios' failed: LangGraph request failed: [Errno -2] Name or service not known
+[2026-08-30 03:36:14] Workflow finished with status: failed

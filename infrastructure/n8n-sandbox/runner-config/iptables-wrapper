@@ -1,0 +1,18 @@
+#!/bin/sh
+# Wrapper to strip -W option which breaks iptables-nft
+echo "[$(date)] iptables-wrapper called with: $@" >&2
+args=""
+skip_next=0
+for arg in "$@"; do
+    if [ $skip_next -eq 1 ]; then
+        skip_next=0
+        continue
+    fi
+    case "$arg" in
+        -W) skip_next=1; continue ;;
+        -W*) continue ;;
+        *) args="$args $arg" ;;
+    esac
+done
+echo "[$(date)] iptables-wrapper executing: /usr/sbin/iptables $args" >&2
+exec /usr/sbin/iptables $args

@@ -1,0 +1,12 @@
+{
+  "strategy": { "mode": "fallback" },
+  "retry": { "attempts": 3, "on_status_codes": [429, 500, 502, 503, 504] },
+  "request_timeout": 30000,
+  "targets": [
+    { "provider": "@groq-cloud",            "override_params": { "model": "llama-3.3-70b-versatile" } },
+    { "provider": "@github-models",          "override_params": { "model": "gpt-4o" } },
+    { "provider": "@openrouter",             "override_params": { "model": "meta-llama/llama-3.3-70b-instruct:free" } },
+    { "provider": "@gemini-cloud",           "override_params": { "model": "gemini-1.5-flash" } },
+    { "provider": "@model-runner-local",     "override_params": { "model": "coding-local" } }
+  ]
+}

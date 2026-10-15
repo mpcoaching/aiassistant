@@ -1,0 +1,190 @@
+# =============================================================================
+# n8n AI Assistant Sandbox — Complete stack with n8n + sandbox services
+# Runs on port 5679 with its own database and volume.
+# Includes sandbox-api, sandbox-runner-1, tls-init, and searxng for n8n Assistant
+# =============================================================================
+name: n8n-sandbox
+
+services:
+  # Generates mTLS certificates for sandbox-api and sandbox-runner-1
+  # Runs once at startup, then exits
+  tls-init:
+    image: n8nio/n8n-sandbox-service-api:1.4.0
+    container_name: n8n-sandbox-tls-init
+    user: "0:0"
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        bootstrap-mtls.sh
+        --out-dir /tls
+        --api-san sandbox-api
+        --control-san-prefix sandbox-runner
+        --runners 1
+        --force
+        && chown -R sandbox-api:sandbox-api /tls/api /tls/runner
+    environment:
+      NUM_RUNNERS: 1
+    volumes:
+      - sandbox_certs:/tls
+    networks:
+      - infrastructure-network
+    restart: "no"
+
+  # Sandbox API - control plane that n8n talks to for code execution
+  sandbox-api:
+    image: n8nio/n8n-sandbox-service-api:1.4.0
+    container_name: n8n-sandbox-api
+    restart: unless-stopped
+    depends_on:
+      tls-init:
+        condition: service_completed_successfully
+    environment:
+      - SANDBOX_API_ADDR=:8080
+      - SANDBOX_API_GRPC_ADDR=:8081
+      - SANDBOX_API_KEYS=${SANDBOX_API_KEYS}
+      - SANDBOX_API_RUNNER_REGISTRATION_TOKEN=${SANDBOX_API_RUNNER_REGISTRATION_TOKEN}
+      - SANDBOX_API_RUNNER_API_KEY=${SANDBOX_API_RUNNER_API_KEY}
+      - SANDBOX_API_GRPC_TLS_CERT_FILE=/tls/api/grpc-server.crt
+      - SANDBOX_API_GRPC_TLS_KEY_FILE=/tls/api/grpc-server.key
+      - SANDBOX_API_GRPC_TLS_CLIENT_CA_FILE=/tls/api/ca.crt
+      - SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CA_FILE=/tls/api/ca.crt
+      - SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CERT_FILE=/tls/api/control-grpc-api-client.crt
+      - SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_KEY_FILE=/tls/api/control-grpc-api-client.key
+      - SANDBOX_RUNNER_DOCKER_SANDBOX_IMAGE=n8nio/n8n-sandbox-service-sandbox:1.4.0
+    volumes:
+      - sandbox_certs:/tls:ro
+    networks:
+      - infrastructure-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Sandbox Runner - privileged Docker-in-Docker container that runs sandboxes
+  sandbox-runner-1:
+    image: n8nio/n8n-sandbox-service-runner-dind:1.4.0
+    container_name: n8n-sandbox-runner-1
+    restart: unless-stopped
+    privileged: true
+    environment:
+      - SANDBOX_RUNNER_API_GRPC_ADDR=sandbox-api:9090
+      - SANDBOX_RUNNER_REGISTRATION_TOKEN=${SANDBOX_API_RUNNER_REGISTRATION_TOKEN}
+      - SANDBOX_RUNNER_API_KEY=${SANDBOX_API_RUNNER_API_KEY}
+      - SANDBOX_RUNNER_API_KEYS=${SANDBOX_API_RUNNER_API_KEY}
+      - SANDBOX_RUNNER_DOCKER_SANDBOX_IMAGE=n8nio/n8n-sandbox-service-sandbox:1.4.0
+      - SANDBOX_RUNNER_HTTP_BASE_URL=https://sandbox-runner-1:8080
+      - SANDBOX_RUNNER_CONTROL_GRPC_LISTEN_ADDR=:9091
+      - SANDBOX_RUNNER_CONTROL_GRPC_ADVERTISE_ADDR=sandbox-runner-1:9091
+      - SANDBOX_RUNNER_REGISTRATION_GRPC_CA_FILE=/tls/runner/ca.crt
+      - SANDBOX_RUNNER_REGISTRATION_GRPC_CERT_FILE=/tls/runner/grpc-client.crt
+      - SANDBOX_RUNNER_REGISTRATION_GRPC_KEY_FILE=/tls/runner/grpc-client.key
+      - SANDBOX_RUNNER_REGISTRATION_GRPC_SERVER_NAME=sandbox-api
+      - SANDBOX_RUNNER_CONTROL_GRPC_TLS_CERT_FILE=/tls/runner/control-grpc-server.crt
+      - SANDBOX_RUNNER_CONTROL_GRPC_TLS_KEY_FILE=/tls/runner/control-grpc-server.key
+      - SANDBOX_RUNNER_CONTROL_GRPC_TLS_CLIENT_CA_FILE=/tls/runner/ca.crt
+    volumes:
+      - sandbox_certs:/tls:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./runner-config/iptables-wrapper:/usr/local/bin/iptables:ro
+      - ./runner-config/start-runner.sh:/usr/local/bin/start-runner.sh:ro
+    networks:
+      - infrastructure-network
+    depends_on:
+      tls-init:
+        condition: service_completed_successfully
+      sandbox-api:
+        condition: service_healthy
+
+  # SearXNG - bundled web search for n8n Assistant
+  searxng:
+    image: searxng/searxng:2026.10.2-19ffbcd30
+    container_name: n8n-sandbox-searxng
+    restart: unless-stopped
+    expose:
+      - 8080
+    environment:
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+      - SEARXNG_BASE_URL=http://searxng:8080
+    volumes:
+      - ./searxng-settings.yml:/etc/searxng/settings.yml:ro
+    networks:
+      - infrastructure-network
+
+  # Main n8n sandbox instance
+  n8n-sandbox:
+    image: n8nio/n8n:latest@sha256:9c7871d5cc4fc2565bb905e4df5bf7d6a5a4bf2f4313fb99a2b3fa380f331d7c
+    container_name: n8n-sandbox
+    restart: unless-stopped
+    ports:
+      - "5679:5678"
+    env_file:
+      - .env.sandbox
+    environment:
+      - N8N_HOST=n8n-sandbox.local.test
+      - N8N_PORT=5678
+      - DB_TYPE=${N8N_DB_TYPE:?N8N_DB_TYPE unset}
+      - DB_POSTGRESDB_HOST=${N8N_DB_HOST:?N8N_DB_HOST unset}
+      - DB_POSTGRESDB_PORT=${N8N_DB_PORT:?N8N_DB_PORT unset}
+      - DB_POSTGRESDB_DATABASE=n8n_sandbox
+      - DB_POSTGRESDB_USER=${N8N_DB_USER:?N8N_DB_USER unset}
+      - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD:?N8N_DB_PASSWORD unset}
+      - N8N_WEBHOOK_URL=http://n8n-sandbox.local.test
+      - N8N_EDITOR_BASE_URL=http://n8n-sandbox.local.test
+      - N8N_SECURE_COOKIE=false
+      - N8N_PROXY_HOPS=1
+      - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
+      - N8N_OTEL_ENABLED=${N8N_OTEL_ENABLED}
+      - N8N_OTEL_SERVICE_NAME=n8n-sandbox
+      - N8N_OTEL_EXPORTER_OTLP_ENDPOINT=${N8N_OTEL_EXPORTER_OTLP_ENDPOINT}
+      - N8N_UNVERIFIED_PACKAGES_ENABLED=${N8N_UNVERIFIED_PACKAGES_ENABLED}
+      - N8N_RUNNERS_MODE=${N8N_RUNNERS_MODE}
+      - N8N_RUNNERS_TASK_TIMEOUT=${N8N_RUNNERS_TASK_TIMEOUT}
+      - N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES=${N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES}
+      - N8N_COMPRESSION_NODE_MAX_ZIP_ENTRIES=${N8N_COMPRESSION_NODE_MAX_ZIP_ENTRIES}
+      - N8N_DIAGNOSTICS_ENABLED=${N8N_DIAGNOSTICS_ENABLED}
+      - N8N_PERSONALIZATION_ENABLED=${N8N_PERSONALIZATION_ENABLED}
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=${N8N_VERSION_NOTIFICATIONS_ENABLED}
+      - LANGCHAIN_TRACING_V2=${N8N_LANGCHAIN_TRACING_V2}
+      - LANGCHAIN_API_KEY=${N8N_LANGCHAIN_API_KEY}
+      - LANGCHAIN_ENDPOINT=${N8N_LANGCHAIN_ENDPOINT}
+      - LANGCHAIN_PROJECT=${N8N_LANGCHAIN_PROJECT}
+      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/mkcert-rootCA.pem
+      # n8n Assistant configuration
+      - N8N_INSTANCE_AI_SANDBOX_ENABLED=true
+      - N8N_INSTANCE_AI_SANDBOX_PROVIDER=n8n-sandbox
+      - N8N_SANDBOX_SERVICE_URL=http://sandbox-api:8080
+      - N8N_SANDBOX_SERVICE_API_KEY=${N8N_SANDBOX_SERVICE_API_KEY}
+      - N8N_INSTANCE_AI_SEARXNG_URL=${N8N_INSTANCE_AI_SEARXNG_URL}
+      - N8N_INSTANCE_AI_MODEL_API_KEY=${N8N_INSTANCE_AI_MODEL_API_KEY}
+      - N8N_INSTANCE_AI_MODEL=${N8N_INSTANCE_AI_MODEL}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz | grep -q '\"status\":\"ok\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    stop_grace_period: 60s
+    networks:
+      - platform-network
+      - infrastructure-network
+    volumes:
+      - n8n_sandbox_data:/home/node/.n8n
+      - ../../custom-nodes:/home/node/.n8n/custom
+      - ../../packages/configuration/rootCA.pem:/etc/ssl/certs/mkcert-rootCA.pem:ro
+    depends_on:
+      sandbox-api:
+        condition: service_healthy
+
+networks:
+  platform-network:
+    name: platform-network
+    external: true
+  infrastructure-network:
+    name: infrastructure-network
+    external: true
+
+volumes:
+  n8n_sandbox_data:
+  sandbox_certs:

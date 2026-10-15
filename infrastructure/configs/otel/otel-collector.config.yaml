@@ -1,0 +1,33 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+
+exporters:
+  otlphttp/openobserve:
+    endpoint: "http://openobserve:5080/api/default"
+    headers:
+      Authorization: "Basic YWRtaW5AZXhhbXBsZS5jb206bzJvaV9GcmprcHBnbTc5cHJSamc5S2l4TUtJM1JqcFFLWFgwag=="
+      stream-name: "app-telemetry"
+  otlphttp/langfuse:
+    endpoint: "http://langfuse:3000/api/public/otel"
+    headers:
+      Authorization: "Basic ${LANGFUSE_AUTH_HEADER}"
+      x-langfuse-ingestion-version: "4"
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/openobserve]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/openobserve, otlphttp/langfuse]

@@ -1,0 +1,8 @@
+{
+  "strategy": { "mode": "fallback" },
+  "retry": { "attempts": 1, "on_status_codes": [429, 500, 502, 503, 504] },
+  "request_timeout": 60000,
+  "targets": [
+    { "provider": "@model-runner-local",     "override_params": { "model": "coding-local" } }
+  ]
+}

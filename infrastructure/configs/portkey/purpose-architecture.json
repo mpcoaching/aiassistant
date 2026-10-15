@@ -1,0 +1,10 @@
+{
+  "strategy": { "mode": "fallback" },
+  "retry": { "attempts": 3, "on_status_codes": [429, 500, 502, 503, 504] },
+  "request_timeout": 30000,
+  "targets": [
+    { "provider": "@groq-cloud",            "override_params": { "model": "llama-3.3-70b-versatile" } },
+    { "provider": "@openrouter",             "override_params": { "model": "meta-llama/llama-3.3-70b-instruct:free" } },
+    { "provider": "@model-runner-local",     "override_params": { "model": "qwen2.5-coder-7b-instruct" } }
+  ]
+}
