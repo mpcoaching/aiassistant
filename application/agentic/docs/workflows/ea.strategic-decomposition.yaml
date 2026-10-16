@@ -1,0 +1,23 @@
+version: "1"
+name: ea.strategic-decomposition
+description: >
+  Decompose business roadmap into enterprise building blocks and subsystem topology.
+kind: workflow
+role:
+  - enterprise-architect
+intent:
+  outcome: >
+    Produce capability maps, ABBs, SBBs, and a phase backlog.
+inputs:
+  - business-roadmap
+  - enterprise-architecture
+  - system-context
+outputs:
+  - capability-map
+  - abb-definitions
+  - sbb-definitions
+  - phase-backlog
+steps:
+  - type: skill
+    name: ea.strategic-decomposition
+    uses: ea.strategic-decomposition

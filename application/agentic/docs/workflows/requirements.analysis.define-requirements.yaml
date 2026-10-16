@@ -1,0 +1,25 @@
+version: "1"
+name: requirements.analysis.define-requirements
+description: >
+  Transform stakeholder analysis into structured requirements documentation.
+kind: workflow
+role:
+  - requirements-engineer
+intent:
+  outcome: >
+    Produce functional, non-functional, and acceptance criteria documents.
+inputs:
+  - stakeholder-analysis-document
+  - business-vision
+  - existing-documentation
+outputs:
+  - functional-requirements
+  - non-functional-requirements
+  - acceptance-criteria
+steps:
+  - type: skill
+    name: requirements.analysis.define-requirements
+    uses: requirements.analysis.define-requirements
+  - type: skill
+    name: requirements.validation.review-stakeholder-analysis
+    uses: requirements.validation.review-stakeholder-analysis

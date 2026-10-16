@@ -1,0 +1,31 @@
+version: "1"
+name: development.implement
+description: >
+  Implement a single task from the solution design using TDD practices.
+kind: workflow
+role:
+  - developer
+intent:
+  outcome: >
+    Produce working, tested code that implements the specified task.
+inputs:
+  - task-description
+  - solution-design
+  - interface-specification
+  - data-model
+  - acceptance-criteria
+outputs:
+  - implemented-code
+  - unit-tests
+  - integration-tests
+  - test-results
+steps:
+  - type: skill
+    name: development.implement-task
+    uses: development.implement-task
+  - type: skill
+    name: development.write-tests
+    uses: development.write-tests
+  - type: skill
+    name: development.refactor
+    uses: development.refactor

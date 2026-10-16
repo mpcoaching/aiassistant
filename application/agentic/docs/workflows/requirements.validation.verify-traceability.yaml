@@ -1,0 +1,22 @@
+version: "1"
+name: requirements.validation.verify-traceability
+description: >
+  Validate requirements completeness, clarity, and traceability.
+kind: workflow
+role:
+  - requirements-engineer
+intent:
+  outcome: >
+    Produce a traceability map and validate all requirements are testable.
+inputs:
+  - functional-requirements
+  - non-functional-requirements
+  - acceptance-criteria
+  - stakeholder-analysis-document
+outputs:
+  - traceability-map
+  - validation-report
+steps:
+  - type: skill
+    name: requirements.validation.verify-traceability
+    uses: requirements.validation.verify-traceability
